@@ -25,3 +25,6 @@ Remux displays actual executed arguments (including generated temporary target),
 
 ## M4.5
 226 tests and Ruff pass. Real generated multi-track source verifies chosen-track copy and output codec/count; incompatible MP4 selection fails without output. Tests exercise failure exit, cancellation during running, zero-exit invalid output, and a final destination created at publication time. Partials retained, no false completion, no overwrites.
+
+## M5.4
+Sequential queue snapshots plans/binaries, supports pending/active cancellation and fresh-attempt retry, retains history/logs/partial paths, and continues after failure or cancellation. Ten queue/task tests pass with real FFmpeg; at most one preparing/running task is asserted. Ruff passes.

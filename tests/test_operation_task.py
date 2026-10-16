@@ -7,14 +7,11 @@ from PySide6.QtWidgets import QApplication
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.domain.operations import (
-    MediaOperation,
-    OperationPlan,
     OutputTarget,
     StreamSelection,
 )
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskRecord, TaskStatus
-from media_wrapper.infrastructure.ffmpeg.binary_resolver import resolve
 from media_wrapper.infrastructure.ffmpeg.output_publication import publish_output
 
 
@@ -25,20 +22,6 @@ def wait(app, predicate):
         time.sleep(.001)
     assert predicate()
 
-
-@pytest.fixture
-def sample(tmp_path):
-    try:
-        binaries = resolve()
-    except (FileNotFoundError, RuntimeError) as error:
-        pytest.skip(str(error))
-    source = tmp_path/'source ü.wav'
-    subprocess.run([str(binaries.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i', 'sine=duration=0.1',
-                    '-n', str(source)], check=True, capture_output=True, timeout=15)
-    media = MediaService(binaries).inspect(source)
-    plan = OperationPlan(MediaOperation.REMUX, media, (StreamSelection(0),),
-                         OutputTarget(tmp_path/'result.mkv', Container.MATROSKA))
-    return binaries, plan
 
 
 def test_verified_staged_remux(sample):
