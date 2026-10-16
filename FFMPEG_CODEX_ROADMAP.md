@@ -67,7 +67,7 @@ isolation. Offscreen layout reviewed; native Windows execution remains pending.
 
 ## Milestone 3 — Typed operation model and command builder (P0, required by M4–M7)
 
-- [ ] **M3.1** Define `MediaOperation`, `StreamSelection`, `OutputTarget`, `EncodingProfile`, `OperationPlan`, and typed validation errors in `domain/`.
+- [x] **M3.1** Define `MediaOperation`, `StreamSelection`, `OutputTarget`, `EncodingProfile`, `OperationPlan`, and typed validation errors in `domain/`.
 - [ ] **M3.2** Implement separate validation for input existence, output naming, in-place/overwrite safety, container–stream compatibility, selected streams, and option availability.
 - [ ] **M3.3** Implement pure `CommandBuilder`: validated operation plan -> `list[str]` arguments. Never use shell execution; correctly handle spaces/Unicode paths.
 - [ ] **M3.4** Explicitly map streams (`-map`), support stream-copy plans (`-c copy`), add controlled output overwrite policy (`-n` by default), and isolate temp output from final output.
