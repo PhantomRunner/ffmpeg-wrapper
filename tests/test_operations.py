@@ -64,3 +64,24 @@ def test_invalid_selection_and_options(plan, streams, code):
     with pytest.raises(PlanValidationError) as error:
         validate_plan(replace(plan, streams=streams), frozenset({'aac'}))
     assert error.value.code == code
+
+
+def test_deterministic_copy_command(plan, monkeypatch):
+    from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
+    monkeypatch.setattr(Path, 'resolve', lambda *a, **k: pytest.fail('Builder accessed filesystem'))
+    expected = ['ffmpeg', '-hide_banner', '-nostdin', '-n', '-i', str(plan.media.path),
+                '-map', '0:2', '-c', 'copy', '-f', 'mp4', str(plan.output.path)]
+    assert CommandBuilder().build(Path('ffmpeg'), plan) == expected
+    assert CommandBuilder().build(Path('ffmpeg'), plan) == expected
+
+
+def test_convert_command_requires_availability(plan):
+    from dataclasses import replace
+
+    from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
+    converted = replace(plan, operation=MediaOperation.CONVERT,
+                        streams=(StreamSelection(2, EncodingProfile('aac', 128000)),))
+    with pytest.raises(PlanValidationError, match='unavailable'):
+        CommandBuilder().build(Path('ffmpeg'), converted)
+    command = CommandBuilder().build(Path('ffmpeg'), converted, frozenset({'aac'}))
+    assert command[-7:] == ['-c:0', 'aac', '-b:0', '128000', '-f', 'mp4', str(plan.output.path)]
