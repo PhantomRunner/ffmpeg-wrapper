@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self.folder.textChanged.connect(self.model.binary_selection_changed)
         self.choose_file_button.clicked.connect(self.choose_file)
         self.remux_button.clicked.connect(self.run_form)
+        self.remux_view.cancel_button.clicked.connect(self.model.cancel_remux)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
         self.remux_view.destination.textChanged.connect(self.output_changed)
         self.container.currentIndexChanged.connect(self.output_changed)
@@ -121,6 +122,8 @@ class MainWindow(QMainWindow):
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
+        self.remux_view.cancel_button.setEnabled(self.model.remux_task is not None)
+        self.remux_view.progress_label.setText(state.remux_progress)
         self.files_view.stream_table.setEnabled(not state.busy)
         listing = self.files_view.file_list
         paths = [str(path) for path in state.files]
@@ -234,7 +237,7 @@ class MainWindow(QMainWindow):
         if self.model.state.busy:
             QMessageBox.information(self, 'Operation running',
                                     'Cancel inspection or allow it to finish before closing.' if self.model.state.inspection_active else
-                                    'Allow the operation to finish before closing.')
+                                    'Cancel the operation or allow it to finish before closing.')
             event.ignore()
             return
         if self.settings_service:

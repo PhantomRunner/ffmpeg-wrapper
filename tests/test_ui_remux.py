@@ -75,6 +75,10 @@ def test_window_inspect_and_remux(app, tmp_path):
         wait_for(app, lambda: window.thread is None and window.remux_task is None)
         assert 'Remux complete.' in window.output.toPlainText()
         assert destination.is_file()
+        assert 'Verified output metadata' in window.output.toPlainText()
+        assert 'pcm_s16le' in window.output.toPlainText()
+        assert '-progress' in window.remux_view.preview.toPlainText()
+        assert not window.remux_view.cancel_button.isEnabled()
         assert window.choose_file_button.isEnabled()
         assert ticks
         original = destination.read_bytes()

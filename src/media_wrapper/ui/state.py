@@ -29,3 +29,4 @@ class DesktopState:
     inspection_active: bool = False
     cancel_requested: bool = False
     inspection_summary: str = ''
+    remux_progress: str = ''

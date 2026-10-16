@@ -300,6 +300,11 @@ class DesktopViewModel(QObject):
             record = self.remux_task.record
             self.state.command = record.command
             self.state.output = f'Remux: {record.status.value}'
+            progress = record.progress
+            percent = f'{progress.percent:.1f}%' if progress.percent is not None else 'percentage unknown'
+            speed = f'{progress.speed:.2f}×' if progress.speed is not None else 'unknown'
+            eta = f'{progress.eta:.1f}s' if progress.eta is not None else 'unknown'
+            self.state.remux_progress = f'{record.status.value}: {percent}; estimated speed {speed}, ETA {eta}'
         self.changed.emit()
 
     @Slot(object)
@@ -315,6 +320,8 @@ class DesktopViewModel(QObject):
     @Slot(bool, str)
     def _remux_complete(self, success: bool, details: str) -> None:
         self.state.output = 'Remux complete.\n' + details if success else details
+        if success and isinstance(self.remux_task, OperationTask) and self.remux_task.record.result is not None:
+            self.state.output += '\nVerified output metadata:\n' + format_inspection(self.remux_task.record.result)
         if self.remux_task is not None:
             self.remux_task.deleteLater()
         self.remux_task = None

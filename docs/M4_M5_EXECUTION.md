@@ -19,3 +19,6 @@ Selected-stream compatibility checked inline and again in worker preparation. Un
 
 ## M4.3
 Remux uses shared runner and adjacent temporary output. Worker re-probes input and verifies output stream kinds/codecs/count and nonempty size. Atomic hard-link publication refuses existing destinations; unsupported filesystems fail safely and retain partial output. Cancel waits for process/worker cleanup; publication is the commit point. 221 tests and Ruff pass, including real staged Remux, preparation cancellation and publication collision. No automatic partial deletion.
+
+## M4.4
+Remux displays actual executed arguments (including generated temporary target), cancellation control, progress estimates, final result path and verified metadata. Preview explains regeneration of temporary path on Run. Twenty shell/UI tests and Ruff pass, including visible verified PCM output and executed progress arguments.

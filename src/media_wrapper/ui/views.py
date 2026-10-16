@@ -135,8 +135,11 @@ class RemuxView(QWidget):
         self.validation = QLabel('Inspect a file first.')
         self.validation.setWordWrap(True)
         self.run_button = QPushButton('Run remux')
+        self.cancel_button = QPushButton('Cancel remux')
+        self.progress_label = QLabel('')
+        self.progress_label.setWordWrap(True)
         self.run_button.setToolTip('Validate the source again and copy selected supported streams. Unsupported tracks cause an error.')
-        for widget in (self.container, self.destination, self.browse_button, self.validation, self.run_button):
+        for widget in (self.container, self.destination, self.browse_button, self.validation, self.run_button, self.cancel_button, self.progress_label):
             form.addWidget(widget)
         layout.addWidget(simple)
         self.advanced_toggle = QCheckBox('Advanced details')
@@ -147,7 +150,7 @@ class RemuxView(QWidget):
         self.preview_button.setToolTip('Probe the source and validate all streams in the background without creating output.')
         self.preview = QTextEdit()
         self.preview.setReadOnly(True)
-        self.preview.setPlaceholderText('Validate to display the exact argument array. Changing inputs clears the preview.')
+        self.preview.setPlaceholderText('Preview validates the selection. Run generates a fresh temporary path and displays the actual executed arguments.')
         advanced_layout.addWidget(self.preview_button)
         advanced_layout.addWidget(self.preview)
         layout.addWidget(self.advanced)
