@@ -29,11 +29,15 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   validation errors in domain; pure policy validation independent of filesystem/Qt.
 - Application validates filesystem safety and prepares optional staged output paths.
   Pure CommandBuilder generates deterministic maps and copy/encoding arguments.
-  Existing Remux uses typed plans with direct output pending M4/M5 finalization.
-- Conservative Matroska/MP4 compatibility validation, all-stream copy, explicit stream mapping.
-- Asynchronous QProcess remux execution, bounded diagnostics, and overwrite refusal. Failed partial files are retained and reported.
+  Remux executes typed plans through a shared asynchronous process runner.
+- Conservative Matroska/MP4 compatibility validation, user-selected stream copy and explicit mapping.
+- Asynchronous QProcess execution, separate stdout/stderr, incremental progress,
+  terminate/kill cancellation and bounded diagnostics. Workers prepare and verify
+  output before no-overwrite hard-link publication; partial files are retained.
+- Qt-independent task states and application sequential queue with cancellation,
+  fresh-attempt retry and per-task logs/results. Queue state is session-only.
 - Desktop navigation with independent Files/Inspect, Remux and Settings pages;
-  placeholder Convert/Compress/Queue pages.
+  Queue page; placeholder Convert/Compress pages.
 - DesktopState and DesktopViewModel own selection, validation and asynchronous
   lifecycle state. Widgets bind state and actions; workers invoke services.
 - Local multi-file selection/drop, current-file inspection, safe output forms and
@@ -64,4 +68,4 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   dynamic FFprobe payloads are parsed into Qt-independent typed entities.
 
 ## Not implemented yet
-Transcode/Compress, queue, progress reporting, Remux cancellation, GPU detection and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Transcode/Compress UI, parallel queue execution, GPU detection and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

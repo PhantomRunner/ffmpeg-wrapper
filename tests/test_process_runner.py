@@ -45,3 +45,22 @@ def test_crash_reports_once():
     runner.start([sys.executable, '-c', 'import os; os.abort()'])
     wait(app, lambda: bool(results))
     assert len(results) == 1 and not results[0][0]
+
+
+def test_stubborn_process_is_killed_after_cancel():
+    import os
+
+    import pytest
+    if os.name == 'nt':
+        pytest.skip('Windows terminate already force-stops; POSIX SIGTERM escalation check')
+    app = QApplication.instance() or QApplication([])
+    runner = ProcessRunner()
+    results, output = [], []
+    runner.finished.connect(lambda *r: results.append(r))
+    runner.stdout.connect(output.append)
+    runner.start([sys.executable, '-u', '-c', "import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); print('ready'); time.sleep(60)"])
+    wait(app, lambda: bool(output))
+    runner.cancel()
+    wait(app, lambda: bool(results))
+    assert runner.cancelled and not results[0][0]
+    assert not runner.kill_timer.isActive()

@@ -28,3 +28,29 @@ Remux displays actual executed arguments (including generated temporary target),
 
 ## M5.4
 Sequential queue snapshots plans/binaries, supports pending/active cancellation and fresh-attempt retry, retains history/logs/partial paths, and continues after failure or cancellation. Ten queue/task tests pass with real FFmpeg; at most one preparing/running task is asserted. Ruff passes.
+
+## M5.5
+Queue page shows source/output, status, progress, estimated speed/ETA, actual arguments, verified metadata, bounded per-task diagnostics, errors and partial paths. Remux can enqueue snapshots; Start/Cancel selected/Cancel all/Retry controls are wired. Busy guards prevent overlapping standalone work and premature window destruction. Tests exercise real queue UI failure/completion/cancel/retry, crash isolation and stubborn-process forced kill. 232 tests, Ruff and whitespace checks pass. Remux and Queue visually reviewed offscreen at 900x650.
+
+## Remaining limits and next task
+M4.1–M4.5 and M5.1–M5.5 are locally verified. M5.6 remains unchecked:
+serial behavior is tested, but GPU operations/capability discovery are not yet
+implemented (M7), and no GPU contention verification is available. Parallel
+execution would violate its explicit prerequisite. The queue is intentionally
+sequential, session-only, and does not resume after application/OS crashes.
+A crash can leave a hidden `.partial.mkv`/`.partial.mp4` beside the destination;
+files are never automatically deleted. Diagnostics retain the last 16000
+characters per task; application errors also go to the rotating diagnostic log.
+
+Publication uses an atomic hard link on the destination filesystem, then removes
+only the temporary link. Filesystems without hard links fail safely and retain
+the verified temporary file; there is no overwriting rename fallback. A cleanup
+failure after publication is reported as a warning, with both paths retained.
+Cancellation accepted before publication prevents completion; after the atomic
+publication commit point, successful publication is reported as completed.
+Verification checks selected stream kinds/codecs/count and nonzero size, not
+bitwise packet equivalence. Metadata/chapter policy remains M8.3.
+
+Windows native execution and hosted Linux/Windows CI remain unavailable (M0.4).
+Next independent roadmap task: M6.1 Convert UI; revisit M5.6 after M7 and GPU
+contention tests. No GPU encoder is offered or silently selected by this change.

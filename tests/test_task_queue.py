@@ -43,3 +43,27 @@ def test_cancel_pending_and_active_then_continue(sample):
     wait(app, lambda: not queue.running)
     assert [r.status for r in queue.records] == [TaskStatus.CANCELLED, TaskStatus.CANCELLED, TaskStatus.COMPLETED]
     assert third.result is not None and not plan.output.path.exists()
+
+
+def test_crashed_job_preserves_partial_and_next_job_runs(sample, monkeypatch):
+    import sys
+
+    from media_wrapper.application.operation_task import OperationTask
+    app = QApplication.instance() or QApplication([])
+    binaries, plan = sample
+    queue = TaskQueue()
+    first = queue.add(plan, binaries)
+    second = queue.add(replace(plan, output=replace(plan.output, path=plan.output.path.with_name('after crash.mkv'))), binaries)
+    original = OperationTask._prepare
+    partial = plan.output.path.with_name('crash.partial.mkv')
+    def prepare(task):
+        if task.record is first:
+            prepared = replace(plan, output=replace(plan.output, temporary_path=partial))
+            return prepared, [sys.executable, '-c', "import pathlib,sys; pathlib.Path(sys.argv[1]).write_bytes(b'partial'); sys.exit(7)", str(partial)]
+        return original(task)
+    monkeypatch.setattr(OperationTask, '_prepare', prepare)
+    queue.start()
+    wait(app, lambda: not queue.running)
+    assert first.status == TaskStatus.FAILED and second.status == TaskStatus.COMPLETED
+    assert 'exit code: 7' in first.log and first.partial_path.read_bytes() == b'partial'
+    assert not plan.output.path.exists()

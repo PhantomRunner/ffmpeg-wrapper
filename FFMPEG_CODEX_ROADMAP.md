@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5 complete on Linux**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5, M4.1–M4.5 and M5.1–M5.5 complete on Linux; M5.6 deferred pending GPU contention tests**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
 > **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
@@ -87,6 +87,10 @@ Windows remains unverified. Staged execution/finalization UI integration is M4/M
 - [x] **M4.4** Show the exact generated arguments, warnings, result path, and verified output metadata.
 - [x] **M4.5** End-to-end tests using generated small media fixtures; test successful compatible remux and rejected/failed remux.
 
+**M4 evidence:** [execution verification](docs/M4_M5_EXECUTION.md); 232 tests and
+Ruff pass locally, including staged output, selected streams and failure safety.
+Windows runtime verification remains pending.
+
 **Acceptance:** select compatible source -> select MP4/MKV -> remux without re-encoding -> inspect result; unsafe/unsupported cases fail clearly. MVP first complete operation.
 
 ## Milestone 5 — Process runner, progress, and task queue (P0; build minimum before M4.3)
@@ -95,8 +99,13 @@ Windows remains unverified. Staged execution/finalization UI integration is M4/M
 - [x] **M5.2** Parse `-progress pipe:1` key/value records; compute percentage only if duration is known. Treat speed/ETA as estimates.
 - [x] **M5.3** Define task states: Pending, Preparing, Running, Completed, Failed, Cancelled (and legal transitions); keep task models Qt-independent.
 - [x] **M5.4** Implement a sequential task queue first: add, start, cancel, retry, per-task logs, and safe management of partial output files.
-- [ ] **M5.5** Add Queue view with progress, output path, status, logs, and errors; run crash/forced-stop scenarios.
+- [x] **M5.5** Add Queue view with progress, output path, status, logs, and errors; run crash/forced-stop scenarios.
 - [ ] **M5.6** Extend to bounded parallelism only after serial execution and GPU contention behavior are tested.
+
+**M5 evidence:** [execution verification](docs/M4_M5_EXECUTION.md); sequential
+queue, cancellation, progress, retries and UI are verified locally. M5.6 stays
+open: GPU operations are not implemented and contention tests are unavailable.
+Queue history is session-only; partial outputs are retained.
 
 **Acceptance:** a long operation does not freeze the UI; it can be cancelled safely; no failed or partial output is presented as complete; other queued jobs continue according to policy.
 

@@ -43,12 +43,14 @@ python -m pytest -q
 ## Current user flow
 1. In **Settings**, select external (PATH or custom folder) or bundled (explicit folder) and detect FFmpeg. Startup also detects the saved installation.
 2. In **Files / Inspect**, add multiple files or drop local files. Select a current file and click **Inspect current file**, or select several and click **Inspect selected files**. **Cancel inspection** stops the active probe and cancels pending files while retaining completed results. Select a row to review its metadata and stream table. **Clear files** clears the selection and inspected source.
-3. In **Remux**, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
-4. Click **Run remux**. Execution validates again, even if you previously previewed the command.
+3. In **Remux**, check the video/audio/subtitle tracks to copy, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
+4. Click **Run remux**, or **Add to queue** and start it on the **Queue** page. Execution probes and validates again. Progress includes estimated speed/ETA; cancellation waits for process cleanup. Successful output is verified before publication.
 
-Convert, Compress and Queue pages are placeholders. Inspection supports sequential batches with per-file results. Stream checkbox selections are retained for future operations; batch conversion is not implemented.
+Convert and Compress pages are placeholders. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux; batch conversion is not implemented.
 
-Remux copies all streams without re-encoding. This initial slice uses a conservative codec/container allowlist; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. If an operation fails, a partial output may remain; inspect or remove it yourself, or choose a new filename to retry. Wait for the current operation to finish before closing. Remux cancellation and progress reporting are planned.
+Remux copies the selected streams without re-encoding. This initial slice uses a conservative codec/container allowlist; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. Output is written to an adjacent hidden temporary file, verified, then published without replacing an existing destination. Publication requires hard-link support on that filesystem; failure retains the temporary file. Failed or cancelled partial files are retained and reported; inspect or remove them yourself. Cancel or wait for active work to finish before closing.
+
+The sequential Queue shows status, output paths, progress, arguments, verified results and diagnostic tails. Failed/cancelled jobs do not stop later jobs. Retry creates a fresh attempt and temporary path, preserving history; resolve destination collisions before retrying. Queue history lasts for the current session only. After an application/OS crash, partial files may remain beside the destination. Parallel execution awaits GPU contention testing.
 
 Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip locally when the binaries are unavailable. The CI workflow requires FFmpeg before running the Linux/Windows test matrix. Hosted CI execution is still pending because no Git remote is configured.
 

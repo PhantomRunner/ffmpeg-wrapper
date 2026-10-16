@@ -11,12 +11,13 @@ M0.4 implementation is committed; hosted Linux/Windows CI verification is pendin
 M1.1–M1.5 are complete: [shell verification](M1_SHELL.md).
 M2.1–M2.4 are complete on Linux: [inspection verification](M2_INSPECTION.md).
 M3.1–M3.5 are complete on Linux: [command verification](M3_COMMANDS.md).
-Next implementation task: M5.1 common process runner, then M5.2 progress, before
-M4 staged execution (following the dependency order). M0.4 hosted CI remains pending.
+M4.1–M4.5 and M5.1–M5.5 are complete on Linux: [execution verification](M4_M5_EXECUTION.md).
+M5.6 remains deferred until GPU contention tests are possible after M7.
+Next independent implementation task: M6.1 Convert UI. M0.4 hosted CI remains pending.
 
 1. Bootstrap: PySide6 app, external/bundled binary resolver, FFprobe Inspect [initial scaffold implemented].
 2. Domain models for operation/profile/streams, validation, typed command builder; first remux task [initial Matroska/MP4 slice implemented; Windows verification pending].
-3. Task runner via QProcess, progress events, cancellation, output safety, queue [basic asynchronous execution and overwrite refusal implemented; progress/cancellation/queue pending].
+3. Task runner via QProcess, progress events, cancellation, output safety, queue [asynchronous execution, verified staged Remux, progress/cancellation and sequential session queue implemented].
 4. Transcode and compression presets; advanced quality/bitrate options.
 5. CPU/GPU capability discovery and runtime validation (NVENC, QSV, VAAPI, etc. as available).
 6. Profiles, diagnostics, tests, Windows/Linux packaging and licensing checks.

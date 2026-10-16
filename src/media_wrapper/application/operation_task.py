@@ -95,7 +95,7 @@ class OperationTask(QObject):
         self.worker = None
         success, value = self._reply
         if not success:
-            self._end(False, value)
+            self._end(value)
         elif self._callback is not None:
             self._callback(value)
 
@@ -104,7 +104,7 @@ class OperationTask(QObject):
         self.record.partial_path = self.prepared.output.execution_path
         self.record.command = tuple(command)
         if self.cancel_event.is_set():
-            self._end(False, OperationCancelled())
+            self._end(OperationCancelled())
             return
         self.record.transition(TaskStatus.RUNNING)
         self.runner = ProcessRunner(self)
@@ -123,7 +123,7 @@ class OperationTask(QObject):
     def _executed(self, success: bool, details: str) -> None:
         self.record.append_log(details)
         if not success or self.cancel_event.is_set():
-            self._end(False, RuntimeError(details))
+            self._end(RuntimeError(details))
         else:
             self._work(self._verify_publish, self._published)
 
@@ -149,7 +149,7 @@ class OperationTask(QObject):
         self.changed.emit()
         self.finished.emit(True, f'Output: {self.record.result.path}\n{warning}')
 
-    def _end(self, success: bool, error: Exception) -> None:
+    def _end(self, error: Exception) -> None:
         if self.cancel_event.is_set() or isinstance(error, OperationCancelled):
             self.record.transition(TaskStatus.CANCELLED)
             message = 'Remux cancelled.'

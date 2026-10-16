@@ -304,3 +304,47 @@ def test_remux_incompatible_tracks_require_explicit_deselection(shell, tmp_path)
     assert shell.remux_button.isEnabled()
     shell.model.select_streams(())
     assert 'at least one' in shell.remux_view.validation.text()
+
+
+def test_queue_view_real_failure_and_completion(shell, sample):
+    from test_operation_task import wait
+
+    from media_wrapper.domain.tasks import TaskStatus
+    binaries, plan = sample
+    shell.model.state.binaries = binaries
+    shell.model._inspected(plan.media)
+    shell.model.set_output(str(plan.output.path), plan.output.container)
+    shell.remux_view.enqueue_button.click()
+    other = plan.output.path.with_name('queued second.mkv')
+    shell.model.set_output(str(other), plan.output.container)
+    shell.remux_view.enqueue_button.click()
+    assert shell.queue_view.table.rowCount() == 2
+    plan.output.path.write_bytes(b'collision')
+    shell.navigation.setCurrentRow(4)
+    shell.queue_view.start_button.click()
+    assert shell.model.state.busy
+    assert not shell.remux_button.isEnabled()
+    wait(QApplication.instance(), lambda: not shell.model.state.busy)
+    assert [r.status for r in shell.model.queue.records] == [TaskStatus.FAILED, TaskStatus.COMPLETED]
+    assert plan.output.path.read_bytes() == b'collision'
+    shell.queue_view.table.selectRow(0)
+    assert shell.queue_view.retry_button.isEnabled()
+    assert 'already exists' in shell.queue_view.details.toPlainText()
+    shell.queue_view.table.selectRow(1)
+    assert 'Verified output' in shell.queue_view.details.toPlainText()
+    assert 'pcm_s16le' in shell.queue_view.details.toPlainText()
+    assert not shell.queue_view.retry_button.isEnabled()
+
+
+def test_queue_view_cancel_pending_and_retry(shell, sample):
+    from media_wrapper.domain.tasks import TaskStatus
+    binaries, plan = sample
+    shell.model.state.binaries = binaries
+    shell.model._inspected(plan.media)
+    shell.model.set_output(str(plan.output.path), plan.output.container)
+    shell.remux_view.enqueue_button.click()
+    shell.queue_view.cancel_button.click()
+    assert shell.model.queue.records[0].status == TaskStatus.CANCELLED
+    shell.queue_view.retry_button.click()
+    assert [r.status for r in shell.model.queue.records] == [TaskStatus.CANCELLED, TaskStatus.PENDING]
+    assert shell.queue_view.start_button.isEnabled()

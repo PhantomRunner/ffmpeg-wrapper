@@ -11,6 +11,7 @@ from media_wrapper.application.file_service import validate_files
 from media_wrapper.application.media_service import MediaService, validate_remux_paths
 from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
+from media_wrapper.application.task_queue import TaskQueue
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operation_policy import validate_plan
@@ -47,6 +48,8 @@ class DesktopViewModel(QObject):
         self._inspection_cancel = Event()
         self._inspection_paths: tuple[Path, ...] = ()
         self._detecting = False
+        self.queue = TaskQueue(self)
+        self.queue.changed.connect(self._queue_changed)
 
     def _start(self, worker: Worker, on_success: Callable[..., Any]) -> None:
         self.state.busy = True
@@ -290,6 +293,30 @@ class DesktopViewModel(QObject):
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container, self.state.selected_streams), self.start_remux)
 
+    def enqueue_remux(self) -> None:
+        if self.state.busy or self.state.media is None or self.state.binaries is None:
+            return
+        self._validate_form()
+        if self.state.form_error:
+            self.changed.emit()
+            return
+        plan = OperationPlan(MediaOperation.REMUX, self.state.media,
+                             tuple(StreamSelection(i) for i in self.state.selected_streams),
+                             OutputTarget(Path(self.state.destination).expanduser().absolute(), self.state.container))
+        self.queue.add(plan, self.state.binaries)
+        self.state.output = 'Added to queue. Start it on the Queue page.'
+        self.changed.emit()
+
+    def start_queue(self) -> None:
+        if not self.state.busy:
+            self.queue.start()
+
+    @Slot()
+    def _queue_changed(self) -> None:
+        self.state.busy = self.queue.running or self.thread is not None or self.remux_task is not None
+        self._validate_form()
+        self.changed.emit()
+
     def cancel_remux(self) -> None:
         if isinstance(self.remux_task, OperationTask):
             self.remux_task.cancel()
@@ -326,7 +353,7 @@ class DesktopViewModel(QObject):
             self.remux_task.deleteLater()
         self.remux_task = None
         self._validate_form()
-        self.state.busy = self.thread is not None
+        self.state.busy = self.thread is not None or self.queue.running
         self.changed.emit()
 
     @Slot(str)
@@ -353,5 +380,5 @@ class DesktopViewModel(QObject):
         self._detecting = False
         self.state.inspection_active = False
         self.state.cancel_requested = False
-        self.state.busy = self.remux_task is not None
+        self.state.busy = self.remux_task is not None or self.queue.running
         self.changed.emit()

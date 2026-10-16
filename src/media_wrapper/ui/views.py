@@ -136,10 +136,11 @@ class RemuxView(QWidget):
         self.validation.setWordWrap(True)
         self.run_button = QPushButton('Run remux')
         self.cancel_button = QPushButton('Cancel remux')
+        self.enqueue_button = QPushButton('Add to queue')
         self.progress_label = QLabel('')
         self.progress_label.setWordWrap(True)
         self.run_button.setToolTip('Validate the source again and copy selected supported streams. Unsupported tracks cause an error.')
-        for widget in (self.container, self.destination, self.browse_button, self.validation, self.run_button, self.cancel_button, self.progress_label):
+        for widget in (self.container, self.destination, self.browse_button, self.validation, self.run_button, self.enqueue_button, self.cancel_button, self.progress_label):
             form.addWidget(widget)
         layout.addWidget(simple)
         self.advanced_toggle = QCheckBox('Advanced details')
@@ -204,3 +205,30 @@ class PlaceholderView(QWidget):
         label.setWordWrap(True)
         layout.addWidget(label)
         layout.addStretch()
+
+
+class QueueView(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        layout = QVBoxLayout(self)
+        note = QLabel('Sequential queue for this session. Failures and cancellations leave later jobs running. Partial files are retained; retry creates a new attempt.')
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(['Source', 'Output', 'Status', 'Progress'])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.table)
+        buttons = QHBoxLayout()
+        self.start_button = QPushButton('Start queue')
+        self.cancel_button = QPushButton('Cancel selected')
+        self.cancel_all_button = QPushButton('Cancel all')
+        self.retry_button = QPushButton('Retry selected')
+        for button in (self.start_button, self.cancel_button, self.cancel_all_button, self.retry_button):
+            buttons.addWidget(button)
+        layout.addLayout(buttons)
+        self.details = QTextEdit()
+        self.details.setReadOnly(True)
+        layout.addWidget(self.details)

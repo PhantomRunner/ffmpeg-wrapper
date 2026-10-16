@@ -11,18 +11,28 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QStackedWidget,
+    QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.application.settings_service import SettingsService
 from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
+from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.view_model import DesktopViewModel
-from media_wrapper.ui.views import FilesView, PlaceholderView, RemuxView, SettingsView
+from media_wrapper.ui.views import (
+    FilesView,
+    PlaceholderView,
+    QueueView,
+    RemuxView,
+    SettingsView,
+)
 
 
 class MainWindow(QMainWindow):
@@ -50,10 +60,11 @@ class MainWindow(QMainWindow):
         self.files_view = FilesView()
         self.remux_view = RemuxView()
         self.settings_view = SettingsView()
+        self.queue_view = QueueView()
         for page in (self.files_view, self.remux_view,
                      PlaceholderView('Convert', 'Transcoding controls will be added in a later milestone.'),
                      PlaceholderView('Compress', 'Compression controls will be added in a later milestone.'),
-                     PlaceholderView('Queue', 'Task queue controls will be added in a later milestone.'),
+                     self.queue_view,
                      self.settings_view):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
@@ -78,6 +89,12 @@ class MainWindow(QMainWindow):
         self.choose_file_button.clicked.connect(self.choose_file)
         self.remux_button.clicked.connect(self.run_form)
         self.remux_view.cancel_button.clicked.connect(self.model.cancel_remux)
+        self.remux_view.enqueue_button.clicked.connect(self.model.enqueue_remux)
+        self.queue_view.start_button.clicked.connect(self.model.start_queue)
+        self.queue_view.cancel_button.clicked.connect(self.cancel_queue_selected)
+        self.queue_view.cancel_all_button.clicked.connect(self.model.queue.cancel_all)
+        self.queue_view.retry_button.clicked.connect(self.retry_queue_selected)
+        self.queue_view.table.itemSelectionChanged.connect(self.render_queue_details)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
         self.remux_view.destination.textChanged.connect(self.output_changed)
         self.container.currentIndexChanged.connect(self.output_changed)
@@ -104,7 +121,7 @@ class MainWindow(QMainWindow):
         return self.model.thread
 
     @property
-    def remux_task(self) -> RemuxTask | None:
+    def remux_task(self) -> RemuxTask | OperationTask | None:
         return self.model.remux_task
 
     @property
@@ -155,6 +172,8 @@ class MainWindow(QMainWindow):
         self.detect_button.setEnabled(not state.busy)
         self.choose_file_button.setEnabled(not state.busy and state.binaries is not None)
         self.remux_button.setEnabled(not state.busy and not state.form_error)
+        self.remux_view.enqueue_button.setEnabled(not state.busy and not state.form_error)
+        self.render_queue()
         self.remux_view.preview_button.setEnabled(not state.busy and not state.form_error)
         self.remux_view.browse_button.setEnabled(not state.busy and state.source is not None)
         self.remux_view.destination.setEnabled(not state.busy)
@@ -167,6 +186,54 @@ class MainWindow(QMainWindow):
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
+
+    def render_queue(self) -> None:
+        queue = self.model.queue
+        table = self.queue_view.table
+        row = table.currentRow()
+        with QSignalBlocker(table):
+            table.setRowCount(len(queue.records))
+            for index, record in enumerate(queue.records):
+                percent = f'{record.progress.percent:.1f}%' if record.progress.percent is not None else 'Unknown'
+                for column, value in enumerate((str(record.plan.media.path), str(record.plan.output.path), record.status.value, percent)):
+                    item = QTableWidgetItem(value)
+                    item.setToolTip(value)
+                    table.setItem(index, column, item)
+            if queue.records:
+                table.selectRow(max(0, min(row, len(queue.records) - 1)))
+        self.queue_view.start_button.setEnabled(not self.model.state.busy and any(r.status == TaskStatus.PENDING for r in queue.records))
+        self.queue_view.cancel_all_button.setEnabled(any(r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING) for r in queue.records))
+        self.render_queue_details()
+
+    def render_queue_details(self) -> None:
+        row = self.queue_view.table.currentRow()
+        records = self.model.queue.records
+        record = records[row] if 0 <= row < len(records) else None
+        self.queue_view.cancel_button.setEnabled(record is not None and record.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
+        self.queue_view.retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED))
+        if record is None:
+            self.queue_view.details.clear()
+            return
+        progress = record.progress
+        text = (f'{record.status.value}\nOutput: {record.plan.output.path}\n'
+                f'Temporary path (may remain): {record.partial_path or "not created"}\n'
+                f'Estimated speed: {progress.speed}; ETA: {progress.eta} seconds\n'
+                f'{record.error}\nArguments: {json.dumps(record.command, ensure_ascii=False)}\n')
+        if record.result is not None:
+            text += 'Verified output:\n' + format_inspection(record.result)
+        self.queue_view.details.setPlainText(text + '\nDiagnostics (last 16000 characters):\n' + record.log)
+
+    def cancel_queue_selected(self) -> None:
+        row = self.queue_view.table.currentRow()
+        if 0 <= row < len(self.model.queue.records):
+            self.model.queue.cancel(self.model.queue.records[row].id)
+
+    def retry_queue_selected(self) -> None:
+        row = self.queue_view.table.currentRow()
+        if 0 <= row < len(self.model.queue.records):
+            record = self.model.queue.records[row]
+            if record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED):
+                self.model.queue.retry(record.id)
 
     def choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, 'Select directory with ffmpeg and ffprobe')
