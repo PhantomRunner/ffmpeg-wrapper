@@ -10,3 +10,9 @@ Minimal encoding supports AAC, PCM and FFV1 only with explicit build availabilit
 
 M3.3: deterministic pure CommandBuilder for explicit copy and per-output-stream
 encoding options; pure policy resides in domain. 150 tests and Ruff pass.
+
+M3.4: explicit maps, copy plans and mandatory -n; application preparation defaults
+to a unique adjacent temporary output, validates both paths and creates no files.
+The existing Remux UI uses the new plan/builder with direct output explicitly
+selected until staged execution and safe finalization arrive in M4/M5.
+151 tests pass, including existing real Remux/UI and temporary collision checks.

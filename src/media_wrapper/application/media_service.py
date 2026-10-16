@@ -3,11 +3,16 @@ from pathlib import Path
 from threading import Event
 
 from media_wrapper.application.errors import use_case
-from media_wrapper.domain.codec_policy import ALLOWED as _ALLOWED
+from media_wrapper.application.operation_service import prepare_command
 from media_wrapper.domain.media import MediaFile
-from media_wrapper.domain.remux import Container, RemuxRequest, Stream
+from media_wrapper.domain.operations import (
+    MediaOperation,
+    OperationPlan,
+    OutputTarget,
+    StreamSelection,
+)
+from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
-from media_wrapper.infrastructure.ffmpeg.command_builder import build_remux_command
 from media_wrapper.infrastructure.ffmpeg.probe_service import inspect_media
 
 
@@ -27,13 +32,12 @@ class MediaService:
         info = self.inspect(source)
         if any(s.index is None for s in info.streams):
             raise ValueError('Cannot remux streams without indices; inspect with a working FFprobe build')
-        streams = tuple(Stream(s.index, s.kind, s.codec) for s in info.streams if s.index is not None)
-        if not streams:
-            raise ValueError('Source has no streams')
-        for stream in streams:
-            if stream.codec not in _ALLOWED[container].get(stream.kind, set()):
-                raise ValueError(f'Stream {stream.index}: {stream.kind}/{stream.codec} is not supported by the initial {container.value} remux policy')
-        return build_remux_command(self.binaries.ffmpeg, RemuxRequest(source, destination, container, streams))
+        plan = OperationPlan(MediaOperation.REMUX, info,
+                             tuple(StreamSelection(s.index) for s in info.streams if s.index is not None),
+                             OutputTarget(destination, container))
+        # Legacy UI runner writes directly; staged publication arrives in M4/M5.
+        return prepare_command(self.binaries.ffmpeg, plan, staged=False)[1]
+
 
 
 @use_case('Remux validation')

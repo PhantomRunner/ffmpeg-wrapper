@@ -85,3 +85,20 @@ def test_convert_command_requires_availability(plan):
         CommandBuilder().build(Path('ffmpeg'), converted)
     command = CommandBuilder().build(Path('ffmpeg'), converted, frozenset({'aac'}))
     assert command[-7:] == ['-c:0', 'aac', '-b:0', '128000', '-f', 'mp4', str(plan.output.path)]
+
+
+def test_staging_keeps_final_separate_and_refuses_collisions(plan):
+    from media_wrapper.application.operation_service import (
+        prepare_command,
+        prepare_operation,
+    )
+    prepared, args = prepare_command(Path('ffmpeg'), plan)
+    temporary = prepared.output.temporary_path
+    assert temporary.parent == plan.output.path.parent
+    assert temporary != plan.output.path
+    assert args[-1] == str(temporary) and '-n' in args and '-y' not in args
+    assert not temporary.exists() and not plan.output.path.exists()
+    temporary.write_bytes(b'keep')
+    with pytest.raises(PlanValidationError, match='exists'):
+        prepare_operation(prepared)
+    assert temporary.read_bytes() == b'keep'

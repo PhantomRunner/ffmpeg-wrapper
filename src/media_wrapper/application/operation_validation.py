@@ -7,6 +7,8 @@ __all__ = ['validate_paths', 'validate_plan']
 
 def validate_paths(plan: OperationPlan) -> None:
     """Recheck immediately before execution; FFmpeg -n also guards its output."""
+    if plan.output.temporary_path is not None and plan.output.temporary_path.resolve() == plan.output.path.resolve():
+        fail(ValidationCode.OUTPUT, "Temporary and final output must differ")
     source = plan.media.path
     if not source.is_file():
         fail(ValidationCode.INPUT, 'Source must be an existing file')
