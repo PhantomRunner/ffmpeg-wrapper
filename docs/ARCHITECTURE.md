@@ -47,4 +47,4 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   dynamic FFprobe payloads remain typed as raw dictionaries until M2.
 
 ## Not implemented yet
-Transcode/Compress, queue, progress reporting, cancellation, GPU detection, persistent settings, packaging and CI. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Transcode/Compress, queue, progress reporting, cancellation, GPU detection, persistent settings, packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

@@ -7,6 +7,7 @@ from media_wrapper.domain.media import MediaInfo
 
 
 def inspect_media(ffprobe: Path, source: Path) -> MediaInfo:
+    source = source.expanduser().absolute()
     if not source.is_file():
         raise FileNotFoundError(f"File does not exist: {source}")
     args = [str(ffprobe), "-v", "error", "-show_format", "-show_streams",
