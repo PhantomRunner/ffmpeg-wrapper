@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
 )
 
 from media_wrapper.application.remux_task import RemuxTask
+from media_wrapper.application.settings_service import SettingsService
+from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.view_model import DesktopViewModel
@@ -24,12 +26,19 @@ from media_wrapper.ui.views import FilesView, PlaceholderView, RemuxView, Settin
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, diagnostic_status: str = '') -> None:
+    def __init__(self, diagnostic_status: str = '', settings_service: SettingsService | None = None) -> None:
         super().__init__()
         self.setWindowTitle('Media Wrapper — FFmpeg UI')
-        self.resize(900, 650)
+        self.settings_service = settings_service
+        preferences = settings_service.load() if settings_service else Preferences()
+        self.resize(preferences.width, preferences.height)
+        self.setMinimumSize(640, 480)
+        if settings_service and settings_service.warning:
+            diagnostic_status += ' | ' + settings_service.warning
         self.statusBar().showMessage(diagnostic_status)
         self.model = DesktopViewModel(self)
+        self.model.state.container = Container(preferences.container)
+        self.model.state.recent_destination = Path(preferences.recent_destination) if preferences.recent_destination else None
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
@@ -48,7 +57,7 @@ class MainWindow(QMainWindow):
                      self.settings_view):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
-        self.navigation.setCurrentRow(0)
+        self.navigation.setCurrentRow(preferences.page)
         pages.addWidget(self.navigation)
         pages.addWidget(self.pages, 1)
         layout.addLayout(pages)
@@ -59,8 +68,13 @@ class MainWindow(QMainWindow):
         self.choose_file_button = self.files_view.open_button
         self.container = self.remux_view.container
         self.remux_button = self.remux_view.run_button
+        self.mode.setCurrentText(preferences.binary_mode)
+        self.folder.setText(preferences.binary_directory)
+        self.remux_view.advanced_toggle.setChecked(preferences.advanced)
         self.settings_view.browse_button.clicked.connect(self.choose_folder)
         self.detect_button.clicked.connect(self.detect)
+        self.mode.currentIndexChanged.connect(self.model.binary_selection_changed)
+        self.folder.textChanged.connect(self.model.binary_selection_changed)
         self.choose_file_button.clicked.connect(self.choose_file)
         self.remux_button.clicked.connect(self.run_form)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
@@ -179,9 +193,20 @@ class MainWindow(QMainWindow):
     def start_remux(self, command: list[str]) -> None:
         self.model.start_remux(command)
 
+    def preferences(self) -> Preferences:
+        return Preferences(binary_mode=self.mode.currentText(), binary_directory=self.folder.text(),
+                           recent_destination=str(self.model.state.recent_destination) if self.model.state.recent_destination else None,
+                           container=self.model.state.container.value,
+                           advanced=self.remux_view.advanced_toggle.isChecked(), page=self.pages.currentIndex(),
+                           width=min(8192, max(640, self.width())), height=min(8192, max(480, self.height())))
+
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.model.state.busy:
             QMessageBox.information(self, 'Operation running', 'Allow the operation to finish before closing.')
             event.ignore()
             return
+        if self.settings_service:
+            warning = self.settings_service.save(self.preferences())
+            if warning:
+                QMessageBox.warning(self, 'Preferences not saved', warning)
         super().closeEvent(event)

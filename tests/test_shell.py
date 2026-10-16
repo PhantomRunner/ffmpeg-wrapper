@@ -157,3 +157,47 @@ def test_form_validation_preview_and_execution_revalidation(shell, tmp_path, mon
     assert not shell.remux_view.preview.toPlainText()
     assert not shell.remux_button.isEnabled()
     assert '.mkv' in shell.remux_view.validation.text()
+
+
+def test_preferences_restore_and_save_across_windows(tmp_path, monkeypatch):
+    from media_wrapper.application.settings_service import SettingsService
+    from media_wrapper.domain.preferences import Preferences
+    from media_wrapper.infrastructure.settings_repository import SettingsRepository
+    application = QApplication.instance() or QApplication([])
+    path = tmp_path/'config'/'settings.json'
+    service = SettingsService(SettingsRepository(path))
+    service.load()
+    assert service.save(Preferences(binary_mode='bundled', binary_directory=str(tmp_path/'bin'),
+                                    recent_destination=str(tmp_path/'exports'), container='mp4',
+                                    advanced=True, page=1, width=1000, height=700)) is None
+    seen = []
+    def detect(mode, directory):
+        seen.append((mode, directory))
+        return Binaries(Path('ffmpeg'), Path('ffprobe'), 'test')
+    monkeypatch.setattr('media_wrapper.ui.workers.detect_binaries', detect)
+    for iteration in range(2):
+        window = MainWindow(settings_service=SettingsService(SettingsRepository(path)))
+        deadline = time.monotonic() + 5
+        while window.model.state.busy and time.monotonic() < deadline:
+            application.processEvents()
+            time.sleep(.001)
+        try:
+            assert not window.model.state.busy
+            assert window.pages.currentIndex() == (1 if iteration == 0 else 5)
+            assert window.container.currentIndex() == 1
+            assert window.remux_view.advanced_toggle.isChecked()
+            assert window.model.state.recent_destination == tmp_path/'exports'
+            assert window.model.state.files == ()
+            window.navigation.setCurrentRow(5)
+        finally:
+            window.close()
+    assert seen == [('bundled', str(tmp_path/'bin'))] * 2
+
+
+def test_changed_binary_selection_requires_redetection(shell):
+    shell.model.state.source = Path('already-inspected.wav')
+    shell.folder.setText('/different/bin')
+    assert shell.binaries is None
+    assert shell.source is None
+    assert not shell.remux_button.isEnabled()
+    assert 'Click Detect' in shell.status.text()

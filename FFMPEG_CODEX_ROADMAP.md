@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1 underway**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5 complete on Linux**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
 > **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
@@ -44,7 +44,11 @@ M3–M5 acceptance criteria are met.
 - [x] **M1.2** Introduce UI state / view models; views must call application services, not build FFmpeg commands or invoke processes themselves.
 - [x] **M1.3** Add file picker, multi-file selection, drag and drop, recent destination directory, and clear selected-file state.
 - [x] **M1.4** Add advanced-friendly input controls: simple/advanced settings groups, form validation, explanatory tooltips, and a read-only command preview (later filled by command builder).
-- [ ] **M1.5** Persist UI preferences with a versioned settings schema and platform-appropriate config directory.
+- [x] **M1.5** Persist UI preferences with a versioned settings schema and platform-appropriate config directory.
+
+**M1 evidence:** [shell verification](docs/M1_SHELL.md); 107 local tests pass,
+including real Inspect/Remux, asynchronous failure recovery, file/drop/form flows
+and preference persistence. Windows execution remains pending.
 
 **Acceptance:** navigation works without breaking Inspect; UI remains responsive; no encoding logic lives in widgets.
 

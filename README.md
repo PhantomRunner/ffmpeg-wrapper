@@ -41,11 +41,16 @@ python -m pytest -q
 4. Codex should follow the repository `AGENTS.md` file. Architectural decisions are recorded under `docs/`.
 
 ## Current user flow
-Select external mode (PATH or choose bin folder) or bundled (choose folder), click Detect FFmpeg, then Open media file and inspect. Select Matroska or MP4 and click **Remux inspected file…** to choose a new destination.
+1. In **Settings**, select external (PATH or custom folder) or bundled (explicit folder) and detect FFmpeg. Startup also detects the saved installation.
+2. In **Files / Inspect**, add multiple files or drop local files. Select a current file and click **Inspect current file**. **Clear files** clears the selection and inspected source.
+3. In **Remux**, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
+4. Click **Run remux**. Execution validates again, even if you previously previewed the command.
+
+Convert, Compress and Queue pages are placeholders. Inspection is currently one file at a time; batch processing is not implemented.
 
 Remux copies all streams without re-encoding. This initial slice uses a conservative codec/container allowlist; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. If an operation fails, a partial output may remain; inspect or remove it yourself, or choose a new filename to retry. Wait for the current operation to finish before closing. Cancellation and progress reporting are planned.
 
-Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip when the binaries are unavailable.
+Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip locally when the binaries are unavailable. The CI workflow requires FFmpeg before running the Linux/Windows test matrix. Hosted CI execution is still pending because no Git remote is configured.
 
 ## Diagnostics and application directories
 
@@ -64,9 +69,14 @@ Locations come from Qt's native per-user directory APIs with application name
   `$XDG_DATA_HOME/MediaWrapper/logs` (default `~/.local/share/MediaWrapper/logs`).
 - Windows: config uses Qt `AppConfigLocation` and logs use
   `AppLocalDataLocation/logs`, normally under `%LOCALAPPDATA%/MediaWrapper`.
-- The log filename is `media-wrapper.log`. `settings.json` is reserved under the
-  config directory; settings persistence is not implemented and no settings file
-  is created by this change.
+- The log filename is `media-wrapper.log`. `settings.json` under the config
+  directory stores version-1 preferences on normal close: binary mode/folder,
+  recent destination, container, advanced details, current page and window size.
+  Selected media files and running operations are not persisted.
+
+Preferences are saved atomically. Invalid, unknown-version, or externally changed
+settings are preserved; the UI reports load/save failures. Repair or remove an
+incompatible settings file yourself before restarting to save new preferences.
 
 The displayed location is authoritative if the OS redirects these directories.
 Windows runtime verification remains pending.

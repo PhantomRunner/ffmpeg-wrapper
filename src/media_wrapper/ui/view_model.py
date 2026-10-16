@@ -49,6 +49,16 @@ class DesktopViewModel(QObject):
         self.changed.emit()
         self.thread.start()
 
+    def binary_selection_changed(self) -> None:
+        if self.state.busy:
+            return
+        self.state.binaries = None
+        self.state.source = None
+        self.state.command = ()
+        self.state.form_error = 'Detect FFmpeg and inspect a file first.'
+        self.state.status = 'Binary selection changed. Click Detect FFmpeg.'
+        self.changed.emit()
+
     def detect(self, mode: str, directory: str | None) -> None:
         if self.state.busy:
             return

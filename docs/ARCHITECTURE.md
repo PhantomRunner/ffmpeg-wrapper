@@ -25,7 +25,14 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
 - Typed remux request, streams and container enum; pure argument-array command builder.
 - Conservative Matroska/MP4 compatibility validation, all-stream copy, explicit stream mapping.
 - Asynchronous QProcess remux execution, bounded diagnostics, and overwrite refusal. Failed partial files are retained and reported.
-- Minimal Qt desktop main window.
+- Desktop navigation with independent Files/Inspect, Remux and Settings pages;
+  placeholder Convert/Compress/Queue pages.
+- DesktopState and DesktopViewModel own selection, validation and asynchronous
+  lifecycle state. Widgets bind state and actions; workers invoke services.
+- Local multi-file selection/drop, current-file inspection, safe output forms and
+  asynchronous generated-command preview. Execution always validates again.
+- Versioned preferences: domain schema, application preservation policy and an
+  infrastructure repository that writes atomically in the native config folder.
 
 ## Error and diagnostic policy (M0.3)
 
@@ -41,10 +48,13 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   Shutdown drains the listener. A startup file-open failure falls back explicitly
   to stderr and is shown in the status bar. Rotation limits each file to about
   1 MiB plus three backups (an individual oversized record can exceed the limit).
-- Settings persistence is deferred; only the settings path is defined. No config
-  directory or settings file is created merely by resolving the location.
+- M1.5 adds version-1 preferences in `settings.json`. Paths are still resolved
+  without side effects; the config directory is created only when saving.
+  Malformed/unsupported settings disable saving and remain untouched. A pre-save
+  read detects external edits; atomic replacement protects against incomplete writes.
+  Concurrent writers are not locked across the read-and-replace interval.
 - Source functions and UI/task callbacks have explicit parameter/return annotations;
   dynamic FFprobe payloads remain typed as raw dictionaries until M2.
 
 ## Not implemented yet
-Transcode/Compress, queue, progress reporting, cancellation, GPU detection, persistent settings, packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Transcode/Compress, queue, progress reporting, cancellation, GPU detection and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

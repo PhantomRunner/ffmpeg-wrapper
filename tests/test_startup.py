@@ -56,4 +56,4 @@ raise SystemExit(main.main())
         assert 'File logging unavailable:' in result.stdout
         assert 'Application diagnostics initialized' in result.stderr
         assert (tmp_path/'data').read_text() == 'existing file'
-    assert not (tmp_path/'config').exists()
+    assert (tmp_path/'config'/'settings.json').is_file()
