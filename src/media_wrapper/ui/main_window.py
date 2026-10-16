@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -17,37 +18,39 @@ from PySide6.QtWidgets import (
 )
 
 from media_wrapper.application.binary_service import detect_binaries
+from media_wrapper.application.errors import report_failure
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.domain.remux import Container
+from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
 
 class DetectionWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, mode, directory):
+    def __init__(self, mode: str, directory: str | Path | None) -> None:
         super().__init__()
         self.mode, self.directory = mode, directory
 
     @Slot()
-    def run(self):
+    def run(self) -> None:
         try:
             self.finished.emit(detect_binaries(self.mode, self.directory))
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
-            self.failed.emit(str(exc))
+            self.failed.emit(report_failure('Binary detection', exc))
 
 
 class InspectionWorker(QObject):
     finished = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, service: MediaService, path: Path):
+    def __init__(self, service: MediaService, path: Path) -> None:
         super().__init__()
         self.service, self.path = service, path
 
     @Slot()
-    def run(self):
+    def run(self) -> None:
         try:
             info = self.service.inspect(self.path)
             lines = [f"File: {info.path}", f"Container: {info.format_name}",
@@ -60,36 +63,38 @@ class InspectionWorker(QObject):
                         lines.append(f"  {key}: {stream[key]}")
             self.finished.emit("\n".join(lines))
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
-            self.failed.emit(str(exc))
+            self.failed.emit(report_failure('Inspection', exc))
 
 
 class RemuxPreparationWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, service, source, destination, container):
+    def __init__(self, service: MediaService, source: Path, destination: Path, container: Container) -> None:
         super().__init__()
         self.service, self.source = service, source
         self.destination, self.container = destination, container
 
     @Slot()
-    def run(self):
+    def run(self) -> None:
         try:
             self.finished.emit(self.service.prepare_remux(self.source, self.destination, self.container))
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
-            self.failed.emit(str(exc))
+            self.failed.emit(report_failure('Remux preparation', exc))
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, diagnostic_status: str = '') -> None:
         super().__init__()
         self.setWindowTitle("Media Wrapper — FFmpeg UI")
         self.resize(850, 580)
-        self.binaries = None
-        self.thread = None
-        self.worker = None
-        self.source = None
-        self.remux_task = None
+        self.statusBar().showMessage(diagnostic_status)
+        self.binaries: Binaries | None = None
+        self.thread: QThread | None = None
+        self.worker: DetectionWorker | InspectionWorker | RemuxPreparationWorker | None = None
+        self.source: Path | None = None
+        self.inspection_path: Path | None = None
+        self.remux_task: RemuxTask | None = None
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
@@ -130,12 +135,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.output, 1)
         self.detect()
 
-    def choose_folder(self):
+    def choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Select directory with ffmpeg and ffprobe")
         if folder:
             self.folder.setText(folder)
 
-    def detect(self):
+    def detect(self) -> None:
         if self.thread is not None or self.remux_task is not None:
             return
         self.binaries = None
@@ -158,22 +163,23 @@ class MainWindow(QMainWindow):
         self.thread.start()
 
     @Slot(object)
-    def detection_complete(self, binaries):
+    def detection_complete(self, binaries: Binaries) -> None:
         self.binaries = binaries
         self.status.setText(f'Detected: {binaries.version}')
 
     @Slot(str)
-    def detection_failed(self, error):
-        self.status.setText(f'FFmpeg unavailable: {error}')
+    def detection_failed(self, error: str) -> None:
+        self.status.setText(error)
+        self.output.setPlainText(error)
 
-    def choose_file(self):
+    def choose_file(self) -> None:
         if not self.binaries or self.thread is not None or self.remux_task is not None:
             return
         name, _ = QFileDialog.getOpenFileName(self, "Select media file")
         if name:
             self.run_inspection(Path(name))
 
-    def run_inspection(self, path: Path):
+    def run_inspection(self, path: Path) -> None:
         if self.binaries is None or self.thread is not None or self.remux_task is not None:
             return
         self.source = None
@@ -197,10 +203,10 @@ class MainWindow(QMainWindow):
         self.thread.start()
 
     @Slot(str)
-    def show_failure(self, error: str):
-        self.output.setPlainText(f"Operation failed: {error}")
+    def show_failure(self, error: str) -> None:
+        self.output.setPlainText(error)
 
-    def cleanup_thread(self):
+    def cleanup_thread(self) -> None:
         if self.thread is not None:
             self.thread.deleteLater()
         self.worker = None
@@ -210,10 +216,10 @@ class MainWindow(QMainWindow):
         self.remux_button.setEnabled(self.source is not None and self.remux_task is None)
 
     @Slot(str)
-    def inspection_complete(self, _text):
+    def inspection_complete(self, _text: str) -> None:
         self.source = self.inspection_path
 
-    def choose_remux_destination(self):
+    def choose_remux_destination(self) -> None:
         if self.source is None or self.thread is not None or self.remux_task is not None:
             return
         container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
@@ -224,7 +230,7 @@ class MainWindow(QMainWindow):
         if name:
             self.run_remux(Path(name), container)
 
-    def run_remux(self, destination: Path, container: Container):
+    def run_remux(self, destination: Path, container: Container) -> None:
         if self.source is None or self.binaries is None or self.thread is not None or self.remux_task is not None:
             return
         self.choose_file_button.setEnabled(False)
@@ -245,22 +251,22 @@ class MainWindow(QMainWindow):
         self.thread.start()
 
     @Slot(object)
-    def start_remux(self, command):
+    def start_remux(self, command: list[str]) -> None:
         self.output.setPlainText('Remux running…')
         self.remux_task = RemuxTask(self)
         self.remux_task.finished.connect(self.remux_complete)
         self.remux_task.start(command)
 
-    def remux_complete(self, success, details):
-        self.output.setPlainText(('Remux complete.' if success else
-                                 'Remux failed. A partial output may remain; choose a new filename to retry.') + '\n' + details)
-        self.remux_task.deleteLater()
+    def remux_complete(self, success: bool, details: str) -> None:
+        self.output.setPlainText('Remux complete.\n' + details if success else details)
+        if self.remux_task is not None:
+            self.remux_task.deleteLater()
         self.remux_task = None
         self.detect_button.setEnabled(self.thread is None)
         self.choose_file_button.setEnabled(self.thread is None and self.binaries is not None)
         self.remux_button.setEnabled(self.thread is None and self.source is not None)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QCloseEvent) -> None:
         if self.remux_task is not None or (self.thread is not None and self.thread.isRunning()):
             QMessageBox.information(self, "Operation running", "Allow the operation to finish before closing.")
             event.ignore()

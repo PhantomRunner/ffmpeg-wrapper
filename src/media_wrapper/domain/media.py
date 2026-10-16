@@ -1,7 +1,9 @@
 """Qt-independent media metadata entities."""
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
+
+Number = TypeVar('Number', int, float)
 
 
 @dataclass(frozen=True)
@@ -15,7 +17,7 @@ class MediaInfo:
     @classmethod
     def from_probe(cls, path: Path, payload: dict[str, Any]) -> "MediaInfo":
         fmt = payload.get("format") or {}
-        def number(value: Any, cast: type) -> Any:
+        def number(value: Any, cast: type[Number]) -> Number | None:
             try:
                 return cast(value) if value is not None else None
             except (ValueError, TypeError, OverflowError):

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from media_wrapper.application.errors import ApplicationError
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.domain.media import MediaInfo
 from media_wrapper.domain.remux import Container, RemuxRequest, Stream
@@ -51,7 +52,7 @@ def test_invalid_paths(service, tmp_path, case):
         destination = tmp_path/'out.wav'
     else:
         source = tmp_path/'missing.mkv'
-    with pytest.raises(ValueError):
+    with pytest.raises(ApplicationError):
         svc.prepare_remux(source, destination, Container.MP4)
     if case == 'existing':
         assert destination.read_bytes() == b'keep'
@@ -61,7 +62,7 @@ def test_unsupported_stream_is_not_silently_dropped(service, tmp_path, monkeypat
     svc, source = service
     monkeypatch.setattr(svc, 'inspect', lambda path: MediaInfo(path, 'mkv', None, None,
                         ({'index': 0, 'codec_type': 'attachment', 'codec_name': 'ttf'},)))
-    with pytest.raises(ValueError, match='Stream 0'):
+    with pytest.raises(ApplicationError, match='Stream 0'):
         svc.prepare_remux(source, tmp_path/'out.mp4', Container.MP4)
 
 

@@ -1,6 +1,8 @@
 """Inspection and remux validation, independent of Qt."""
 from pathlib import Path
 
+from media_wrapper.application.errors import use_case
+from media_wrapper.domain.media import MediaInfo
 from media_wrapper.domain.remux import Container, RemuxRequest, Stream
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import build_remux_command
@@ -18,12 +20,14 @@ _ALLOWED = {
 
 
 class MediaService:
-    def __init__(self, binaries: Binaries):
+    def __init__(self, binaries: Binaries) -> None:
         self.binaries = binaries
 
-    def inspect(self, source: Path):
+    @use_case('Inspection')
+    def inspect(self, source: Path) -> MediaInfo:
         return inspect_media(self.binaries.ffprobe, source)
 
+    @use_case('Remux preparation')
     def prepare_remux(self, source: Path, destination: Path, container: Container) -> list[str]:
         source, destination = source.expanduser().absolute(), destination.expanduser().absolute()
         if not source.is_file():

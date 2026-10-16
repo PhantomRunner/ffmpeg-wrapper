@@ -86,3 +86,51 @@ def test_window_inspect_and_remux(app, tmp_path):
         timer.stop()
         wait_for(app, lambda: window.thread is None and window.remux_task is None)
         window.close()
+
+
+@pytest.mark.parametrize('stage', ['detect', 'inspect', 'prepare', 'execute', 'start'])
+def test_window_recovers_from_failures_with_diagnostics(app, tmp_path, monkeypatch, caplog, stage):
+    import logging
+    import sys
+
+    from media_wrapper.application.media_service import MediaService
+    from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+
+    binaries = Binaries(tmp_path/'ffmpeg', tmp_path/'ffprobe', 'test')
+    def fail(*args):
+        raise PermissionError('adapter permission diagnostic')
+    monkeypatch.setattr('media_wrapper.ui.main_window.detect_binaries',
+                        fail if stage == 'detect' else lambda *args: binaries)
+    with caplog.at_level(logging.ERROR):
+        window = MainWindow(diagnostic_status='Diagnostic log: test.log')
+        try:
+            wait_for(app, lambda: window.thread is None)
+            if stage == 'inspect':
+                monkeypatch.setattr(MediaService, 'inspect', fail)
+                window.run_inspection(tmp_path/'input.mkv')
+            elif stage == 'prepare':
+                monkeypatch.setattr(MediaService, 'prepare_remux', fail)
+                window.source = tmp_path/'input.mkv'
+                window.run_remux(tmp_path/'out.mkv', Container.MATROSKA)
+            elif stage in {'execute', 'start'}:
+                window.source = tmp_path/'input.mkv'
+                command = ([sys.executable, '-c',
+                            "import sys; print('backend failure details', file=sys.stderr); sys.exit(2)",
+                            str(tmp_path/'out.mkv')]
+                           if stage == 'execute' else [str(tmp_path/'missing-executable'), str(tmp_path/'out.mkv')])
+                window.start_remux(command)
+            wait_for(app, lambda: window.thread is None and window.remux_task is None)
+            assert 'failed' in window.output.toPlainText().lower()
+            assert window.detect_button.isEnabled()
+            assert window.choose_file_button.isEnabled() == (stage != 'detect')
+            assert window.statusBar().currentMessage() == 'Diagnostic log: test.log'
+            assert len(caplog.records) == 1
+            if stage == 'execute':
+                assert 'backend failure details' in caplog.text
+                assert 'exit code: 2' in caplog.text
+                assert 'partial output' in window.output.toPlainText()
+            elif stage != 'start':
+                assert 'adapter permission diagnostic' in caplog.text
+        finally:
+            wait_for(app, lambda: window.thread is None and window.remux_task is None)
+            window.close()

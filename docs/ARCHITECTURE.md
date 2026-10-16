@@ -27,5 +27,24 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
 - Asynchronous QProcess remux execution, bounded diagnostics, and overwrite refusal. Failed partial files are retained and reported.
 - Minimal Qt desktop main window.
 
+## Error and diagnostic policy (M0.3)
+
+- Application services translate implementation exceptions into `ApplicationError`,
+  retaining the original cause. User guidance and technical details are separate.
+- Worker and task boundaries log each failure once and send the normalized message
+  to the UI. Unexpected exceptions are logged with tracebacks; process failures
+  retain the available FFmpeg diagnostics and exit code.
+- `main.py` sets the Qt application identity and composes infrastructure path/log
+  setup. `AppPaths` uses `pathlib.Path` and Qt `AppConfigLocation` /
+  `AppLocalDataLocation`; resolving a path has no filesystem side effects.
+- A QueueHandler/QueueListener writes rotating UTF-8 logs outside the UI thread.
+  Shutdown drains the listener. A startup file-open failure falls back explicitly
+  to stderr and is shown in the status bar. Rotation limits each file to about
+  1 MiB plus three backups (an individual oversized record can exceed the limit).
+- Settings persistence is deferred; only the settings path is defined. No config
+  directory or settings file is created merely by resolving the location.
+- Source functions and UI/task callbacks have explicit parameter/return annotations;
+  dynamic FFprobe payloads remain typed as raw dictionaries until M2.
+
 ## Not implemented yet
 Transcode/Compress, queue, progress reporting, cancellation, GPU detection, persistent settings, packaging and CI. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

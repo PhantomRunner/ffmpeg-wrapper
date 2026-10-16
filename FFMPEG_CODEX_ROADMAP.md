@@ -1,8 +1,8 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.2 verified on Linux; M0.3–M0.4 pending; existing Inspect/Remux prototype**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 pending; existing Inspect/Remux prototype**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
-> **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success.
+> **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
 ## Definition of Done (every task)
 
@@ -22,12 +22,13 @@ Scaffold already contains: `main.py`, a PySide6 window, basic FFmpeg/FFprobe dis
 
 - [x] **M0.1** Audit the existing source tree against `README.md`, `AGENTS.md`, and architectural boundaries. Write down actual working features and gaps.
 - [x] **M0.2** Verify clean install (`python -m pip install -e '.[dev]'`), entry point (`python -m media_wrapper.main`) and `pytest` on the development machine.
-- [ ] **M0.3** Normalize error reporting, type annotations, logging, and config location; keep filesystem handling portable with `pathlib`.
+- [x] **M0.3** Normalize error reporting, type annotations, logging, and config location; keep filesystem handling portable with `pathlib`.
 - [ ] **M0.4** Add baseline automated tests for binary resolution, probe JSON parsing, invalid input, and path handling. Add CI checks for Linux and Windows (tests run on both; GUI smoke test where possible).
 
 **Audit evidence:** see [docs/BASELINE_AUDIT.md](docs/BASELINE_AUDIT.md) for
 verified features, commands, gaps, and platform limitations. M0 as a whole remains
-open until M0.3 and M0.4 are completed. Existing Remux code does not imply that
+open until M0.4 is completed. [M0.3 evidence](docs/M0_3_DIAGNOSTICS.md):
+51 tests passed, lint passed; native Windows execution remains unverified. Existing Remux code does not imply that
 M3–M5 acceptance criteria are met.
 
 **Acceptance:** a clean checkout starts; the Inspect feature works on a test clip; basic tests pass. Record what could not be verified on Windows/Linux separately.
