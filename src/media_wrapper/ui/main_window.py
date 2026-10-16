@@ -1,4 +1,5 @@
 """Desktop shell: page navigation and bindings to presentation state."""
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QSignalBlocker, QThread, Slot
@@ -61,7 +62,11 @@ class MainWindow(QMainWindow):
         self.settings_view.browse_button.clicked.connect(self.choose_folder)
         self.detect_button.clicked.connect(self.detect)
         self.choose_file_button.clicked.connect(self.choose_file)
-        self.remux_button.clicked.connect(self.choose_remux_destination)
+        self.remux_button.clicked.connect(self.run_form)
+        self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
+        self.remux_view.destination.textChanged.connect(self.output_changed)
+        self.container.currentIndexChanged.connect(self.output_changed)
+        self.remux_view.preview_button.clicked.connect(self.model.preview)
         self.files_view.files_dropped.connect(self.model.add_files)
         self.files_view.inspect_button.clicked.connect(self.inspect_current)
         self.files_view.clear_button.clicked.connect(self.model.clear_files)
@@ -110,7 +115,16 @@ class MainWindow(QMainWindow):
             self.output.setPlainText(state.output)
         self.detect_button.setEnabled(not state.busy)
         self.choose_file_button.setEnabled(not state.busy and state.binaries is not None)
-        self.remux_button.setEnabled(not state.busy and state.source is not None)
+        self.remux_button.setEnabled(not state.busy and not state.form_error)
+        self.remux_view.preview_button.setEnabled(not state.busy and not state.form_error)
+        self.remux_view.browse_button.setEnabled(not state.busy and state.source is not None)
+        self.remux_view.destination.setEnabled(not state.busy)
+        self.remux_view.validation.setText(state.form_error or 'Ready. All streams will be validated before execution.')
+        with QSignalBlocker(self.remux_view.destination):
+            self.remux_view.destination.setText(state.destination)
+        with QSignalBlocker(self.container):
+            self.container.setCurrentIndex(0 if state.container == Container.MATROSKA else 1)
+        self.remux_view.preview.setPlainText(json.dumps(state.command, ensure_ascii=False, indent=2) if state.command else '')
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
@@ -148,7 +162,16 @@ class MainWindow(QMainWindow):
                                              str((self.model.state.recent_destination or self.source.parent) / (self.source.stem + '_remux' + suffix)),
                                              f'Media (*{suffix})')
         if name:
-            self.run_remux(Path(name), container)
+            self.model.state.recent_destination = Path(name).parent
+            self.model.set_output(name, container)
+
+    def output_changed(self) -> None:
+        container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
+        self.model.set_output(self.remux_view.destination.text(), container)
+
+    def run_form(self) -> None:
+        if not self.model.state.form_error:
+            self.run_remux(Path(self.model.state.destination), self.model.state.container)
 
     def run_remux(self, destination: Path, container: Container) -> None:
         self.model.remux(destination, container)

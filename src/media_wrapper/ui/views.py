@@ -5,12 +5,15 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QComboBox,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QPushButton,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -55,12 +58,36 @@ class RemuxView(QWidget):
         self.source_label = QLabel('Inspect a file first. Streams are copied without re-encoding.')
         self.source_label.setWordWrap(True)
         layout.addWidget(self.source_label)
+        simple = QGroupBox('Output')
+        form = QVBoxLayout(simple)
         self.container = QComboBox()
         self.container.addItems(['Matroska (.mkv)', 'MP4 (.mp4)'])
-        self.run_button = QPushButton('Remux inspected file…')
-        layout.addWidget(self.container)
-        layout.addWidget(self.run_button)
-        layout.addStretch()
+        self.container.setToolTip('Copy supported streams into this container. No re-encoding is performed.')
+        self.destination = QLineEdit()
+        self.destination.setPlaceholderText('Choose a new destination filename')
+        self.destination.setToolTip('Existing files and source replacement are refused. Use .mkv or .mp4 for the chosen container.')
+        self.browse_button = QPushButton('Choose output…')
+        self.validation = QLabel('Inspect a file first.')
+        self.validation.setWordWrap(True)
+        self.run_button = QPushButton('Run remux')
+        self.run_button.setToolTip('Validate the source again and copy all supported streams. Unsupported tracks cause an error.')
+        for widget in (self.container, self.destination, self.browse_button, self.validation, self.run_button):
+            form.addWidget(widget)
+        layout.addWidget(simple)
+        self.advanced_toggle = QCheckBox('Advanced details')
+        layout.addWidget(self.advanced_toggle)
+        self.advanced = QGroupBox('Generated argument array')
+        advanced_layout = QVBoxLayout(self.advanced)
+        self.preview_button = QPushButton('Validate and preview')
+        self.preview_button.setToolTip('Probe the source and validate all streams in the background without creating output.')
+        self.preview = QTextEdit()
+        self.preview.setReadOnly(True)
+        self.preview.setPlaceholderText('Validate to display the exact argument array. Changing inputs clears the preview.')
+        advanced_layout.addWidget(self.preview_button)
+        advanced_layout.addWidget(self.preview)
+        layout.addWidget(self.advanced)
+        self.advanced_toggle.toggled.connect(self.advanced.setVisible)
+        self.advanced.hide()
 
 
 class SettingsView(QWidget):
@@ -71,6 +98,7 @@ class SettingsView(QWidget):
         controls = QHBoxLayout()
         self.mode = QComboBox()
         self.mode.addItems(['external', 'bundled'])
+        self.mode.setToolTip('External uses PATH or your chosen folder. Bundled requires an explicit folder; there is no fallback.')
         self.folder = QLineEdit()
         self.folder.setPlaceholderText('Optional bin directory (external: empty = PATH)')
         self.browse_button = QPushButton('Browse bin folder')

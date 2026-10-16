@@ -29,18 +29,7 @@ class MediaService:
 
     @use_case('Remux preparation')
     def prepare_remux(self, source: Path, destination: Path, container: Container) -> list[str]:
-        source, destination = source.expanduser().absolute(), destination.expanduser().absolute()
-        if not source.is_file():
-            raise ValueError('Source must be an existing file')
-        if source.resolve() == destination.resolve() or (destination.exists() and source.samefile(destination)):
-            raise ValueError('Source and destination must differ')
-        if destination.exists() or destination.is_symlink():
-            raise ValueError('Destination already exists; choose a new filename')
-        if not destination.parent.is_dir():
-            raise ValueError('Destination directory does not exist')
-        expected = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[container]
-        if destination.suffix.lower() != expected:
-            raise ValueError(f'Destination must use {expected}')
+        source, destination = validate_remux_paths(source, destination, container)
         info = self.inspect(source)
         streams = tuple(Stream.from_probe(s) for s in info.streams)
         if not streams:
@@ -49,3 +38,20 @@ class MediaService:
             if stream.codec not in _ALLOWED[container].get(stream.kind, set()):
                 raise ValueError(f'Stream {stream.index}: {stream.kind}/{stream.codec} is not supported by the initial {container.value} remux policy')
         return build_remux_command(self.binaries.ffmpeg, RemuxRequest(source, destination, container, streams))
+
+
+@use_case('Remux validation')
+def validate_remux_paths(source: Path, destination: Path, container: Container) -> tuple[Path, Path]:
+    source, destination = source.expanduser().absolute(), destination.expanduser().absolute()
+    if not source.is_file():
+        raise ValueError('Source must be an existing file')
+    if source.resolve() == destination.resolve() or (destination.exists() and source.samefile(destination)):
+        raise ValueError('Source and destination must differ')
+    if destination.exists() or destination.is_symlink():
+        raise ValueError('Destination already exists; choose a new filename')
+    if not destination.parent.is_dir():
+        raise ValueError('Destination directory does not exist')
+    expected = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[container]
+    if destination.suffix.lower() != expected:
+        raise ValueError(f'Destination must use {expected}')
+    return source, destination

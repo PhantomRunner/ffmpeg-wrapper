@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
 
@@ -15,3 +16,7 @@ class DesktopState:
     files: tuple[Path, ...] = ()
     current_file: Path | None = None
     recent_destination: Path | None = None
+    destination: str = ''
+    container: Container = Container.MATROSKA
+    form_error: str = 'Inspect a file first.'
+    command: tuple[str, ...] = ()

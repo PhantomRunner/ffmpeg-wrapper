@@ -21,3 +21,12 @@ Invalid mixed additions are rejected without silently dropping entries. Busy
 operations prevent file-list mutation. Batch inspection remains M2 work.
 83 tests pass (including picker, drop rejection, stale state and recent directory);
 Ruff passes. Native dialogs on Windows remain untested.
+
+## M1.4
+Remux Output group contains destination, container, browse, inline validation and
+Run. Advanced details has a read-only JSON argument-array preview built by the
+application service in a worker. Inputs invalidate previews; Run probes/validates
+again, including destinations created after preview. Tooltips explain binary
+selection, stream copy and overwrite policy. No custom raw arguments were added.
+84 tests pass, including preview-without-output, invalid form states and late
+output collision; Ruff passes.

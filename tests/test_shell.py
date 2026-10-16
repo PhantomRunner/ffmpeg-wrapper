@@ -52,6 +52,7 @@ def test_busy_model_rejects_overlapping_operations(shell, monkeypatch, tmp_path)
         return MediaInfo(path, 'wav', 1, 1, ())
     monkeypatch.setattr(MediaService, 'inspect', inspect)
     source = tmp_path/'clip.wav'
+    source.touch()
     shell.run_inspection(source)
     try:
         assert entered.wait(2)
@@ -114,3 +115,45 @@ def test_recent_destination_is_used_for_next_dialog(shell, tmp_path, monkeypatch
     monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getSaveFileName', dialog)
     shell.choose_remux_destination()
     assert Path(seen[0]).parent == tmp_path/'exports'
+
+
+def test_form_validation_preview_and_execution_revalidation(shell, tmp_path, monkeypatch):
+    import json
+
+    from media_wrapper.application.media_service import MediaService
+    from media_wrapper.domain.media import MediaInfo
+    from media_wrapper.domain.remux import Container
+    source, destination = tmp_path/'input.wav', tmp_path/'output.mkv'
+    source.touch()
+    monkeypatch.setattr(MediaService, 'inspect', lambda self, path:
+                        MediaInfo(path, 'wav', 1, 1, ({'index': 0, 'codec_type': 'audio', 'codec_name': 'pcm_s16le'},)))
+    shell.model.state.source = source
+    shell.model.set_output(str(source), Container.MATROSKA)
+    assert not shell.remux_button.isEnabled()
+    assert 'differ' in shell.remux_view.validation.text()
+    shell.model.set_output(str(destination), Container.MATROSKA)
+    shell.remux_view.advanced_toggle.setChecked(True)
+    shell.remux_view.preview_button.click()
+    deadline = time.monotonic() + 5
+    while shell.model.state.busy and time.monotonic() < deadline:
+        QApplication.instance().processEvents()
+        time.sleep(.001)
+    assert not shell.model.state.busy
+    assert shell.remux_view.preview.isReadOnly()
+    command = json.loads(shell.remux_view.preview.toPlainText())
+    assert command[-1] == str(destination)
+    assert '-c' in command and 'copy' in command
+    assert not destination.exists()
+    # A file appearing after preview must still be protected when Run is pressed.
+    destination.write_bytes(b'keep')
+    shell.run_form()
+    deadline = time.monotonic() + 5
+    while shell.model.state.busy and time.monotonic() < deadline:
+        QApplication.instance().processEvents()
+        time.sleep(.001)
+    assert destination.read_bytes() == b'keep'
+    assert 'already exists' in shell.output.toPlainText()
+    shell.remux_view.destination.setText(str(tmp_path/'different.mp4'))
+    assert not shell.remux_view.preview.toPlainText()
+    assert not shell.remux_button.isEnabled()
+    assert '.mkv' in shell.remux_view.validation.text()
