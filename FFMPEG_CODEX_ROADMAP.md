@@ -40,7 +40,7 @@ M3–M5 acceptance criteria are met.
 
 ## Milestone 1 — Application shell and UX foundation (P1)
 
-- [ ] **M1.1** Split the main window into navigation and independent views (Files / Inspect, Remux, Convert, Compress, Queue, Settings). Pages can initially be placeholders.
+- [x] **M1.1** Split the main window into navigation and independent views (Files / Inspect, Remux, Convert, Compress, Queue, Settings). Pages can initially be placeholders.
 - [ ] **M1.2** Introduce UI state / view models; views must call application services, not build FFmpeg commands or invoke processes themselves.
 - [ ] **M1.3** Add file picker, multi-file selection, drag and drop, recent destination directory, and clear selected-file state.
 - [ ] **M1.4** Add advanced-friendly input controls: simple/advanced settings groups, form validation, explanatory tooltips, and a read-only command preview (later filled by command builder).

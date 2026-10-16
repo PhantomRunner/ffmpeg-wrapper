@@ -4,14 +4,12 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
-    QComboBox,
     QFileDialog,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
+    QListWidget,
     QMainWindow,
     QMessageBox,
-    QPushButton,
+    QStackedWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -23,6 +21,7 @@ from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+from media_wrapper.ui.views import FilesView, PlaceholderView, RemuxView, SettingsView
 
 
 class DetectionWorker(QObject):
@@ -99,37 +98,38 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
 
-        controls = QHBoxLayout()
-        self.mode = QComboBox()
-        self.mode.addItems(["external", "bundled"])
-        self.folder = QLineEdit()
-        self.folder.setPlaceholderText("Optional bin directory (external: empty = PATH)")
-        browse = QPushButton("Browse bin folder")
-        browse.clicked.connect(self.choose_folder)
-        self.detect_button = QPushButton("Detect FFmpeg")
+        pages = QHBoxLayout()
+        self.navigation = QListWidget()
+        self.navigation.addItems(['Files / Inspect', 'Remux', 'Convert', 'Compress', 'Queue', 'Settings'])
+        self.navigation.setMaximumWidth(170)
+        self.pages = QStackedWidget()
+        self.files_view = FilesView()
+        self.remux_view = RemuxView()
+        self.settings_view = SettingsView()
+        for page in (self.files_view, self.remux_view,
+                     PlaceholderView('Convert', 'Transcoding controls will be added in a later milestone.'),
+                     PlaceholderView('Compress', 'Compression controls will be added in a later milestone.'),
+                     PlaceholderView('Queue', 'Task queue controls will be added in a later milestone.'),
+                     self.settings_view):
+            self.pages.addWidget(page)
+        self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
+        self.navigation.setCurrentRow(0)
+        pages.addWidget(self.navigation)
+        pages.addWidget(self.pages, 1)
+        layout.addLayout(pages)
+        self.mode = self.settings_view.mode
+        self.folder = self.settings_view.folder
+        self.status = self.settings_view.status
+        self.detect_button = self.settings_view.detect_button
+        self.choose_file_button = self.files_view.open_button
+        self.container = self.remux_view.container
+        self.remux_button = self.remux_view.run_button
+        self.settings_view.browse_button.clicked.connect(self.choose_folder)
         self.detect_button.clicked.connect(self.detect)
-        controls.addWidget(QLabel("Mode:"))
-        controls.addWidget(self.mode)
-        controls.addWidget(self.folder, 1)
-        controls.addWidget(browse)
-        controls.addWidget(self.detect_button)
-        layout.addLayout(controls)
-        self.status = QLabel("FFmpeg not detected")
-        layout.addWidget(self.status)
-
-        self.choose_file_button = QPushButton("Open media file and inspect")
-        self.choose_file_button.setEnabled(False)
         self.choose_file_button.clicked.connect(self.choose_file)
-        layout.addWidget(self.choose_file_button)
-        remux_controls = QHBoxLayout()
-        self.container = QComboBox()
-        self.container.addItems(['Matroska (.mkv)', 'MP4 (.mp4)'])
-        self.remux_button = QPushButton('Remux inspected file…')
-        self.remux_button.setEnabled(False)
         self.remux_button.clicked.connect(self.choose_remux_destination)
-        remux_controls.addWidget(self.container)
-        remux_controls.addWidget(self.remux_button)
-        layout.addLayout(remux_controls)
+        self.choose_file_button.setEnabled(False)
+        self.remux_button.setEnabled(False)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output, 1)
@@ -218,6 +218,7 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def inspection_complete(self, _text: str) -> None:
         self.source = self.inspection_path
+        self.remux_view.source_label.setText(f'Source: {self.source}')
 
     def choose_remux_destination(self) -> None:
         if self.source is None or self.thread is not None or self.remux_task is not None:
