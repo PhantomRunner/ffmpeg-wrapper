@@ -22,3 +22,6 @@ Remux uses shared runner and adjacent temporary output. Worker re-probes input a
 
 ## M4.4
 Remux displays actual executed arguments (including generated temporary target), cancellation control, progress estimates, final result path and verified metadata. Preview explains regeneration of temporary path on Run. Twenty shell/UI tests and Ruff pass, including visible verified PCM output and executed progress arguments.
+
+## M4.5
+226 tests and Ruff pass. Real generated multi-track source verifies chosen-track copy and output codec/count; incompatible MP4 selection fails without output. Tests exercise failure exit, cancellation during running, zero-exit invalid output, and a final destination created at publication time. Partials retained, no false completion, no overwrites.
