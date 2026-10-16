@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5 complete on Linux**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5 and M2.1–M2.4 complete on Linux**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
 > **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
@@ -57,7 +57,11 @@ and preference persistence. Windows execution remains pending.
 - [x] **M2.1** Parse `ffprobe -v error -show_format -show_streams -of json` into Qt-independent typed `MediaFile` / `MediaStream` models.
 - [x] **M2.2** Show container, duration, file size, bitrate, frame size, frame rate (rational-safe), codecs, language, audio channels, subtitle types, and stream indices. Treat missing fields as normal.
 - [x] **M2.3** Inspect multiple files asynchronously with cancellation, error states, and no GUI freeze.
-- [ ] **M2.4** Tests for audio-only, video-only, multi-track, missing metadata, malformed JSON, and failed probe invocations.
+- [x] **M2.4** Tests for audio-only, video-only, multi-track, missing metadata, malformed JSON, and failed probe invocations.
+
+**M2 evidence:** [inspection verification](docs/M2_INSPECTION.md); 141 local tests
+pass, including real audio/video/multi-track fixtures, cancellation and failure
+isolation. Offscreen layout reviewed; native Windows execution remains pending.
 
 **Acceptance:** users can inspect multiple sample media files and select individual streams for future operations.
 

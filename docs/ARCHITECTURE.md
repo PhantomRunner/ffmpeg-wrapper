@@ -20,7 +20,10 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
 ## Implemented in scaffold
 - Binary resolution (external PATH or custom folder, bundled explicit folder).
 - Version diagnostics.
-- FFprobe inspection (JSON parser, background Qt worker).
+- Typed immutable MediaFile/MediaStream entities; infrastructure parses FFprobe JSON
+  and rational frame rates, preserving missing metadata explicitly.
+- Sequential multi-file inspection on a Qt worker with per-file outcomes, cached
+  results/stream selections and cancellable subprocess cleanup.
 - Background binary detection through an application use case.
 - Typed remux request, streams and container enum; pure argument-array command builder.
 - Conservative Matroska/MP4 compatibility validation, all-stream copy, explicit stream mapping.
@@ -54,7 +57,7 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   read detects external edits; atomic replacement protects against incomplete writes.
   Concurrent writers are not locked across the read-and-replace interval.
 - Source functions and UI/task callbacks have explicit parameter/return annotations;
-  dynamic FFprobe payloads remain typed as raw dictionaries until M2.
+  dynamic FFprobe payloads are parsed into Qt-independent typed entities.
 
 ## Not implemented yet
-Transcode/Compress, queue, progress reporting, cancellation, GPU detection and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Transcode/Compress, queue, progress reporting, Remux cancellation, GPU detection and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

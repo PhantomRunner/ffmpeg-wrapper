@@ -108,3 +108,43 @@ def test_cancellable_probe_returns_complete_stdout_and_failure_stderr():
     assert result.returncode == 2
     assert len(result.stdout.strip()) == 200000
     assert 'diagnostic' in result.stderr
+
+
+def test_cancellation_survives_service_error_translation(monkeypatch):
+    service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
+    token = threading.Event()
+    token.set()
+    with pytest.raises(OperationCancelled):
+        service.inspect(Path('does-not-exist'), token)
+
+
+@pytest.mark.parametrize('stdout', ['{', '[]', '{"streams": [42]}'])
+def test_bad_probe_json_through_cancellable_service(tmp_path, monkeypatch, stdout):
+    from media_wrapper.application.errors import ApplicationError
+    source = tmp_path/'exists.mkv'
+    source.touch()
+    monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.probe_service.run_cancellable_probe',
+                        lambda args, event: subprocess.CompletedProcess(args, 0, stdout, ''))
+    service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
+    with pytest.raises(ApplicationError):
+        service.inspect(source, threading.Event())
+
+
+def test_missing_probe_executable_in_cancellable_mode(tmp_path):
+    from media_wrapper.application.errors import ApplicationError
+    source = tmp_path/'source.mkv'
+    source.touch()
+    service = MediaService(Binaries(tmp_path/'ffmpeg', tmp_path/'missing-ffprobe', 'test'))
+    with pytest.raises(ApplicationError, match='not found'):
+        service.inspect(source, threading.Event())
+
+
+def test_cancel_racing_with_probe_error_is_not_logged_as_failure(monkeypatch, caplog):
+    service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
+    def inspect(path, cancel_event=None):
+        cancel_event.set()
+        raise RuntimeError('process exited during cancellation')
+    monkeypatch.setattr(service, 'inspect', inspect)
+    results = InspectionBatch(service).run((Path('one'),), threading.Event(), lambda _: None)
+    assert results[0].status == Status.CANCELLED
+    assert not caplog.records

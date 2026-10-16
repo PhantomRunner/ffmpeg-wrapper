@@ -34,3 +34,20 @@ failure isolation, preserved stream selection, real subprocess cancellation and
 timeout/reaping, and large stdout/stderr drainage. Ruff and whitespace checks pass.
 Windows process behavior is implemented using portable subprocess APIs but native
 execution remains unverified. M2.4's broader fixture coverage is the next task.
+
+## M2.4 and final verification
+Generated tiny audio-only PCM, video-only FFV1 and four-track Matroska fixtures
+(video, two language-tagged audio tracks and subtitles) verify real FFprobe
+results. Exact 30000/1001 frame rates and paths containing spaces/Unicode survive.
+An actual Qt-worker batch continues after corrupt media and restores per-file
+stream selections. Parser tests cover missing fields and malformed payloads;
+service tests cover malformed JSON, unavailable executables, failed processes,
+cancellation propagation and the cancellation/failure race. Test configuration
+selects the offscreen Qt platform by default, including isolated test runs.
+
+Validation: `.venv/bin/python -m pytest -q` reports 141 passed;
+`.venv/bin/ruff check .` and `git diff --check` pass. A 900×650 offscreen
+window was visually reviewed with video/audio/subtitle rows: controls and
+metadata are visible, with horizontal scrolling for additional stream columns.
+No native Windows or hosted CI run was available; M0.4 remains open.
+M2 acceptance is satisfied locally. Next: M3.1 typed operation models.
