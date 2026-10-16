@@ -26,7 +26,7 @@ class DetectionWorker(QObject):
 
 
 class InspectionWorker(QObject):
-    finished = Signal(str)
+    finished = Signal(object)
     failed = Signal(str)
 
     def __init__(self, service: MediaService, path: Path) -> None:
@@ -37,16 +37,7 @@ class InspectionWorker(QObject):
     def run(self) -> None:
         try:
             info = self.service.inspect(self.path)
-            lines = [f"File: {info.path}", f"Container: {info.format_name}",
-                     f"Duration: {info.duration if info.duration is not None else 'unknown'} s",
-                     f"Size: {info.size_bytes if info.size_bytes is not None else 'unknown'} bytes", ""]
-            for stream in info.streams:
-                lines.append(f'Stream {stream.index}: {stream.kind} / {stream.codec}')
-                for key in ('width', 'height', 'sample_rate', 'channels', 'bit_rate'):
-                    value = getattr(stream, key)
-                    if value is not None:
-                        lines.append(f'  {key}: {value}')
-            self.finished.emit("\n".join(lines))
+            self.finished.emit(info)
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
             self.failed.emit(report_failure('Inspection', exc))
 

@@ -9,8 +9,10 @@ from media_wrapper.application.errors import ApplicationError, report_failure
 from media_wrapper.application.file_service import validate_files
 from media_wrapper.application.media_service import MediaService, validate_remux_paths
 from media_wrapper.application.remux_task import RemuxTask
+from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
 from media_wrapper.ui.workers import (
     DetectionWorker,
@@ -54,6 +56,8 @@ class DesktopViewModel(QObject):
             return
         self.state.binaries = None
         self.state.source = None
+        self.state.media = None
+        self.state.selected_streams = ()
         self.state.command = ()
         self.state.form_error = 'Detect FFmpeg and inspect a file first.'
         self.state.status = 'Binary selection changed. Click Detect FFmpeg.'
@@ -64,6 +68,8 @@ class DesktopViewModel(QObject):
             return
         self.state.binaries = None
         self.state.source = None
+        self.state.media = None
+        self.state.selected_streams = ()
         self.state.command = ()
         self.state.form_error = 'Inspect a file first.'
         self.state.status = 'Detecting FFmpeg…'
@@ -95,6 +101,8 @@ class DesktopViewModel(QObject):
             return
         self.state.current_file = path
         self.state.source = None
+        self.state.media = None
+        self.state.selected_streams = ()
         self.state.command = ()
         self.state.form_error = 'Inspect a file first.'
         self.state.output = ''
@@ -106,6 +114,8 @@ class DesktopViewModel(QObject):
         self.state.files = ()
         self.state.current_file = None
         self.state.source = None
+        self.state.media = None
+        self.state.selected_streams = ()
         self.state.command = ()
         self.state.form_error = 'Inspect a file first.'
         self.state.output = ''
@@ -115,21 +125,34 @@ class DesktopViewModel(QObject):
         if self.state.busy or self.state.binaries is None:
             return
         self.state.source = None
+        self.state.media = None
+        self.state.selected_streams = ()
         self.state.command = ()
         self.state.form_error = 'Inspect a file first.'
         self._inspection_path = path
         self.state.output = 'Inspecting…'
         self._start(InspectionWorker(MediaService(self.state.binaries), path), self._inspected)
 
-    @Slot(str)
-    def _inspected(self, text: str) -> None:
-        self.state.source = self._inspection_path
-        self.state.output = text
+    @Slot(object)
+    def _inspected(self, info: MediaFile) -> None:
+        self.state.source = info.path
+        self.state.media = info
+        self.state.selected_streams = tuple(s.index for s in info.streams if s.index is not None)
+        self.state.output = format_inspection(info)
         suffix = '.mkv' if self.state.container == Container.MATROSKA else '.mp4'
         if self.state.source is not None:
             self.state.destination = str((self.state.recent_destination or self.state.source.parent) /
                                          (self.state.source.stem + '_remux' + suffix))
         self._validate_form()
+        self.changed.emit()
+
+    def select_streams(self, indices: tuple[int, ...]) -> None:
+        if self.state.busy or self.state.media is None:
+            return
+        available = {stream.index for stream in self.state.media.streams if stream.index is not None}
+        if len(indices) != len(set(indices)) or not set(indices) <= available:
+            return
+        self.state.selected_streams = indices
         self.changed.emit()
 
     def set_output(self, destination: str, container: Container) -> None:

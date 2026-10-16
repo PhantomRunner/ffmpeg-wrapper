@@ -201,3 +201,15 @@ def test_changed_binary_selection_requires_redetection(shell):
     assert shell.source is None
     assert not shell.remux_button.isEnabled()
     assert 'Click Detect' in shell.status.text()
+
+
+def test_stream_table_uses_real_indices_and_updates_selection(shell):
+    from PySide6.QtCore import Qt
+
+    from media_wrapper.domain.media import MediaFile, MediaStream
+    shell.model._inspected(MediaFile(Path('fixture.mkv'), streams=(MediaStream(3, 'audio', 'aac'), MediaStream(8, 'subtitle', 'subrip'))))
+    table = shell.files_view.stream_table
+    assert table.item(0, 1).text() == '3'
+    assert table.item(1, 1).text() == '8'
+    table.item(0, 0).setCheckState(Qt.CheckState.Unchecked)
+    assert shell.model.state.selected_streams == (8,)

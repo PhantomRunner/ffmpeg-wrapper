@@ -1,7 +1,7 @@
 """Independent Qt Widgets pages; all actions are wired by the application shell."""
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -9,18 +9,25 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from media_wrapper.domain.media import MediaFile
+from media_wrapper.ui.inspection_presenter import stream_values
+
 
 class FilesView(QWidget):
     files_dropped = Signal(object)
+    streams_selected = Signal(object)
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
@@ -37,6 +44,51 @@ class FilesView(QWidget):
         self.clear_button = QPushButton('Clear files')
         layout.addWidget(self.inspect_button)
         layout.addWidget(self.clear_button)
+        self.summary = QLabel('No inspected file selected.')
+        self.summary.setWordWrap(True)
+        layout.addWidget(self.summary)
+        self.stream_table = QTableWidget(0, 11)
+        self.stream_table.setHorizontalHeaderLabels(['Select', 'Index', 'Type', 'Codec / subtitle type', 'Language',
+                                                    'Bitrate (bit/s)', 'Frame size', 'Frame rate (fps)',
+                                                    'Sample rate (Hz)', 'Channels', 'Layout'])
+        self.stream_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.stream_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.stream_table.itemChanged.connect(self._stream_changed)
+        layout.addWidget(self.stream_table)
+        note = QLabel('Stream selection is retained for future operations. Current Remux still copies all streams.')
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self._media: MediaFile | None = None
+
+    def set_media(self, media: MediaFile | None, selected: tuple[int, ...]) -> None:
+        with QSignalBlocker(self.stream_table):
+            if media is not self._media:
+                self._media = media
+                self.stream_table.setRowCount(len(media.streams) if media else 0)
+                self.summary.setText(f'Container: {media.format_name} | Duration: {media.duration if media.duration is not None else "unknown"} s | '
+                                     f'Size: {media.size_bytes if media.size_bytes is not None else "unknown"} bytes | '
+                                     f'Bitrate: {media.bit_rate if media.bit_rate is not None else "unknown"} bit/s'
+                                     if media else 'No inspected file selected.')
+                if media:
+                    for row, stream in enumerate(media.streams):
+                        checkbox = QTableWidgetItem()
+                        checkbox.setData(Qt.ItemDataRole.UserRole, stream.index)
+                        checkbox.setFlags(Qt.ItemFlag.ItemIsEnabled | (Qt.ItemFlag.ItemIsUserCheckable if stream.index is not None else Qt.ItemFlag.NoItemFlags))
+                        self.stream_table.setItem(row, 0, checkbox)
+                        for column, value in enumerate(stream_values(stream), 1):
+                            item = QTableWidgetItem(value)
+                            item.setToolTip(stream.title or stream.codec_long_name or value)
+                            self.stream_table.setItem(row, column, item)
+            for row in range(self.stream_table.rowCount()):
+                item = self.stream_table.item(row, 0)
+                item.setCheckState(Qt.CheckState.Checked if item.data(Qt.ItemDataRole.UserRole) in selected else Qt.CheckState.Unchecked)
+
+    def _stream_changed(self, _item: QTableWidgetItem) -> None:
+        selected = tuple(self.stream_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+                         for row in range(self.stream_table.rowCount())
+                         if self.stream_table.item(row, 0).checkState() == Qt.CheckState.Checked
+                         and self.stream_table.item(row, 0).data(Qt.ItemDataRole.UserRole) is not None)
+        self.streams_selected.emit(selected)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         urls = event.mimeData().urls()

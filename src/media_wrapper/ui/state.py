@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
@@ -20,3 +21,5 @@ class DesktopState:
     container: Container = Container.MATROSKA
     form_error: str = 'Inspect a file first.'
     command: tuple[str, ...] = ()
+    media: MediaFile | None = None
+    selected_streams: tuple[int, ...] = ()

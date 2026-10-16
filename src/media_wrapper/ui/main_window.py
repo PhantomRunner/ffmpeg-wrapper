@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
         self.container.currentIndexChanged.connect(self.output_changed)
         self.remux_view.preview_button.clicked.connect(self.model.preview)
         self.files_view.files_dropped.connect(self.model.add_files)
+        self.files_view.streams_selected.connect(self.model.select_streams)
         self.files_view.inspect_button.clicked.connect(self.inspect_current)
         self.files_view.clear_button.clicked.connect(self.model.clear_files)
         self.files_view.file_list.currentRowChanged.connect(self.select_current)
@@ -113,6 +114,8 @@ class MainWindow(QMainWindow):
     def render(self) -> None:
         state = self.model.state
         self.status.setText(state.status)
+        self.files_view.set_media(state.media, state.selected_streams)
+        self.files_view.stream_table.setEnabled(not state.busy)
         listing = self.files_view.file_list
         paths = [str(path) for path in state.files]
         if [listing.item(i).text() for i in range(listing.count())] != paths:
