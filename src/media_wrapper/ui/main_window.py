@@ -1,7 +1,7 @@
 """Desktop shell: page navigation and bindings to presentation state."""
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Slot
+from PySide6.QtCore import QSignalBlocker, QThread, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -62,6 +62,10 @@ class MainWindow(QMainWindow):
         self.detect_button.clicked.connect(self.detect)
         self.choose_file_button.clicked.connect(self.choose_file)
         self.remux_button.clicked.connect(self.choose_remux_destination)
+        self.files_view.files_dropped.connect(self.model.add_files)
+        self.files_view.inspect_button.clicked.connect(self.inspect_current)
+        self.files_view.clear_button.clicked.connect(self.model.clear_files)
+        self.files_view.file_list.currentRowChanged.connect(self.select_current)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output, 1)
@@ -90,6 +94,18 @@ class MainWindow(QMainWindow):
     def render(self) -> None:
         state = self.model.state
         self.status.setText(state.status)
+        listing = self.files_view.file_list
+        paths = [str(path) for path in state.files]
+        if [listing.item(i).text() for i in range(listing.count())] != paths:
+            with QSignalBlocker(listing):
+                listing.clear()
+                listing.addItems(paths)
+                if state.current_file in state.files:
+                    listing.setCurrentRow(state.files.index(state.current_file))
+        listing.setEnabled(not state.busy)
+        self.files_view.setAcceptDrops(not state.busy)
+        self.files_view.inspect_button.setEnabled(not state.busy and state.binaries is not None and state.current_file is not None)
+        self.files_view.clear_button.setEnabled(not state.busy and bool(state.files))
         if self.output.toPlainText() != state.output:
             self.output.setPlainText(state.output)
         self.detect_button.setEnabled(not state.busy)
@@ -110,9 +126,15 @@ class MainWindow(QMainWindow):
     def choose_file(self) -> None:
         if self.model.state.busy or self.binaries is None:
             return
-        name, _ = QFileDialog.getOpenFileName(self, 'Select media file')
-        if name:
-            self.run_inspection(Path(name))
+        names, _ = QFileDialog.getOpenFileNames(self, 'Select media files')
+        self.model.add_files([Path(name) for name in names])
+
+    def select_current(self, row: int) -> None:
+        self.model.select_file(self.model.state.files[row] if 0 <= row < len(self.model.state.files) else None)
+
+    def inspect_current(self) -> None:
+        if self.model.state.current_file is not None:
+            self.run_inspection(self.model.state.current_file)
 
     def run_inspection(self, path: Path) -> None:
         self.model.inspect(path)
@@ -123,7 +145,7 @@ class MainWindow(QMainWindow):
         container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
         suffix = '.mkv' if container == Container.MATROSKA else '.mp4'
         name, _ = QFileDialog.getSaveFileName(self, 'Save remux as a new file',
-                                             str(self.source.with_name(self.source.stem + '_remux' + suffix)),
+                                             str((self.model.state.recent_destination or self.source.parent) / (self.source.stem + '_remux' + suffix)),
                                              f'Media (*{suffix})')
         if name:
             self.run_remux(Path(name), container)

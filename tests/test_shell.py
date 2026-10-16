@@ -70,3 +70,47 @@ def test_busy_model_rejects_overlapping_operations(shell, monkeypatch, tmp_path)
             time.sleep(.001)
     assert shell.source == source
     assert shell.remux_button.isEnabled()
+
+
+def test_multi_file_picker_and_selection(shell, tmp_path, monkeypatch):
+    first, second = tmp_path/'a.wav', tmp_path/'b.wav'
+    first.touch()
+    second.touch()
+    monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getOpenFileNames',
+                        lambda *args: ([str(first), str(second)], ''))
+    shell.choose_file()
+    assert shell.files_view.file_list.count() == 2
+    shell.model.state.source = first
+    shell.files_view.file_list.setCurrentRow(1)
+    assert shell.source is None
+    assert shell.model.state.current_file == second
+    shell.files_view.clear_button.click()
+    assert shell.files_view.file_list.count() == 0
+    assert not shell.remux_button.isEnabled()
+
+
+def test_drop_accepts_local_files_and_rejects_remote_urls(shell, tmp_path):
+    from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
+    from PySide6.QtGui import QDropEvent
+    source = tmp_path/'drop ü.wav'
+    source.touch()
+    for url, accepted in ((QUrl.fromLocalFile(str(source)), True), (QUrl('https://example.com/a.wav'), False)):
+        mime = QMimeData()
+        mime.setUrls([url])
+        event = QDropEvent(QPointF(1, 1), Qt.DropAction.CopyAction, mime,
+                           Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        shell.files_view.dropEvent(event)
+        assert event.isAccepted() == accepted
+    assert shell.model.state.files == (source,)
+
+
+def test_recent_destination_is_used_for_next_dialog(shell, tmp_path, monkeypatch):
+    shell.model.state.source = tmp_path/'input.wav'
+    shell.model.state.recent_destination = tmp_path/'exports'
+    seen = []
+    def dialog(*args):
+        seen.append(args[2])
+        return '', ''
+    monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getSaveFileName', dialog)
+    shell.choose_remux_destination()
+    assert Path(seen[0]).parent == tmp_path/'exports'

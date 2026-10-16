@@ -5,6 +5,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from media_wrapper.application.errors import ApplicationError, report_failure
+from media_wrapper.application.file_service import validate_files
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.domain.remux import Container
@@ -62,6 +64,37 @@ class DesktopViewModel(QObject):
         self.state.status = f'Detected: {binaries.version}'
         self.changed.emit()
 
+    def add_files(self, paths: list[Path]) -> None:
+        if self.state.busy:
+            return
+        try:
+            additions = validate_files(paths)
+        except ApplicationError as error:
+            self.state.output = report_failure('File selection', error)
+            self.changed.emit()
+            return
+        self.state.files = tuple(dict.fromkeys((*self.state.files, *additions)))
+        if self.state.current_file is None and self.state.files:
+            self.select_file(self.state.files[0])
+        self.changed.emit()
+
+    def select_file(self, path: Path | None) -> None:
+        if self.state.busy or path == self.state.current_file:
+            return
+        self.state.current_file = path
+        self.state.source = None
+        self.state.output = ''
+        self.changed.emit()
+
+    def clear_files(self) -> None:
+        if self.state.busy:
+            return
+        self.state.files = ()
+        self.state.current_file = None
+        self.state.source = None
+        self.state.output = ''
+        self.changed.emit()
+
     def inspect(self, path: Path) -> None:
         if self.state.busy or self.state.binaries is None:
             return
@@ -79,6 +112,7 @@ class DesktopViewModel(QObject):
     def remux(self, destination: Path, container: Container) -> None:
         if self.state.busy or self.state.source is None or self.state.binaries is None:
             return
+        self.state.recent_destination = destination.parent
         self.state.output = 'Validating remux…'
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container), self.start_remux)

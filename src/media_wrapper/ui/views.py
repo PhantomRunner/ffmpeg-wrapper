@@ -1,9 +1,15 @@
 """Independent Qt Widgets pages; all actions are wired by the application shell."""
+from pathlib import Path
+
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -11,14 +17,34 @@ from PySide6.QtWidgets import (
 
 
 class FilesView(QWidget):
+    files_dropped = Signal(object)
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel('Files / Inspect'))
-        layout.addWidget(QLabel('Open a media file to inspect its streams and container.'))
-        self.open_button = QPushButton('Open media file and inspect')
+        self.setAcceptDrops(True)
+        layout.addWidget(QLabel('Add or drop local media files. Inspect the current file.'))
+        self.open_button = QPushButton('Add files…')
         layout.addWidget(self.open_button)
-        layout.addStretch()
+        self.file_list = QListWidget()
+        self.file_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.file_list.setAcceptDrops(False)
+        layout.addWidget(self.file_list)
+        self.inspect_button = QPushButton('Inspect current file')
+        self.clear_button = QPushButton('Clear files')
+        layout.addWidget(self.inspect_button)
+        layout.addWidget(self.clear_button)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        urls = event.mimeData().urls()
+        if self.isEnabled() and urls and all(url.isLocalFile() for url in urls):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        urls = event.mimeData().urls()
+        if self.isEnabled() and urls and all(url.isLocalFile() for url in urls):
+            self.files_dropped.emit([Path(url.toLocalFile()) for url in urls])
+            event.acceptProposedAction()
 
 
 class RemuxView(QWidget):

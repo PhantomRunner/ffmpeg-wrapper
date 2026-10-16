@@ -12,3 +12,6 @@ class DesktopState:
     busy: bool = False
     status: str = 'FFmpeg not detected'
     output: str = ''
+    files: tuple[Path, ...] = ()
+    current_file: Path | None = None
+    recent_destination: Path | None = None
