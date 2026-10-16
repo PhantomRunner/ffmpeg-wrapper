@@ -93,7 +93,7 @@ Windows remains unverified. Staged execution/finalization UI integration is M4/M
 
 - [x] **M5.1** Build Qt-aware `ProcessRunner` with `QProcess`, stdout/stderr handling, start failure reporting, exit codes, and clean shutdown. Never block the UI.
 - [x] **M5.2** Parse `-progress pipe:1` key/value records; compute percentage only if duration is known. Treat speed/ETA as estimates.
-- [ ] **M5.3** Define task states: Pending, Preparing, Running, Completed, Failed, Cancelled (and legal transitions); keep task models Qt-independent.
+- [x] **M5.3** Define task states: Pending, Preparing, Running, Completed, Failed, Cancelled (and legal transitions); keep task models Qt-independent.
 - [ ] **M5.4** Implement a sequential task queue first: add, start, cancel, retry, per-task logs, and safe management of partial output files.
 - [ ] **M5.5** Add Queue view with progress, output path, status, logs, and errors; run crash/forced-stop scenarios.
 - [ ] **M5.6** Extend to bounded parallelism only after serial execution and GPU contention behavior are tested.

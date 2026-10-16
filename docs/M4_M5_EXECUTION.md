@@ -7,3 +7,6 @@ Single-use QProcess runner separates stdout/stderr, reports start/exit/crash err
 
 ## M5.2
 Incremental bounded progress parser connected to runner signals: microseconds, known-duration percentage, estimated speed/ETA, unknown and malformed values. End progress is not task success. Eight targeted tests and Ruff pass.
+
+## M5.3
+Qt-independent task record and explicit legal Pending/Preparing/Running/Completed/Failed/Cancelled transitions; bounded per-task logs and progress/results. All 36 transition pairs plus identity/log isolation tested (37 pass); Ruff passes.
