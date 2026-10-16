@@ -1,11 +1,14 @@
 """Nonblocking, single-use Qt process adapter with bounded diagnostics."""
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
+from media_wrapper.infrastructure.ffmpeg.progress_parser import ProgressParser
+
 
 class ProcessRunner(QObject):
     finished = Signal(bool, str)
     stdout = Signal(bytes)
     diagnostics = Signal(str)
+    progress = Signal(object)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -22,11 +25,13 @@ class ProcessRunner(QObject):
         self._done = False
         self._used = False
         self.cancelled = False
+        self.parser = ProgressParser()
 
-    def start(self, arguments: list[str]) -> None:
+    def start(self, arguments: list[str], duration: float | None = None) -> None:
         if self._used:
             raise RuntimeError('ProcessRunner is single-use')
         self._used = True
+        self.parser = ProgressParser(duration)
         if not arguments or not arguments[0]:
             self._emit(False, 'No executable was supplied')
             return
@@ -48,6 +53,8 @@ class ProcessRunner(QObject):
     def _read_stdout(self) -> None:
         data = bytes(self.process.readAllStandardOutput())
         self.stdout.emit(data)
+        for progress in self.parser.feed(data):
+            self.progress.emit(progress)
         self._append(data)
 
     def _read_stderr(self) -> None:
