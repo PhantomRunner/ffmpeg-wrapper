@@ -3,21 +3,12 @@ from pathlib import Path
 from threading import Event
 
 from media_wrapper.application.errors import use_case
+from media_wrapper.domain.codec_policy import ALLOWED as _ALLOWED
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.remux import Container, RemuxRequest, Stream
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import build_remux_command
 from media_wrapper.infrastructure.ffmpeg.probe_service import inspect_media
-
-# Intentionally limited first slice; unlisted codecs require a later policy update.
-_ALLOWED = {
-    Container.MP4: {'video': {'h264', 'hevc', 'av1', 'mpeg4'},
-                    'audio': {'aac', 'mp3', 'ac3', 'eac3', 'alac'},
-                    'subtitle': {'mov_text'}},
-    Container.MATROSKA: {'video': {'h264', 'hevc', 'av1', 'vp8', 'vp9', 'mpeg4', 'mpeg2video', 'ffv1'},
-                         'audio': {'aac', 'mp3', 'ac3', 'eac3', 'flac', 'opus', 'vorbis', 'pcm_s16le'},
-                         'subtitle': {'subrip', 'ass', 'ssa', 'webvtt', 'hdmv_pgs_subtitle', 'dvd_subtitle'}},
-}
 
 
 class MediaService:
