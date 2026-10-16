@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from media_wrapper.domain.media import MediaInfo
 from media_wrapper.infrastructure.ffmpeg import binary_resolver as resolver
+from media_wrapper.infrastructure.ffmpeg.probe_parser import parse_probe
 from media_wrapper.infrastructure.ffmpeg.probe_service import inspect_media
 
 
@@ -72,7 +72,7 @@ def test_probe_paths_are_absolute_single_arguments(tmp_path, monkeypatch):
         assert kwargs['timeout'] == 30
         return subprocess.CompletedProcess(args, 0, json.dumps({'streams': [{'index': 2}]}), '')
     monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.probe_service.subprocess.run', run)
-    assert inspect_media(Path('ffprobe'), source).streams[0]['index'] == 2
+    assert inspect_media(Path('ffprobe'), source).streams[0].index == 2
 
 
 @pytest.mark.parametrize(('stdout', 'stderr', 'code', 'exception'), [
@@ -98,10 +98,10 @@ def test_missing_source_does_not_launch_process(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('duration', ['NaN', 'Infinity', '-1', 'N/A', None])
 def test_invalid_duration_is_unknown(duration):
-    assert MediaInfo.from_probe(Path('input'), {'format': {'duration': duration}}).duration is None
+    assert parse_probe(Path('input'), {'format': {'duration': duration}}).duration is None
 
 
 @pytest.mark.parametrize('payload', [{'format': 2}, {'streams': {}}, {'streams': [1]}])
 def test_invalid_probe_shape(payload):
     with pytest.raises(ValueError):
-        MediaInfo.from_probe(Path('input'), payload)
+        parse_probe(Path('input'), payload)

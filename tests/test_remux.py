@@ -5,7 +5,7 @@ import pytest
 
 from media_wrapper.application.errors import ApplicationError
 from media_wrapper.application.media_service import MediaService
-from media_wrapper.domain.media import MediaInfo
+from media_wrapper.domain.media import MediaFile, MediaStream
 from media_wrapper.domain.remux import Container, RemuxRequest, Stream
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries, resolve
 from media_wrapper.infrastructure.ffmpeg.command_builder import build_remux_command
@@ -33,8 +33,8 @@ def service(tmp_path, monkeypatch):
     source = tmp_path / 'input.mkv'
     source.write_bytes(b'source')
     service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
-    monkeypatch.setattr(service, 'inspect', lambda path: MediaInfo(path, 'matroska', 1, 6,
-                        ({'index': 0, 'codec_type': 'audio', 'codec_name': 'aac'},)))
+    monkeypatch.setattr(service, 'inspect', lambda path: MediaFile(path, 'matroska', 1, 6,
+                        (MediaStream(0, 'audio', 'aac'),)))
     return service, source
 
 
@@ -60,8 +60,8 @@ def test_invalid_paths(service, tmp_path, case):
 
 def test_unsupported_stream_is_not_silently_dropped(service, tmp_path, monkeypatch):
     svc, source = service
-    monkeypatch.setattr(svc, 'inspect', lambda path: MediaInfo(path, 'mkv', None, None,
-                        ({'index': 0, 'codec_type': 'attachment', 'codec_name': 'ttf'},)))
+    monkeypatch.setattr(svc, 'inspect', lambda path: MediaFile(path, 'mkv', None, None,
+                        (MediaStream(0, 'attachment', 'ttf'),)))
     with pytest.raises(ApplicationError, match='Stream 0'):
         svc.prepare_remux(source, tmp_path/'out.mp4', Container.MP4)
 
@@ -84,7 +84,7 @@ def test_real_remux_and_overwrite_refusal(tmp_path):
     svc = MediaService(binaries)
     command = svc.prepare_remux(source, destination, Container.MATROSKA)
     subprocess.run(command, check=True, capture_output=True, timeout=15)
-    assert svc.inspect(destination).streams[0]['codec_name'] == 'pcm_s16le'
+    assert svc.inspect(destination).streams[0].codec == 'pcm_s16le'
     before = destination.read_bytes()
     result = subprocess.run(command, capture_output=True, timeout=15, check=False)
     assert b'Exiting' in result.stderr or b'Not overwriting' in result.stderr or result.returncode != 0

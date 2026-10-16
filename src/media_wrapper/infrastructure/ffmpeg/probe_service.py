@@ -3,10 +3,11 @@ import json
 import subprocess
 from pathlib import Path
 
-from media_wrapper.domain.media import MediaInfo
+from media_wrapper.domain.media import MediaFile
+from media_wrapper.infrastructure.ffmpeg.probe_parser import parse_probe
 
 
-def inspect_media(ffprobe: Path, source: Path) -> MediaInfo:
+def inspect_media(ffprobe: Path, source: Path) -> MediaFile:
     source = source.expanduser().absolute()
     if not source.is_file():
         raise FileNotFoundError(f"File does not exist: {source}")
@@ -18,4 +19,4 @@ def inspect_media(ffprobe: Path, source: Path) -> MediaInfo:
     payload = json.loads(result.stdout)
     if not isinstance(payload, dict):
         raise ValueError("Unexpected FFprobe output")  # noqa: TRY004 - invalid JSON payload value
-    return MediaInfo.from_probe(source, payload)
+    return parse_probe(source, payload)

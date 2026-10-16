@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from media_wrapper.application.errors import use_case
-from media_wrapper.domain.media import MediaInfo
+from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.remux import Container, RemuxRequest, Stream
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import build_remux_command
@@ -24,14 +24,16 @@ class MediaService:
         self.binaries = binaries
 
     @use_case('Inspection')
-    def inspect(self, source: Path) -> MediaInfo:
+    def inspect(self, source: Path) -> MediaFile:
         return inspect_media(self.binaries.ffprobe, source)
 
     @use_case('Remux preparation')
     def prepare_remux(self, source: Path, destination: Path, container: Container) -> list[str]:
         source, destination = validate_remux_paths(source, destination, container)
         info = self.inspect(source)
-        streams = tuple(Stream.from_probe(s) for s in info.streams)
+        if any(s.index is None for s in info.streams):
+            raise ValueError('Cannot remux streams without indices; inspect with a working FFprobe build')
+        streams = tuple(Stream(s.index, s.kind, s.codec) for s in info.streams if s.index is not None)
         if not streams:
             raise ValueError('Source has no streams')
         for stream in streams:

@@ -40,11 +40,12 @@ class InspectionWorker(QObject):
             lines = [f"File: {info.path}", f"Container: {info.format_name}",
                      f"Duration: {info.duration if info.duration is not None else 'unknown'} s",
                      f"Size: {info.size_bytes if info.size_bytes is not None else 'unknown'} bytes", ""]
-            for i, stream in enumerate(info.streams):
-                lines.append(f"Stream {i}: {stream.get('codec_type', '?')} / {stream.get('codec_name', '?')}")
-                for key in ("width", "height", "sample_rate", "channels", "bit_rate"):
-                    if key in stream:
-                        lines.append(f"  {key}: {stream[key]}")
+            for stream in info.streams:
+                lines.append(f'Stream {stream.index}: {stream.kind} / {stream.codec}')
+                for key in ('width', 'height', 'sample_rate', 'channels', 'bit_rate'):
+                    value = getattr(stream, key)
+                    if value is not None:
+                        lines.append(f'  {key}: {value}')
             self.finished.emit("\n".join(lines))
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
             self.failed.emit(report_failure('Inspection', exc))

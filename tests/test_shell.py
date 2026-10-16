@@ -43,13 +43,13 @@ def test_busy_model_rejects_overlapping_operations(shell, monkeypatch, tmp_path)
     import threading
 
     from media_wrapper.application.media_service import MediaService
-    from media_wrapper.domain.media import MediaInfo
+    from media_wrapper.domain.media import MediaFile
     from media_wrapper.domain.remux import Container
     entered, release = threading.Event(), threading.Event()
     def inspect(service, path):
         entered.set()
         release.wait(5)
-        return MediaInfo(path, 'wav', 1, 1, ())
+        return MediaFile(path, 'wav', 1, 1, ())
     monkeypatch.setattr(MediaService, 'inspect', inspect)
     source = tmp_path/'clip.wav'
     source.touch()
@@ -121,12 +121,12 @@ def test_form_validation_preview_and_execution_revalidation(shell, tmp_path, mon
     import json
 
     from media_wrapper.application.media_service import MediaService
-    from media_wrapper.domain.media import MediaInfo
+    from media_wrapper.domain.media import MediaFile, MediaStream
     from media_wrapper.domain.remux import Container
     source, destination = tmp_path/'input.wav', tmp_path/'output.mkv'
     source.touch()
     monkeypatch.setattr(MediaService, 'inspect', lambda self, path:
-                        MediaInfo(path, 'wav', 1, 1, ({'index': 0, 'codec_type': 'audio', 'codec_name': 'pcm_s16le'},)))
+                        MediaFile(path, 'wav', 1, 1, (MediaStream(0, 'audio', 'pcm_s16le'),)))
     shell.model.state.source = source
     shell.model.set_output(str(source), Container.MATROSKA)
     assert not shell.remux_button.isEnabled()
