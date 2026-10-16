@@ -99,7 +99,7 @@ def test_window_recovers_from_failures_with_diagnostics(app, tmp_path, monkeypat
     binaries = Binaries(tmp_path/'ffmpeg', tmp_path/'ffprobe', 'test')
     def fail(*args):
         raise PermissionError('adapter permission diagnostic')
-    monkeypatch.setattr('media_wrapper.ui.main_window.detect_binaries',
+    monkeypatch.setattr('media_wrapper.ui.workers.detect_binaries',
                         fail if stage == 'detect' else lambda *args: binaries)
     with caplog.at_level(logging.ERROR):
         window = MainWindow(diagnostic_status='Diagnostic log: test.log')
@@ -110,10 +110,10 @@ def test_window_recovers_from_failures_with_diagnostics(app, tmp_path, monkeypat
                 window.run_inspection(tmp_path/'input.mkv')
             elif stage == 'prepare':
                 monkeypatch.setattr(MediaService, 'prepare_remux', fail)
-                window.source = tmp_path/'input.mkv'
+                window.model.state.source = tmp_path/'input.mkv'
                 window.run_remux(tmp_path/'out.mkv', Container.MATROSKA)
             elif stage in {'execute', 'start'}:
-                window.source = tmp_path/'input.mkv'
+                window.model.state.source = tmp_path/'input.mkv'
                 command = ([sys.executable, '-c',
                             "import sys; print('backend failure details', file=sys.stderr); sys.exit(2)",
                             str(tmp_path/'out.mkv')]

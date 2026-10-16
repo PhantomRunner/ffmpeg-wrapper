@@ -15,7 +15,7 @@ from media_wrapper.application.errors import (
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
-from media_wrapper.ui.main_window import (
+from media_wrapper.ui.workers import (
     DetectionWorker,
     InspectionWorker,
     RemuxPreparationWorker,
@@ -86,7 +86,7 @@ def test_worker_reports_unexpected_failure_once(kind, monkeypatch, caplog):
         raise KeyError('unexpected adapter bug')
     service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
     if kind == 'detect':
-        monkeypatch.setattr('media_wrapper.ui.main_window.detect_binaries', fail)
+        monkeypatch.setattr('media_wrapper.ui.workers.detect_binaries', fail)
         worker = DetectionWorker('external', None)
     elif kind == 'inspect':
         monkeypatch.setattr(service, 'inspect', fail)
