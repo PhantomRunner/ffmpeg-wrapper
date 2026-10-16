@@ -127,7 +127,7 @@ def test_form_validation_preview_and_execution_revalidation(shell, tmp_path, mon
     source.touch()
     monkeypatch.setattr(MediaService, 'inspect', lambda self, path, cancel_event=None:
                         MediaFile(path, 'wav', 1, 1, (MediaStream(0, 'audio', 'pcm_s16le'),)))
-    shell.model.state.source = source
+    shell.model._inspected(MediaService(shell.binaries).inspect(source))
     shell.model.set_output(str(source), Container.MATROSKA)
     assert not shell.remux_button.isEnabled()
     assert 'differ' in shell.remux_view.validation.text()
@@ -274,3 +274,16 @@ def test_selected_batch_cancellation_and_restart(shell, tmp_path, monkeypatch):
         while shell.model.state.busy and time.monotonic()<deadline:
             QApplication.instance().processEvents()
             time.sleep(.001)
+
+
+def test_remux_track_selection_updates_inspection(shell, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from media_wrapper.domain.media import MediaFile, MediaStream
+    source = tmp_path/'selected.mkv'
+    source.write_bytes(b'fixture')
+    shell.model._inspected(MediaFile(source, streams=(MediaStream(3, 'audio', 'aac'), MediaStream(8, 'subtitle', 'subrip'))))
+    assert shell.remux_view.tracks.count() == 2
+    shell.remux_view.tracks.item(1).setCheckState(Qt.CheckState.Unchecked)
+    assert shell.model.state.selected_streams == (3,)
+    assert shell.files_view.stream_table.item(1, 0).checkState() == Qt.CheckState.Unchecked

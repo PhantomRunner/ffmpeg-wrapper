@@ -10,3 +10,6 @@ Incremental bounded progress parser connected to runner signals: microseconds, k
 
 ## M5.3
 Qt-independent task record and explicit legal Pending/Preparing/Running/Completed/Failed/Cancelled transitions; bounded per-task logs and progress/results. All 36 transition pairs plus identity/log isolation tested (37 pass); Ruff passes.
+
+## M4.1
+Remux now exposes real-index track checkboxes synchronized with Inspect. Selected indices flow through preparation; changing selection invalidates preview. Updated UI fixture to use inspected state. 217 tests pass; Ruff passes.

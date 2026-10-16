@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -62,7 +63,7 @@ class FilesView(QWidget):
         self.stream_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.stream_table.itemChanged.connect(self._stream_changed)
         layout.addWidget(self.stream_table)
-        note = QLabel('Stream selection is retained for future operations. Current Remux still copies all streams.')
+        note = QLabel('Checked streams are used by Remux. Unsupported selected tracks cause a validation error.')
         note.setWordWrap(True)
         layout.addWidget(note)
         self._media: MediaFile | None = None
@@ -110,6 +111,7 @@ class FilesView(QWidget):
 
 
 class RemuxView(QWidget):
+    streams_selected = Signal(object)
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
@@ -117,6 +119,10 @@ class RemuxView(QWidget):
         self.source_label = QLabel('Inspect a file first. Streams are copied without re-encoding.')
         self.source_label.setWordWrap(True)
         layout.addWidget(self.source_label)
+        self.tracks = QListWidget()
+        self.tracks.setMaximumHeight(120)
+        self.tracks.itemChanged.connect(self._tracks_changed)
+        layout.addWidget(self.tracks)
         simple = QGroupBox('Output')
         form = QVBoxLayout(simple)
         self.container = QComboBox()
@@ -129,7 +135,7 @@ class RemuxView(QWidget):
         self.validation = QLabel('Inspect a file first.')
         self.validation.setWordWrap(True)
         self.run_button = QPushButton('Run remux')
-        self.run_button.setToolTip('Validate the source again and copy all supported streams. Unsupported tracks cause an error.')
+        self.run_button.setToolTip('Validate the source again and copy selected supported streams. Unsupported tracks cause an error.')
         for widget in (self.container, self.destination, self.browse_button, self.validation, self.run_button):
             form.addWidget(widget)
         layout.addWidget(simple)
@@ -147,6 +153,21 @@ class RemuxView(QWidget):
         layout.addWidget(self.advanced)
         self.advanced_toggle.toggled.connect(self.advanced.setVisible)
         self.advanced.hide()
+
+    def set_tracks(self, media: MediaFile | None, selected: tuple[int, ...]) -> None:
+        with QSignalBlocker(self.tracks):
+            self.tracks.clear()
+            for stream in media.streams if media else ():
+                item = QListWidgetItem(f'{stream.index}: {stream.kind} / {stream.codec} / {stream.language or "unknown language"}')
+                item.setData(Qt.ItemDataRole.UserRole, stream.index)
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | (Qt.ItemFlag.ItemIsUserCheckable if stream.index is not None else Qt.ItemFlag.NoItemFlags))
+                item.setCheckState(Qt.CheckState.Checked if stream.index in selected else Qt.CheckState.Unchecked)
+                self.tracks.addItem(item)
+
+    def _tracks_changed(self, _item: QListWidgetItem) -> None:
+        self.streams_selected.emit(tuple(self.tracks.item(i).data(Qt.ItemDataRole.UserRole)
+                                         for i in range(self.tracks.count())
+                                         if self.tracks.item(i).checkState() == Qt.CheckState.Checked))
 
 
 class SettingsView(QWidget):

@@ -49,15 +49,16 @@ class RemuxPreparationWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, service: MediaService, source: Path, destination: Path, container: Container) -> None:
+    def __init__(self, service: MediaService, source: Path, destination: Path, container: Container, indices: tuple[int, ...] | None = None) -> None:
         super().__init__()
         self.service, self.source = service, source
         self.destination, self.container = destination, container
+        self.indices = indices
 
     @Slot()
     def run(self) -> None:
         try:
-            self.finished.emit(self.service.prepare_remux(self.source, self.destination, self.container))
+            self.finished.emit(self.service.prepare_remux(self.source, self.destination, self.container, self.indices))
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
             self.failed.emit(report_failure('Remux preparation', exc))
 

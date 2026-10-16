@@ -213,6 +213,8 @@ class DesktopViewModel(QObject):
             return
         self.state.selected_streams = indices
         self.state.stream_selections[self.state.media.path] = indices
+        self.state.command = ()
+        self._validate_form()
         self.changed.emit()
 
     def set_output(self, destination: str, container: Container) -> None:
@@ -245,7 +247,7 @@ class DesktopViewModel(QObject):
             return
         self.state.command = ()
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
-                                          Path(self.state.destination), self.state.container), self._preview_ready)
+                                          Path(self.state.destination), self.state.container, self.state.selected_streams), self._preview_ready)
 
     @Slot(object)
     def _preview_ready(self, command: list[str]) -> None:
@@ -260,7 +262,7 @@ class DesktopViewModel(QObject):
         self.state.command = ()
         self.state.output = 'Validating remux…'
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
-                                          destination, container), self.start_remux)
+                                          destination, container, self.state.selected_streams), self.start_remux)
 
     @Slot(object)
     def start_remux(self, command: list[str]) -> None:

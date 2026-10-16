@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
         self.remux_view.preview_button.clicked.connect(self.model.preview)
         self.files_view.files_dropped.connect(self.model.add_files)
         self.files_view.streams_selected.connect(self.model.select_streams)
+        self.remux_view.streams_selected.connect(self.model.select_streams)
         self.files_view.inspect_button.clicked.connect(self.inspect_current)
         self.files_view.inspect_selected_button.clicked.connect(self.inspect_selected)
         self.files_view.cancel_button.clicked.connect(self.model.cancel_inspection)
@@ -118,6 +119,8 @@ class MainWindow(QMainWindow):
         state = self.model.state
         self.status.setText(state.status)
         self.files_view.set_media(state.media, state.selected_streams)
+        self.remux_view.set_tracks(state.media, state.selected_streams)
+        self.remux_view.tracks.setEnabled(not state.busy)
         self.files_view.stream_table.setEnabled(not state.busy)
         listing = self.files_view.file_list
         paths = [str(path) for path in state.files]
@@ -152,7 +155,7 @@ class MainWindow(QMainWindow):
         self.remux_view.preview_button.setEnabled(not state.busy and not state.form_error)
         self.remux_view.browse_button.setEnabled(not state.busy and state.source is not None)
         self.remux_view.destination.setEnabled(not state.busy)
-        self.remux_view.validation.setText(state.form_error or 'Ready. All streams will be validated before execution.')
+        self.remux_view.validation.setText(state.form_error or 'Ready. Selected streams will be validated before execution.')
         with QSignalBlocker(self.remux_view.destination):
             self.remux_view.destination.setText(state.destination)
         with QSignalBlocker(self.container):

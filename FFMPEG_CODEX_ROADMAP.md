@@ -81,7 +81,7 @@ Windows remains unverified. Staged execution/finalization UI integration is M4/M
 
 ## Milestone 4 — Remux vertical slice (P0)
 
-- [ ] **M4.1** Add output container selection and chosen video/audio/subtitle tracks to Remux view.
+- [x] **M4.1** Add output container selection and chosen video/audio/subtitle tracks to Remux view.
 - [ ] **M4.2** Validate stream compatibility; show clear warnings for unsupported tracks rather than silently dropping them.
 - [ ] **M4.3** Execute stream-copy via common process runner (from M5.1); use a temporary output file where appropriate and finalize only on success.
 - [ ] **M4.4** Show the exact generated arguments, warnings, result path, and verified output metadata.
