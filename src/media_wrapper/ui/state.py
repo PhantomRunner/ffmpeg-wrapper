@@ -1,7 +1,8 @@
 """Desktop presentation state, independent of Qt widgets."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from media_wrapper.domain.inspection import InspectionRecord
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
@@ -23,3 +24,8 @@ class DesktopState:
     command: tuple[str, ...] = ()
     media: MediaFile | None = None
     selected_streams: tuple[int, ...] = ()
+    inspections: dict[Path, InspectionRecord] = field(default_factory=dict)
+    stream_selections: dict[Path, tuple[int, ...]] = field(default_factory=dict)
+    inspection_active: bool = False
+    cancel_requested: bool = False
+    inspection_summary: str = ''

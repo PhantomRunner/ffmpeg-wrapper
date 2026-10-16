@@ -56,7 +56,7 @@ and preference persistence. Windows execution remains pending.
 
 - [x] **M2.1** Parse `ffprobe -v error -show_format -show_streams -of json` into Qt-independent typed `MediaFile` / `MediaStream` models.
 - [x] **M2.2** Show container, duration, file size, bitrate, frame size, frame rate (rational-safe), codecs, language, audio channels, subtitle types, and stream indices. Treat missing fields as normal.
-- [ ] **M2.3** Inspect multiple files asynchronously with cancellation, error states, and no GUI freeze.
+- [x] **M2.3** Inspect multiple files asynchronously with cancellation, error states, and no GUI freeze.
 - [ ] **M2.4** Tests for audio-only, video-only, multi-track, missing metadata, malformed JSON, and failed probe invocations.
 
 **Acceptance:** users can inspect multiple sample media files and select individual streams for future operations.

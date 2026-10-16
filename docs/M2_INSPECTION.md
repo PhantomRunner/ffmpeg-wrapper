@@ -15,3 +15,22 @@ sample rate, channels and layout. Missing values display unknown. Stream checkbo
 store actual indices, with absent indices unselectable; file changes invalidate
 selection. The UI explicitly states that this selection is for future operations
 and the current Remux slice still copies all streams. 125 tests passed; Ruff passed.
+
+## M2.3
+Selected files are inspected sequentially on a Qt worker. Per-file Pending,
+Running, Completed, Failed and Cancelled outcomes survive switching the current
+file; stream selections are retained per successful inspection. Failures do not
+stop other files. Re-inspection invalidates the requested files' cached results.
+Cancellation uses a thread-safe event, stops/reaps the active FFprobe process and
+marks remaining files cancelled. Successful earlier results remain available.
+The worker drains stdout/stderr with short communicate intervals, a 30-second
+probe timeout and terminate/kill cleanup on the worker thread. Cancellation is not
+an application error and does not produce failure logs. The UI permits navigation
+while inspecting and rejects close until cleanup finishes. Remux cancellation is
+still deferred to M5.
+
+131 tests pass on Linux, including held-worker UI cancellation/restart, per-file
+failure isolation, preserved stream selection, real subprocess cancellation and
+timeout/reaping, and large stdout/stderr drainage. Ruff and whitespace checks pass.
+Windows process behavior is implemented using portable subprocess APIs but native
+execution remains unverified. M2.4's broader fixture coverage is the next task.

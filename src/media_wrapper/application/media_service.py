@@ -1,5 +1,6 @@
 """Inspection and remux validation, independent of Qt."""
 from pathlib import Path
+from threading import Event
 
 from media_wrapper.application.errors import use_case
 from media_wrapper.domain.media import MediaFile
@@ -24,8 +25,10 @@ class MediaService:
         self.binaries = binaries
 
     @use_case('Inspection')
-    def inspect(self, source: Path) -> MediaFile:
-        return inspect_media(self.binaries.ffprobe, source)
+    def inspect(self, source: Path, cancel_event: Event | None = None) -> MediaFile:
+        if cancel_event is None:
+            return inspect_media(self.binaries.ffprobe, source)
+        return inspect_media(self.binaries.ffprobe, source, cancel_event)
 
     @use_case('Remux preparation')
     def prepare_remux(self, source: Path, destination: Path, container: Container) -> list[str]:

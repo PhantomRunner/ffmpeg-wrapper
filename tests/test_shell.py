@@ -46,7 +46,7 @@ def test_busy_model_rejects_overlapping_operations(shell, monkeypatch, tmp_path)
     from media_wrapper.domain.media import MediaFile
     from media_wrapper.domain.remux import Container
     entered, release = threading.Event(), threading.Event()
-    def inspect(service, path):
+    def inspect(service, path, cancel_event=None):
         entered.set()
         release.wait(5)
         return MediaFile(path, 'wav', 1, 1, ())
@@ -125,7 +125,7 @@ def test_form_validation_preview_and_execution_revalidation(shell, tmp_path, mon
     from media_wrapper.domain.remux import Container
     source, destination = tmp_path/'input.wav', tmp_path/'output.mkv'
     source.touch()
-    monkeypatch.setattr(MediaService, 'inspect', lambda self, path:
+    monkeypatch.setattr(MediaService, 'inspect', lambda self, path, cancel_event=None:
                         MediaFile(path, 'wav', 1, 1, (MediaStream(0, 'audio', 'pcm_s16le'),)))
     shell.model.state.source = source
     shell.model.set_output(str(source), Container.MATROSKA)
@@ -213,3 +213,64 @@ def test_stream_table_uses_real_indices_and_updates_selection(shell):
     assert table.item(1, 1).text() == '8'
     table.item(0, 0).setCheckState(Qt.CheckState.Unchecked)
     assert shell.model.state.selected_streams == (8,)
+
+
+def test_selected_batch_cancellation_and_restart(shell, tmp_path, monkeypatch):
+    import threading
+
+    from media_wrapper.application.media_service import MediaService
+    from media_wrapper.domain.inspection import InspectionStatus as Status
+    from media_wrapper.domain.inspection import OperationCancelled
+    from media_wrapper.domain.media import MediaFile, MediaStream
+    files = tuple(tmp_path/name for name in ('first.wav', 'second.wav', 'third.wav'))
+    for path in files:
+        path.touch()
+    entered = threading.Event()
+    calls = []
+    def inspect(service, path, cancel_event=None):
+        calls.append(path)
+        if path == files[1]:
+            entered.set()
+            assert cancel_event.wait(5)
+            raise OperationCancelled()
+        return MediaFile(path, 'wav', 1, 1, (MediaStream(4, 'audio', 'pcm_s16le'),))
+    monkeypatch.setattr(MediaService, 'inspect', inspect)
+    shell.model.add_files(list(files))
+    shell.files_view.file_list.selectAll()
+    shell.inspect_selected()
+    try:
+        assert entered.wait(3)
+        QApplication.instance().processEvents()
+        assert shell.files_view.cancel_button.isEnabled()
+        shell.navigation.setCurrentRow(1)
+        assert shell.pages.currentIndex() == 1
+        shell.files_view.cancel_button.click()
+        assert shell.model.state.cancel_requested
+        deadline = time.monotonic()+5
+        while shell.model.state.busy and time.monotonic()<deadline:
+            QApplication.instance().processEvents()
+            time.sleep(.001)
+        assert not shell.model.state.busy
+        assert [shell.model.state.inspections[p].status for p in files] == [Status.COMPLETED, Status.CANCELLED, Status.CANCELLED]
+        assert calls == list(files[:2])
+        assert shell.source == files[0]
+        assert shell.files_view.inspect_selected_button.isEnabled()
+        shell.model.select_streams(())
+        shell.model.select_file(files[1])
+        assert shell.source is None
+        assert 'Cancelled' in shell.output.toPlainText()
+        shell.model.select_file(files[0])
+        assert shell.model.state.selected_streams == ()
+        shell.run_inspection(files[2])
+        deadline = time.monotonic()+5
+        while shell.model.state.busy and time.monotonic()<deadline:
+            QApplication.instance().processEvents()
+            time.sleep(.001)
+        assert shell.model.state.inspections[files[2]].status == Status.COMPLETED
+        assert shell.source == files[2]
+    finally:
+        shell.model.cancel_inspection()
+        deadline = time.monotonic()+5
+        while shell.model.state.busy and time.monotonic()<deadline:
+            QApplication.instance().processEvents()
+            time.sleep(.001)

@@ -6,6 +6,8 @@ from collections.abc import Callable
 from functools import wraps
 from typing import ParamSpec, TypeVar
 
+from media_wrapper.domain.inspection import OperationCancelled
+
 logger = logging.getLogger(__name__)
 P = ParamSpec('P')
 T = TypeVar('T')
@@ -53,7 +55,7 @@ def use_case(operation: str) -> Callable[[Callable[P, T]], Callable[P, T]]:
         def wrapped(*args: P.args, **kwargs: P.kwargs) -> T:
             try:
                 return function(*args, **kwargs)
-            except ApplicationError:
+            except (ApplicationError, OperationCancelled):
                 raise
             except Exception as error:
                 raise normalize_error(operation, error) from error

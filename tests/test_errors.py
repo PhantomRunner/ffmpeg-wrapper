@@ -17,7 +17,6 @@ from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.workers import (
     DetectionWorker,
-    InspectionWorker,
     RemuxPreparationWorker,
 )
 
@@ -42,7 +41,7 @@ def test_normalized_errors_are_actionable(error, expected):
 
 def test_binary_service_preserves_cause(monkeypatch):
     cause = PermissionError('cannot execute selected ffmpeg')
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise cause
     monkeypatch.setattr('media_wrapper.application.binary_service.resolve', fail)
     with pytest.raises(ApplicationError, match='Permission denied') as raised:
@@ -61,7 +60,7 @@ def test_process_stderr_is_preserved_in_diagnostics():
 
 def test_inspect_service_translates_probe_failure(monkeypatch):
     cause = subprocess.TimeoutExpired(['ffprobe'], 30)
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise cause
     monkeypatch.setattr('media_wrapper.application.media_service.inspect_media', fail)
     service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
@@ -80,17 +79,14 @@ def test_existing_application_error_is_not_wrapped_or_duplicated(caplog):
     assert caplog.records[0].exc_info[1] is error
 
 
-@pytest.mark.parametrize('kind', ['detect', 'inspect', 'prepare'])
+@pytest.mark.parametrize('kind', ['detect', 'prepare'])
 def test_worker_reports_unexpected_failure_once(kind, monkeypatch, caplog):
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise KeyError('unexpected adapter bug')
     service = MediaService(Binaries(Path('ffmpeg'), Path('ffprobe'), 'test'))
     if kind == 'detect':
         monkeypatch.setattr('media_wrapper.ui.workers.detect_binaries', fail)
         worker = DetectionWorker('external', None)
-    elif kind == 'inspect':
-        monkeypatch.setattr(service, 'inspect', fail)
-        worker = InspectionWorker(service, Path('clip.mkv'))
     else:
         monkeypatch.setattr(service, 'prepare_remux', fail)
         worker = RemuxPreparationWorker(service, Path('in.mkv'), Path('out.mkv'), Container.MATROSKA)

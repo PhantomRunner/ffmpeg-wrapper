@@ -1,6 +1,7 @@
 """Presentation coordinator; invokes application services outside the event loop."""
 from collections.abc import Callable
 from pathlib import Path
+from threading import Event
 from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
@@ -9,6 +10,7 @@ from media_wrapper.application.errors import ApplicationError, report_failure
 from media_wrapper.application.file_service import validate_files
 from media_wrapper.application.media_service import MediaService, validate_remux_paths
 from media_wrapper.application.remux_task import RemuxTask
+from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
@@ -32,7 +34,8 @@ class DesktopViewModel(QObject):
         self.thread: QThread | None = None
         self.worker: Worker | None = None
         self.remux_task: RemuxTask | None = None
-        self._inspection_path: Path | None = None
+        self._inspection_cancel = Event()
+        self._inspection_paths: tuple[Path, ...] = ()
         self._detecting = False
 
     def _start(self, worker: Worker, on_success: Callable[..., Any]) -> None:
@@ -55,6 +58,9 @@ class DesktopViewModel(QObject):
         if self.state.busy:
             return
         self.state.binaries = None
+        self.state.inspections.clear()
+        self.state.inspection_summary = ''
+        self.state.stream_selections.clear()
         self.state.source = None
         self.state.media = None
         self.state.selected_streams = ()
@@ -67,6 +73,9 @@ class DesktopViewModel(QObject):
         if self.state.busy:
             return
         self.state.binaries = None
+        self.state.inspections.clear()
+        self.state.inspection_summary = ''
+        self.state.stream_selections.clear()
         self.state.source = None
         self.state.media = None
         self.state.selected_streams = ()
@@ -100,18 +109,29 @@ class DesktopViewModel(QObject):
         if self.state.busy or path == self.state.current_file:
             return
         self.state.current_file = path
-        self.state.source = None
-        self.state.media = None
-        self.state.selected_streams = ()
         self.state.command = ()
-        self.state.form_error = 'Inspect a file first.'
-        self.state.output = ''
+        self._show_current_inspection()
         self.changed.emit()
+
+    def _show_current_inspection(self) -> None:
+        record = self.state.inspections.get(self.state.current_file) if self.state.current_file else None
+        if record is not None and record.media is not None and record.status == InspectionStatus.COMPLETED:
+            self._inspected(record.media)
+        else:
+            self.state.source = None
+            self.state.media = None
+            self.state.selected_streams = ()
+            self.state.form_error = 'Inspect a file first.'
+            self.state.output = (record.error or f'{record.path}: {record.status.value}') if record else ''
 
     def clear_files(self) -> None:
         if self.state.busy:
             return
         self.state.files = ()
+        self.state.inspections.clear()
+        self.state.inspection_summary = ''
+        self.state.stream_selections.clear()
+        self.state.inspection_summary = ''
         self.state.current_file = None
         self.state.source = None
         self.state.media = None
@@ -122,22 +142,61 @@ class DesktopViewModel(QObject):
         self.changed.emit()
 
     def inspect(self, path: Path) -> None:
-        if self.state.busy or self.state.binaries is None:
+        self.inspect_many((path,))
+
+    def inspect_many(self, paths: tuple[Path, ...]) -> None:
+        if self.state.busy or self.state.binaries is None or not paths:
             return
+        self._inspection_paths = tuple(dict.fromkeys(paths))
+        if self.state.current_file not in self._inspection_paths:
+            self.state.current_file = self._inspection_paths[0]
+        self._inspection_cancel = Event()
+        self.state.inspection_active = True
+        self.state.cancel_requested = False
+        self.state.inspection_summary = f'Inspecting {len(self._inspection_paths)} file(s)…'
+        for path in self._inspection_paths:
+            self.state.inspections[path] = InspectionRecord(path, InspectionStatus.PENDING)
+            self.state.stream_selections.pop(path, None)
         self.state.source = None
         self.state.media = None
         self.state.selected_streams = ()
         self.state.command = ()
-        self.state.form_error = 'Inspect a file first.'
-        self._inspection_path = path
+        self.state.form_error = 'Inspection running…'
         self.state.output = 'Inspecting…'
-        self._start(InspectionWorker(MediaService(self.state.binaries), path), self._inspected)
+        worker = InspectionWorker(MediaService(self.state.binaries), self._inspection_paths, self._inspection_cancel)
+        worker.progress.connect(self._inspection_progress)
+        self._start(worker, self._inspection_finished)
+
+    def cancel_inspection(self) -> None:
+        if self.state.inspection_active and not self.state.cancel_requested:
+            self.state.cancel_requested = True
+            self.state.inspection_summary = 'Cancelling inspection…'
+            self._inspection_cancel.set()
+            self.changed.emit()
+
+    @Slot(object)
+    def _inspection_progress(self, record: InspectionRecord) -> None:
+        self.state.inspections[record.path] = record
+        if record.path == self.state.current_file:
+            self._show_current_inspection()
+        self.changed.emit()
+
+    @Slot(object)
+    def _inspection_finished(self, results: tuple[InspectionRecord, ...]) -> None:
+        for record in results:
+            self.state.inspections[record.path] = record
+        counts = {status: sum(record.status == status for record in results) for status in InspectionStatus}
+        self.state.inspection_summary = (f'Inspection finished: {counts[InspectionStatus.COMPLETED]} completed, '
+                                         f'{counts[InspectionStatus.FAILED]} failed, {counts[InspectionStatus.CANCELLED]} cancelled.')
+        self._show_current_inspection()
+        self.changed.emit()
 
     @Slot(object)
     def _inspected(self, info: MediaFile) -> None:
         self.state.source = info.path
         self.state.media = info
-        self.state.selected_streams = tuple(s.index for s in info.streams if s.index is not None)
+        self.state.selected_streams = self.state.stream_selections.setdefault(
+            info.path, tuple(s.index for s in info.streams if s.index is not None))
         self.state.output = format_inspection(info)
         suffix = '.mkv' if self.state.container == Container.MATROSKA else '.mp4'
         if self.state.source is not None:
@@ -153,6 +212,7 @@ class DesktopViewModel(QObject):
         if len(indices) != len(set(indices)) or not set(indices) <= available:
             return
         self.state.selected_streams = indices
+        self.state.stream_selections[self.state.media.path] = indices
         self.changed.emit()
 
     def set_output(self, destination: str, container: Container) -> None:
@@ -224,6 +284,12 @@ class DesktopViewModel(QObject):
 
     @Slot(str)
     def _failed(self, error: str) -> None:
+        if self.state.inspection_active:
+            for path in self._inspection_paths:
+                record = self.state.inspections[path]
+                if record.status in (InspectionStatus.PENDING, InspectionStatus.RUNNING):
+                    self.state.inspections[path] = InspectionRecord(path, InspectionStatus.FAILED, error=error)
+            self.state.inspection_summary = 'Inspection failed. See the per-file errors.'
         self.state.output = error
         self.state.command = ()
         self._validate_form()
@@ -238,5 +304,7 @@ class DesktopViewModel(QObject):
         self.worker = None
         self.thread = None
         self._detecting = False
+        self.state.inspection_active = False
+        self.state.cancel_requested = False
         self.state.busy = self.remux_task is not None
         self.changed.emit()

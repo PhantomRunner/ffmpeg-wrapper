@@ -97,7 +97,7 @@ def test_window_recovers_from_failures_with_diagnostics(app, tmp_path, monkeypat
     from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
     binaries = Binaries(tmp_path/'ffmpeg', tmp_path/'ffprobe', 'test')
-    def fail(*args):
+    def fail(*args, **kwargs):
         raise PermissionError('adapter permission diagnostic')
     monkeypatch.setattr('media_wrapper.ui.workers.detect_binaries',
                         fail if stage == 'detect' else lambda *args: binaries)

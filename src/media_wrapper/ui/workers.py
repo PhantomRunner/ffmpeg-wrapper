@@ -1,10 +1,12 @@
 """Background adapters for application services."""
 from pathlib import Path
+from threading import Event
 
 from PySide6.QtCore import QObject, Signal, Slot
 
 from media_wrapper.application.binary_service import detect_binaries
 from media_wrapper.application.errors import report_failure
+from media_wrapper.application.inspection_batch import InspectionBatch
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.domain.remux import Container
 
@@ -28,17 +30,18 @@ class DetectionWorker(QObject):
 class InspectionWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
+    progress = Signal(object)
 
-    def __init__(self, service: MediaService, path: Path) -> None:
+    def __init__(self, service: MediaService, paths: tuple[Path, ...], cancel_event: Event) -> None:
         super().__init__()
-        self.service, self.path = service, path
+        self.service, self.paths, self.cancel_event = service, paths, cancel_event
 
     @Slot()
     def run(self) -> None:
         try:
-            info = self.service.inspect(self.path)
-            self.finished.emit(info)
-        except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
+            results = InspectionBatch(self.service).run(self.paths, self.cancel_event, self.progress.emit)
+            self.finished.emit(results)
+        except Exception as exc:  # noqa: BLE001 - report orchestration failures across the Qt worker boundary
             self.failed.emit(report_failure('Inspection', exc))
 
 

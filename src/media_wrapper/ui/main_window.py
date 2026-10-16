@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker, QThread, Slot
+from PySide6.QtCore import QItemSelectionModel, QSignalBlocker, Qt, QThread, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -84,8 +84,11 @@ class MainWindow(QMainWindow):
         self.files_view.files_dropped.connect(self.model.add_files)
         self.files_view.streams_selected.connect(self.model.select_streams)
         self.files_view.inspect_button.clicked.connect(self.inspect_current)
+        self.files_view.inspect_selected_button.clicked.connect(self.inspect_selected)
+        self.files_view.cancel_button.clicked.connect(self.model.cancel_inspection)
         self.files_view.clear_button.clicked.connect(self.model.clear_files)
         self.files_view.file_list.currentRowChanged.connect(self.select_current)
+        self.files_view.file_list.itemSelectionChanged.connect(self.file_selection_changed)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output, 1)
@@ -118,12 +121,25 @@ class MainWindow(QMainWindow):
         self.files_view.stream_table.setEnabled(not state.busy)
         listing = self.files_view.file_list
         paths = [str(path) for path in state.files]
-        if [listing.item(i).text() for i in range(listing.count())] != paths:
+        if [listing.item(i).data(Qt.ItemDataRole.UserRole) for i in range(listing.count())] != paths:
             with QSignalBlocker(listing):
                 listing.clear()
                 listing.addItems(paths)
+                for row, path in enumerate(paths):
+                    listing.item(row).setData(Qt.ItemDataRole.UserRole, path)
                 if state.current_file in state.files:
                     listing.setCurrentRow(state.files.index(state.current_file))
+        if state.current_file in state.files and listing.currentRow() != state.files.index(state.current_file):
+            with QSignalBlocker(listing):
+                listing.setCurrentRow(state.files.index(state.current_file), QItemSelectionModel.SelectionFlag.NoUpdate)
+        for row, path in enumerate(state.files):
+            record = state.inspections.get(path)
+            status = record.status.value if record else 'Not inspected'
+            listing.item(row).setText(f'{path} [{status}]')
+            listing.item(row).setToolTip(record.error if record and record.error else status)
+        self.file_selection_changed()
+        self.files_view.cancel_button.setEnabled(state.inspection_active and not state.cancel_requested)
+        self.files_view.batch_status.setText(state.inspection_summary)
         listing.setEnabled(not state.busy)
         self.files_view.setAcceptDrops(not state.busy)
         self.files_view.inspect_button.setEnabled(not state.busy and state.binaries is not None and state.current_file is not None)
@@ -167,6 +183,14 @@ class MainWindow(QMainWindow):
         if self.model.state.current_file is not None:
             self.run_inspection(self.model.state.current_file)
 
+    def file_selection_changed(self) -> None:
+        self.files_view.inspect_selected_button.setEnabled(not self.model.state.busy and self.binaries is not None
+                                                          and bool(self.files_view.file_list.selectedItems()))
+
+    def inspect_selected(self) -> None:
+        paths = tuple(Path(item.data(Qt.ItemDataRole.UserRole)) for item in self.files_view.file_list.selectedItems())
+        self.model.inspect_many(paths)
+
     def run_inspection(self, path: Path) -> None:
         self.model.inspect(path)
 
@@ -205,7 +229,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.model.state.busy:
-            QMessageBox.information(self, 'Operation running', 'Allow the operation to finish before closing.')
+            QMessageBox.information(self, 'Operation running',
+                                    'Cancel inspection or allow it to finish before closing.' if self.model.state.inspection_active else
+                                    'Allow the operation to finish before closing.')
             event.ignore()
             return
         if self.settings_service:
