@@ -70,7 +70,8 @@ def test_busy_model_rejects_overlapping_operations(shell, monkeypatch, tmp_path)
             QApplication.instance().processEvents()
             time.sleep(.001)
     assert shell.source == source
-    assert shell.remux_button.isEnabled()
+    assert shell.choose_file_button.isEnabled()
+    assert not shell.remux_button.isEnabled()  # Empty media cannot be remuxed.
 
 
 def test_multi_file_picker_and_selection(shell, tmp_path, monkeypatch):
@@ -287,3 +288,19 @@ def test_remux_track_selection_updates_inspection(shell, tmp_path):
     shell.remux_view.tracks.item(1).setCheckState(Qt.CheckState.Unchecked)
     assert shell.model.state.selected_streams == (3,)
     assert shell.files_view.stream_table.item(1, 0).checkState() == Qt.CheckState.Unchecked
+
+
+def test_remux_incompatible_tracks_require_explicit_deselection(shell, tmp_path):
+    from media_wrapper.domain.media import MediaFile, MediaStream
+    from media_wrapper.domain.remux import Container
+    source = tmp_path/'input.mkv'
+    source.touch()
+    shell.model._inspected(MediaFile(source, streams=(MediaStream(0, 'video', 'h264'), MediaStream(2, 'subtitle', 'subrip'))))
+    shell.model.set_output(str(tmp_path/'out.mp4'), Container.MP4)
+    assert 'Stream 2' in shell.remux_view.validation.text()
+    assert not shell.remux_button.isEnabled()
+    assert shell.model.state.selected_streams == (0, 2)
+    shell.model.select_streams((0,))
+    assert shell.remux_button.isEnabled()
+    shell.model.select_streams(())
+    assert 'at least one' in shell.remux_view.validation.text()

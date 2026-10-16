@@ -13,3 +13,6 @@ Qt-independent task record and explicit legal Pending/Preparing/Running/Complete
 
 ## M4.1
 Remux now exposes real-index track checkboxes synchronized with Inspect. Selected indices flow through preparation; changing selection invalidates preview. Updated UI fixture to use inspected state. 217 tests pass; Ruff passes.
+
+## M4.2
+Selected-stream compatibility checked inline and again in worker preparation. Unsupported tracks stay selected and block Run with their index/codec; user must explicitly deselect. Empty selection blocks execution. 30 shell/remux tests and Ruff pass.

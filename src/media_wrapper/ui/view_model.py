@@ -12,6 +12,14 @@ from media_wrapper.application.media_service import MediaService, validate_remux
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
+from media_wrapper.domain.operation_policy import validate_plan
+from media_wrapper.domain.operations import (
+    MediaOperation,
+    OperationPlan,
+    OutputTarget,
+    PlanValidationError,
+    StreamSelection,
+)
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.inspection_presenter import format_inspection
@@ -234,8 +242,12 @@ class DesktopViewModel(QObject):
         else:
             try:
                 validate_remux_paths(self.state.source, Path(self.state.destination), self.state.container)
+                if self.state.media is not None:
+                    validate_plan(OperationPlan(MediaOperation.REMUX, self.state.media,
+                                  tuple(StreamSelection(i) for i in self.state.selected_streams),
+                                  OutputTarget(Path(self.state.destination).expanduser().absolute(), self.state.container)))
                 self.state.form_error = ''
-            except ApplicationError as error:
+            except (ApplicationError, PlanValidationError) as error:
                 self.state.form_error = str(error)
 
     def preview(self) -> None:
