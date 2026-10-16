@@ -25,7 +25,11 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
 - Sequential multi-file inspection on a Qt worker with per-file outcomes, cached
   results/stream selections and cancellable subprocess cleanup.
 - Background binary detection through an application use case.
-- Typed remux request, streams and container enum; pure argument-array command builder.
+- Typed immutable operation plans, per-stream encoding profiles, output targets and
+  validation errors in domain; pure policy validation independent of filesystem/Qt.
+- Application validates filesystem safety and prepares optional staged output paths.
+  Pure CommandBuilder generates deterministic maps and copy/encoding arguments.
+  Existing Remux uses typed plans with direct output pending M4/M5 finalization.
 - Conservative Matroska/MP4 compatibility validation, all-stream copy, explicit stream mapping.
 - Asynchronous QProcess remux execution, bounded diagnostics, and overwrite refusal. Failed partial files are retained and reported.
 - Desktop navigation with independent Files/Inspect, Remux and Settings pages;

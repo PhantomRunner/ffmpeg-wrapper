@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper
 
-Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. Transcoding and compression are not implemented yet.
+Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. The Convert and Compress UI workflows are not implemented yet; a minimal typed Convert command API is tested.
 
 ## Requirements
 - Python 3.11 or later

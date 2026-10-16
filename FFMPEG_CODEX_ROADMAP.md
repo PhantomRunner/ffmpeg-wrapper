@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5 and M2.1–M2.4 complete on Linux**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5 complete on Linux**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
 > **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
@@ -71,7 +71,11 @@ isolation. Offscreen layout reviewed; native Windows execution remains pending.
 - [x] **M3.2** Implement separate validation for input existence, output naming, in-place/overwrite safety, container–stream compatibility, selected streams, and option availability.
 - [x] **M3.3** Implement pure `CommandBuilder`: validated operation plan -> `list[str]` arguments. Never use shell execution; correctly handle spaces/Unicode paths.
 - [x] **M3.4** Explicitly map streams (`-map`), support stream-copy plans (`-c copy`), add controlled output overwrite policy (`-n` by default), and isolate temp output from final output.
-- [ ] **M3.5** Unit tests for argument generation, conflicting options, missing streams, unsafe destinations, and unsupported container choices.
+- [x] **M3.5** Unit tests for argument generation, conflicting options, missing streams, unsafe destinations, and unsupported container choices.
+
+**M3 evidence:** [command verification](docs/M3_COMMANDS.md); 171 tests and Ruff
+pass on Linux, including real staged Remux and minimal AAC Convert commands.
+Windows remains unverified. Staged execution/finalization UI integration is M4/M5.
 
 **Acceptance:** fully deterministic, testable argument arrays for Remux and minimal Convert scenarios, independent of Qt.
 
