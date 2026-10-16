@@ -79,7 +79,7 @@ def test_window_inspect_and_remux(app, tmp_path):
         assert ticks
         original = destination.read_bytes()
         window.run_remux(destination, Container.MATROSKA)
-        wait_for(app, lambda: window.thread is None)
+        wait_for(app, lambda: not window.model.state.busy)
         assert 'already exists' in window.output.toPlainText()
         assert destination.read_bytes() == original
     finally:

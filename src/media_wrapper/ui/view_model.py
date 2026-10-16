@@ -9,6 +9,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from media_wrapper.application.errors import ApplicationError, report_failure
 from media_wrapper.application.file_service import validate_files
 from media_wrapper.application.media_service import MediaService, validate_remux_paths
+from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
@@ -21,6 +22,7 @@ from media_wrapper.domain.operations import (
     StreamSelection,
 )
 from media_wrapper.domain.remux import Container
+from media_wrapper.domain.tasks import TaskRecord
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
@@ -41,7 +43,7 @@ class DesktopViewModel(QObject):
         self.state = DesktopState()
         self.thread: QThread | None = None
         self.worker: Worker | None = None
-        self.remux_task: RemuxTask | None = None
+        self.remux_task: RemuxTask | OperationTask | None = None
         self._inspection_cancel = Event()
         self._inspection_paths: tuple[Path, ...] = ()
         self._detecting = False
@@ -273,8 +275,32 @@ class DesktopViewModel(QObject):
         self.state.recent_destination = destination.parent
         self.state.command = ()
         self.state.output = 'Validating remux…'
+        if self.state.media is not None:
+            plan = OperationPlan(MediaOperation.REMUX, self.state.media,
+                                 tuple(StreamSelection(i) for i in self.state.selected_streams),
+                                 OutputTarget(destination.expanduser().absolute(), container))
+            self.state.busy = True
+            task = OperationTask(TaskRecord(plan), self.state.binaries, self)
+            self.remux_task = task
+            task.finished.connect(self._remux_complete)
+            task.changed.connect(self._task_changed)
+            task.start()
+            return
+
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container, self.state.selected_streams), self.start_remux)
+
+    def cancel_remux(self) -> None:
+        if isinstance(self.remux_task, OperationTask):
+            self.remux_task.cancel()
+
+    @Slot()
+    def _task_changed(self) -> None:
+        if isinstance(self.remux_task, OperationTask):
+            record = self.remux_task.record
+            self.state.command = record.command
+            self.state.output = f'Remux: {record.status.value}'
+        self.changed.emit()
 
     @Slot(object)
     def start_remux(self, command: list[str]) -> None:

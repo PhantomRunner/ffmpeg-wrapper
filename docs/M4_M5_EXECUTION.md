@@ -16,3 +16,6 @@ Remux now exposes real-index track checkboxes synchronized with Inspect. Selecte
 
 ## M4.2
 Selected-stream compatibility checked inline and again in worker preparation. Unsupported tracks stay selected and block Run with their index/codec; user must explicitly deselect. Empty selection blocks execution. 30 shell/remux tests and Ruff pass.
+
+## M4.3
+Remux uses shared runner and adjacent temporary output. Worker re-probes input and verifies output stream kinds/codecs/count and nonempty size. Atomic hard-link publication refuses existing destinations; unsupported filesystems fail safely and retain partial output. Cancel waits for process/worker cleanup; publication is the commit point. 221 tests and Ruff pass, including real staged Remux, preparation cancellation and publication collision. No automatic partial deletion.

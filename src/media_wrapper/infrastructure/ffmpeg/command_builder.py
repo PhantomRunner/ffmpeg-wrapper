@@ -26,9 +26,11 @@ class CommandBuilder:
     """Deterministic argument generation; never probes or touches the filesystem."""
 
     def build(self, ffmpeg: Path, plan: 'OperationPlan',
-              available_encoders: frozenset[str] = frozenset()) -> list[str]:
+              available_encoders: frozenset[str] = frozenset(), *, progress: bool = False) -> list[str]:
         validate_plan(plan, available_encoders)
         args = [str(ffmpeg), '-hide_banner', '-nostdin', '-n', '-i', str(plan.media.path)]
+        if progress:
+            args[4:4] = ['-progress', 'pipe:1', '-nostats']
         for selection in plan.streams:
             args.extend(['-map', f'0:{selection.index}'])
         if all(selection.profile.encoder == 'copy' for selection in plan.streams):
