@@ -1,6 +1,7 @@
 """Immutable, Qt-independent operation plans. No filesystem access."""
 from dataclasses import dataclass
 from enum import Enum
+from fractions import Fraction
 from pathlib import Path
 
 from media_wrapper.domain.media import MediaFile
@@ -30,6 +31,9 @@ class PlanValidationError(ValueError):
 class EncodingProfile:
     encoder: str = 'copy'
     bitrate: int | None = None
+    width: int | None = None
+    height: int | None = None
+    fps: Fraction | None = None
 
 
 @dataclass(frozen=True)

@@ -5,10 +5,13 @@ from threading import Event
 from PySide6.QtCore import QObject, Signal, Slot
 
 from media_wrapper.application.binary_service import detect_binaries
+from media_wrapper.application.conversion_service import preview_conversion
 from media_wrapper.application.errors import report_failure
 from media_wrapper.application.inspection_batch import InspectionBatch
 from media_wrapper.application.media_service import MediaService
+from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.remux import Container
+from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
 
 class DetectionWorker(QObject):
@@ -63,3 +66,19 @@ class RemuxPreparationWorker(QObject):
             self.failed.emit(report_failure('Remux preparation', exc))
 
 
+
+
+class EncodingPreviewWorker(QObject):
+    finished = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, binaries: 'Binaries', plan: 'OperationPlan') -> None:
+        super().__init__()
+        self.binaries, self.plan = binaries, plan
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.finished.emit(preview_conversion(self.binaries, self.plan))
+        except Exception as exc:  # noqa: BLE001 - worker boundary
+            self.failed.emit(report_failure('Conversion preview', exc))

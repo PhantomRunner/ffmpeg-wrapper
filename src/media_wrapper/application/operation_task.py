@@ -11,10 +11,12 @@ from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_service import prepare_command
 from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.domain.media import MediaFile
-from media_wrapper.domain.operations import MediaOperation, OperationPlan
+from media_wrapper.domain.operation_policy import ENCODERS
+from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.progress import Progress
 from media_wrapper.domain.tasks import TaskRecord, TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
 from media_wrapper.infrastructure.ffmpeg.output_publication import publish_output
 from media_wrapper.infrastructure.ffmpeg.process_runner import ProcessRunner
 
@@ -61,14 +63,13 @@ class OperationTask(QObject):
                 self.runner.cancel()
 
     def _prepare(self) -> tuple[OperationPlan, list[str]]:
-        if self.record.plan.operation != MediaOperation.REMUX:
-            raise ValueError('This task runner currently supports Remux only')
         media = MediaService(self.binaries).inspect(self.record.plan.media.path, self.cancel_event)
         plan = replace(self.record.plan, media=media)
-        prepared, _command = prepare_command(self.binaries.ffmpeg, plan)
+        available = list_encoders(self.binaries.ffmpeg, self.cancel_event) if any(s.profile.encoder != 'copy' for s in plan.streams) else frozenset()
+        prepared, _command = prepare_command(self.binaries.ffmpeg, plan, available_encoders=available)
         # Progress options belong to the infrastructure command builder.
         from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
-        return prepared, CommandBuilder().build(self.binaries.ffmpeg, prepared, progress=True)
+        return prepared, CommandBuilder().build(self.binaries.ffmpeg, prepared, available, progress=True)
 
     def _work(self, action: Callable[[], Any], callback: Callable[[Any], None]) -> None:
         self._callback = callback
@@ -132,9 +133,15 @@ class OperationTask(QObject):
         output = self.prepared.output
         info = MediaService(self.binaries).inspect(output.execution_path, self.cancel_event)
         sources = {s.index: s for s in self.prepared.media.streams}
-        expected = [(sources[s.index].kind, sources[s.index].codec) for s in self.prepared.streams]
+        expected = [(sources[s.index].kind, sources[s.index].codec if s.profile.encoder == 'copy' else ENCODERS[s.profile.encoder][1]) for s in self.prepared.streams]
         if [(s.kind, s.codec) for s in info.streams] != expected or not info.size_bytes:
             raise ValueError('Output verification failed: selected stream codecs/count or file size differ')
+        for output_stream, selected in zip(info.streams, self.prepared.streams, strict=True):
+            profile = selected.profile
+            if profile.width is not None and (output_stream.width, output_stream.height) != (profile.width, profile.height):
+                raise ValueError('Output resolution verification failed')
+            if profile.fps is not None and output_stream.frame_rate != profile.fps:
+                raise ValueError('Output frame rate verification failed')
         if self.cancel_event.is_set():
             raise OperationCancelled()
         # Publication is the commit point: once linked, report completion even if a
@@ -152,10 +159,10 @@ class OperationTask(QObject):
     def _end(self, error: Exception) -> None:
         if self.cancel_event.is_set() or isinstance(error, OperationCancelled):
             self.record.transition(TaskStatus.CANCELLED)
-            message = 'Remux cancelled.'
+            message = f'{self.record.plan.operation.value.title()} cancelled.'
         else:
             self.record.transition(TaskStatus.FAILED)
-            message = report_failure('Remux', error)
+            message = report_failure(self.record.plan.operation.value.title(), error)
         if self.record.partial_path is not None:
             message += f'\nPartial output may remain: {self.record.partial_path}'
         self.record.error = message

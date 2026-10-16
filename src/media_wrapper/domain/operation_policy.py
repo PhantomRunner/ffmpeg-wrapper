@@ -11,7 +11,9 @@ from media_wrapper.domain.remux import Container
 
 # Minimal software Convert scope; values are output stream kind/codec.
 ENCODERS = {'aac': ('audio', 'aac'), 'pcm_s16le': ('audio', 'pcm_s16le'),
-            'ffv1': ('video', 'ffv1')}
+            'ffv1': ('video', 'ffv1'), 'libx264': ('video', 'h264'),
+            'libx265': ('video', 'hevc'), 'mov_text': ('subtitle', 'mov_text'),
+            'srt': ('subtitle', 'subrip'), 'ass': ('subtitle', 'ass')}
 
 
 def fail(code: ValidationCode, message: str) -> None:
@@ -39,8 +41,8 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
         stream, profile = source[selection.index], selection.profile
         codec = stream.codec
         if profile.encoder == 'copy':
-            if profile.bitrate is not None:
-                fail(ValidationCode.OPTION, 'Copy cannot specify a bitrate')
+            if any(v is not None for v in (profile.bitrate, profile.width, profile.height, profile.fps)):
+                fail(ValidationCode.OPTION, 'Copy cannot specify encoding options or filters')
         else:
             if plan.operation == MediaOperation.REMUX:
                 fail(ValidationCode.OPTION, 'Remux must copy every selected stream')
@@ -49,8 +51,14 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
             kind, codec = ENCODERS[profile.encoder]
             if kind != stream.kind:
                 fail(ValidationCode.OPTION, 'Encoder does not match stream type')
-            if profile.bitrate is not None and (type(profile.bitrate) is not int or profile.bitrate <= 0 or profile.encoder != 'aac'):
-                fail(ValidationCode.OPTION, 'Only AAC accepts a positive integer bitrate in this slice')
+            if profile.bitrate is not None and (type(profile.bitrate) is not int or profile.bitrate <= 0 or profile.encoder not in {'aac', 'libx264', 'libx265'}):
+                fail(ValidationCode.OPTION, 'Bitrate requires AAC, H.264 or H.265 and a positive integer value')
+        if (profile.width is not None or profile.height is not None) and (stream.kind != 'video' or any(type(v) is not int or v <= 0 or v % 2 for v in (profile.width, profile.height))):
+            fail(ValidationCode.OPTION, 'Resolution requires two positive even video dimensions')
+        if profile.fps is not None:
+            from fractions import Fraction
+            if stream.kind != 'video' or not isinstance(profile.fps, Fraction) or not 0 < profile.fps <= 240:
+                fail(ValidationCode.OPTION, 'Video FPS must be a positive rational value up to 240')
         if codec not in ALLOWED[plan.output.container].get(stream.kind, set()):
             fail(ValidationCode.COMPATIBILITY, f'Stream {stream.index}: {stream.kind}/{codec} is unsupported in {plan.output.container.value}')
     suffix = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[plan.output.container]

@@ -22,6 +22,7 @@ def main() -> int:
     try:
         window = MainWindow(diagnostic_status=diagnostics.status,
                             settings_service=SettingsService(SettingsRepository(paths.settings_file)) if paths else None)
+        app.aboutToQuit.connect(window.deleteLater)
         window.show()
         return app.exec()
     finally:

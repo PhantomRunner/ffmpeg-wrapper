@@ -6,6 +6,10 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
+from media_wrapper.application.conversion_service import (
+    ConversionRequest,
+    conversion_plan,
+)
 from media_wrapper.application.errors import ApplicationError, report_failure
 from media_wrapper.application.file_service import validate_files
 from media_wrapper.application.media_service import MediaService, validate_remux_paths
@@ -29,15 +33,17 @@ from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
 from media_wrapper.ui.workers import (
     DetectionWorker,
+    EncodingPreviewWorker,
     InspectionWorker,
     RemuxPreparationWorker,
 )
 
-Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker
+Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingPreviewWorker
 
 
 class DesktopViewModel(QObject):
     changed = Signal()
+    encoding_preview_ready = Signal(object)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -292,6 +298,25 @@ class DesktopViewModel(QObject):
 
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container, self.state.selected_streams), self.start_remux)
+
+    def encode(self, request: ConversionRequest, action: str) -> None:
+        if self.state.busy or self.state.media is None or self.state.binaries is None:
+            return
+        try:
+            plan = conversion_plan(self.state.media, request)
+        except (ValueError, ZeroDivisionError) as error:
+            self.state.output = str(error)
+            self.changed.emit()
+            return
+        if action == 'preview':
+            self._start(EncodingPreviewWorker(self.state.binaries, plan), self.encoding_preview_ready.emit)
+        else:
+            self.queue.add(plan, self.state.binaries)
+            if action == 'run':
+                self.queue.start()
+            else:
+                self.state.output = 'Added to queue.'
+                self.changed.emit()
 
     def enqueue_remux(self) -> None:
         if self.state.busy or self.state.media is None or self.state.binaries is None:

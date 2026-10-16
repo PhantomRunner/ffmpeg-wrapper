@@ -24,6 +24,7 @@ from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.view_model import DesktopViewModel
 from media_wrapper.ui.views import (
@@ -61,8 +62,9 @@ class MainWindow(QMainWindow):
         self.remux_view = RemuxView()
         self.settings_view = SettingsView()
         self.queue_view = QueueView()
+        self.convert_view = EncodingView()
         for page in (self.files_view, self.remux_view,
-                     PlaceholderView('Convert', 'Transcoding controls will be added in a later milestone.'),
+                     self.convert_view,
                      PlaceholderView('Compress', 'Compression controls will be added in a later milestone.'),
                      self.queue_view,
                      self.settings_view):
@@ -111,6 +113,12 @@ class MainWindow(QMainWindow):
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         layout.addWidget(self.output, 1)
+        self._preview_view = self.convert_view
+        self.convert_view.preview_button.clicked.connect(self.preview_convert)
+        self.convert_view.run_button.clicked.connect(self.run_convert)
+        self.convert_view.enqueue_button.clicked.connect(self.enqueue_convert)
+        self.convert_view.browse.clicked.connect(self.browse_convert)
+        self.model.encoding_preview_ready.connect(self.show_encoding_preview)
         self.model.changed.connect(self.render)
         self.render()
         self.detect()
@@ -136,6 +144,7 @@ class MainWindow(QMainWindow):
     def render(self) -> None:
         state = self.model.state
         self.status.setText(state.status)
+        self.convert_view.set_media(state.media, state.busy)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
@@ -186,6 +195,45 @@ class MainWindow(QMainWindow):
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
+
+    @Slot()
+    def preview_convert(self) -> None:
+        self.encoding_action(self.convert_view, 'preview')
+
+    @Slot()
+    def run_convert(self) -> None:
+        self.encoding_action(self.convert_view, 'run')
+
+    @Slot()
+    def enqueue_convert(self) -> None:
+        self.encoding_action(self.convert_view, 'enqueue')
+
+    @Slot()
+    def browse_convert(self) -> None:
+        self.choose_encoding_destination(self.convert_view)
+
+    def encoding_action(self, view: EncodingView, action: str) -> None:
+        try:
+            request = view.request()
+        except ValueError as error:
+            self.model.state.output = str(error)
+            self.render()
+            return
+        self._preview_view = view
+        self.model.encode(request, action)
+        if action == 'run' and self.model.queue.running:
+            self.navigation.setCurrentRow(4)
+
+    def show_encoding_preview(self, command: list[str]) -> None:
+        self._preview_view.preview.setPlainText(json.dumps(command, ensure_ascii=False, indent=2))
+        self.model.state.output = 'Validated preview. Run creates a fresh temporary path; executed arguments are shown in Queue.'
+        self.render()
+
+    def choose_encoding_destination(self, view: EncodingView) -> None:
+        suffix = '.mkv' if view.container.currentIndex() == 0 else '.mp4'
+        name, _ = QFileDialog.getSaveFileName(self, 'Choose new output', view.destination.text(), f'Media (*{suffix})')
+        if name:
+            view.destination.setText(name)
 
     def render_queue(self) -> None:
         queue = self.model.queue

@@ -38,6 +38,13 @@ class CommandBuilder:
         else:
             for position, selection in enumerate(plan.streams):
                 args.extend([f'-c:{position}', selection.profile.encoder])
+                profile = selection.profile
+                if profile.encoder in {'libx264', 'libx265'}:
+                    args.extend([f'-pix_fmt:{position}', 'yuv420p'])
+                if profile.width is not None:
+                    args.extend([f'-filter:{position}', f'scale={profile.width}:{profile.height}'])
+                if profile.fps is not None:
+                    args.extend([f'-r:{position}', str(profile.fps)])
                 if selection.profile.bitrate is not None:
                     args.extend([f'-b:{position}', str(selection.profile.bitrate)])
         args.extend(['-f', plan.output.container.value, str(plan.output.execution_path)])
