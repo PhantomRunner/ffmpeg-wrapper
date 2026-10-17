@@ -3,7 +3,10 @@ from pathlib import Path
 from threading import Event
 
 from media_wrapper.domain.capabilities import (
-    GPU_ENCODERS, CapabilityReport, EncoderCapability, EncoderStatus,
+    GPU_ENCODERS,
+    CapabilityReport,
+    EncoderCapability,
+    EncoderStatus,
 )
 from media_wrapper.infrastructure.ffmpeg.capabilities import discover_build
 from media_wrapper.infrastructure.ffmpeg.gpu_probe import test_gpu_encoder

@@ -1,4 +1,3 @@
-import subprocess
 from dataclasses import replace
 from fractions import Fraction
 from threading import Event
@@ -11,7 +10,6 @@ from media_wrapper.application.conversion_service import (
     ConversionRequest,
     conversion_plan,
 )
-from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.domain.operations import (
     EncodingProfile,

@@ -369,3 +369,52 @@ def test_convert_preview_and_queue_execution(shell, sample):
     assert record.status == TaskStatus.COMPLETED, record.error
     assert record.result.streams[0].codec == 'aac'
     assert shell.pages.currentIndex() == 4
+
+
+def test_capability_scan_ui_and_binary_change(shell, monkeypatch):
+    from test_operation_task import wait
+
+    from media_wrapper.domain.capabilities import (
+        BuildCapabilities,
+        CapabilityReport,
+        EncoderCapability,
+        EncoderStatus,
+    )
+    report = CapabilityReport(BuildCapabilities(('test', 1, 1, 'v'), 'version text', 'config text',
+                                                frozenset({'libx264','h264_nvenc'}), ('cuda',), ()),
+                              (EncoderCapability('h264_nvenc', True, EncoderStatus.LISTED, 'Not tested'),))
+    monkeypatch.setattr('media_wrapper.application.capability_service.scan_capabilities', lambda *a, **k: report)
+    shell.navigation.setCurrentRow(5)
+    shell.settings_view.scan_button.click()
+    wait(QApplication.instance(), lambda: not shell.model.state.busy)
+    assert 'Listed; not tested' in shell.settings_view.capabilities.toPlainText()
+    assert shell.convert_view.gpu_encoder.count() == 1
+    from dataclasses import replace
+    shell.model._capabilities_ready(replace(report, gpu=(EncoderCapability('h264_nvenc', True, EncoderStatus.WORKING),)))
+    assert shell.convert_view.gpu_encoder.findText('h264_nvenc') >= 0
+    shell.model.binary_selection_changed()
+    assert shell.model.capabilities is None and shell.convert_view.gpu_encoder.count() == 1
+
+
+def test_capability_scan_can_cancel_without_ui_freeze(shell, monkeypatch):
+    from threading import Event
+
+    from test_operation_task import wait
+
+    from media_wrapper.domain.inspection import OperationCancelled
+    entered = Event()
+    def scan(ffmpeg, event, **kwargs):
+        entered.set()
+        assert event.wait(5)
+        raise OperationCancelled()
+    monkeypatch.setattr('media_wrapper.application.capability_service.scan_capabilities', scan)
+    shell.settings_view.scan_button.click()
+    assert entered.wait(2)
+    assert shell.settings_view.cancel_scan.isEnabled()
+    shell.navigation.setCurrentRow(2)
+    assert shell.pages.currentIndex() == 2
+    shell.settings_view.cancel_scan.click()
+    wait(QApplication.instance(), lambda: not shell.model.state.busy)
+    assert shell.model.capabilities is None
+    assert 'cancelled' in shell.output.toPlainText()
+    assert shell.settings_view.scan_button.isEnabled()

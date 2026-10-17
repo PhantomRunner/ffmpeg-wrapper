@@ -20,10 +20,10 @@ from PySide6.QtWidgets import (
 from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.application.settings_service import SettingsService
+from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
-from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
@@ -128,6 +128,7 @@ class MainWindow(QMainWindow):
         self.compress_view.enqueue_button.clicked.connect(self.enqueue_convert)
         self.compress_view.browse.clicked.connect(self.browse_convert)
         self.model.encoding_preview_ready.connect(self.show_encoding_preview)
+        self._capability_display_key = None
         self.model.changed.connect(self.render)
         self.render()
         self.detect()
@@ -163,17 +164,22 @@ class MainWindow(QMainWindow):
         settings.test_gpu.setEnabled(not state.busy)
         settings.gpu_device.setEnabled(not state.busy)
         report = self.model.capabilities
-        capability_text = 'Scanning…' if self.model.capability_active and report is None else 'Scan the selected FFmpeg build to inspect capabilities.'
-        if report is not None:
-            capability_text = report.build.version + '\n' + report.build.configuration
-            capability_text += '\nHardware APIs listed: ' + ', '.join(report.build.hwaccels)
-            capability_text += '\nEncoders listed: ' + ', '.join(sorted(report.build.encoders))
-            for capability in report.gpu:
-                capability_text += f'\n\n{capability.name}: {capability.status.value}\n{capability.detail}'
-            for name, help_text in report.build.encoder_help:
-                capability_text += f'\n\n{name} help:\n{help_text}'
-        if settings.capabilities.toPlainText() != capability_text:
-            settings.capabilities.setPlainText(capability_text)
+        key = (id(report), self.model.capability_active)
+        if key != self._capability_display_key:
+            self._capability_display_key = key
+            capability_text = 'Scanning…' if self.model.capability_active and report is None else 'Scan the selected FFmpeg build to inspect capabilities.'
+            if report is not None:
+                capability_text = f'Selected FFmpeg: {report.build.identity[0]}\n'
+                capability_text += '\n'.join(f'{c.name}: {c.status.value}' for c in report.gpu)
+                capability_text += '\n\nBuild details:\n' + report.build.version + '\n' + report.build.configuration
+                capability_text += '\nHardware APIs listed: ' + ', '.join(report.build.hwaccels)
+                capability_text += '\nEncoders listed: ' + ', '.join(sorted(report.build.encoders))
+                for capability in report.gpu:
+                    capability_text += f'\n\n{capability.name}: {capability.status.value}\n{capability.detail}'
+                for name, help_text in report.build.encoder_help:
+                    capability_text += f'\n\n{name} help:\n{help_text}'
+            if settings.capabilities.toPlainText() != capability_text:
+                settings.capabilities.setPlainText(capability_text)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
@@ -261,7 +267,7 @@ class MainWindow(QMainWindow):
         if action == 'run' and self.model.queue.running:
             self.navigation.setCurrentRow(4)
 
-    def show_encoding_preview(self, command: list[str]) -> None:
+    def show_encoding_preview(self, command: list[list[str]]) -> None:
         self._preview_view.preview.setPlainText(json.dumps(command, ensure_ascii=False, indent=2))
         self.model.state.output = 'Validated preview. Run creates a fresh temporary path; executed arguments are shown in Queue.'
         self.render()

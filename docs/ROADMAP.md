@@ -14,7 +14,9 @@ M3.1–M3.5 are complete on Linux: [command verification](M3_COMMANDS.md).
 M4.1–M4.5 and M5.1–M5.5 are complete on Linux: [execution verification](M4_M5_EXECUTION.md).
 M5.6 remains deferred until GPU contention tests are possible after M7.
 M6.1–M6.5 complete on Linux: [encoding verification](M6_ENCODING.md).
-Next implementation task: M7.1 capability discovery. M0.4 hosted CI remains pending.
+M7.1–M7.6 complete with recorded local coverage: [capability verification](M7_CAPABILITIES.md).
+Next independent task: M8.1 versioned profiles. Successful physical GPU encoding
+and contention tests remain pending; M5.6 stays open. M0.4 hosted CI remains pending.
 
 1. Bootstrap: PySide6 app, external/bundled binary resolver, FFprobe Inspect [initial scaffold implemented].
 2. Domain models for operation/profile/streams, validation, typed command builder; first remux task [initial Matroska/MP4 slice implemented; Windows verification pending].

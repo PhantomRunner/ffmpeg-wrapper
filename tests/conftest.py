@@ -35,6 +35,7 @@ def sample(tmp_path):
 
 from dataclasses import replace
 
+
 @pytest.fixture
 def video_sample(sample, tmp_path):
     binaries, plan = sample

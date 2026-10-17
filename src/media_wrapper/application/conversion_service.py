@@ -4,10 +4,10 @@ from fractions import Fraction
 from pathlib import Path
 from threading import Event
 
-from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.hardware_selection import select_hardware
-from media_wrapper.domain.capabilities import CapabilityReport
+from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_service import prepare_operation
+from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import (
     EncodingProfile,

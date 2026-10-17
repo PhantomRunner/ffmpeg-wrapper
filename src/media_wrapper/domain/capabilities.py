@@ -1,5 +1,6 @@
 """Immutable per-build capability inventory; listing is not runtime proof."""
 from dataclasses import dataclass
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -10,8 +11,6 @@ class BuildCapabilities:
     encoders: frozenset[str]
     hwaccels: tuple[str, ...]
     encoder_help: tuple[tuple[str, str], ...]
-
-from enum import Enum
 
 GPU_ENCODERS = {
     'h264_nvenc': 'h264', 'hevc_nvenc': 'hevc',

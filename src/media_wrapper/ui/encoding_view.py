@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from media_wrapper.application.conversion_service import ConversionRequest
+from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.domain.encoding_presets import PRESETS
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import MediaOperation
@@ -140,7 +141,7 @@ class EncodingView(QScrollArea):
         self.container.currentIndexChanged.connect(self.preview.clear)
         self.update_options()
 
-    def set_capabilities(self, report: object) -> None:
+    def set_capabilities(self, report: CapabilityReport | None) -> None:
         names = ['auto', *sorted(report.working())] if report else ['auto']
         if names != [self.gpu_encoder.itemText(i) for i in range(self.gpu_encoder.count())]:
             previous = self.gpu_encoder.currentText()

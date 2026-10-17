@@ -1,7 +1,11 @@
 """Explicit CPU/GPU/Auto planning from runtime evidence, never silent fallback."""
 from dataclasses import replace
 
-from media_wrapper.domain.capabilities import GPU_ENCODERS, CapabilityReport, EncoderStatus
+from media_wrapper.domain.capabilities import (
+    GPU_ENCODERS,
+    CapabilityReport,
+    EncoderStatus,
+)
 from media_wrapper.domain.operations import OperationPlan
 
 

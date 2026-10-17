@@ -90,14 +90,14 @@ class CapabilityWorker(QObject):
 
     def __init__(self, binaries: Binaries, event: Event, test_gpu: bool, device: str | None) -> None:
         super().__init__()
-        self.binaries, self.event, self.test_gpu, self.device = binaries, event, test_gpu, device
+        self.binaries, self.cancel_event, self.test_gpu, self.device = binaries, event, test_gpu, device
 
     @Slot()
     def run(self) -> None:
         from media_wrapper.application.capability_service import scan_capabilities
         from media_wrapper.domain.inspection import OperationCancelled
         try:
-            self.finished.emit(scan_capabilities(self.binaries.ffmpeg, self.event, refresh=True,
+            self.finished.emit(scan_capabilities(self.binaries.ffmpeg, self.cancel_event, refresh=True,
                                                 test_gpu=self.test_gpu, device=self.device))
         except OperationCancelled:
             self.failed.emit('Capability scan cancelled.')

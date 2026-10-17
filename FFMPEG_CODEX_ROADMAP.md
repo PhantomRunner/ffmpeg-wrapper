@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5, M4.1–M4.5 and M5.1–M5.5 complete on Linux; M5.6 deferred pending GPU contention tests**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5, M4.1–M4.5 and M5.1–M5.5, M6.1–M6.5 and M7.1–M7.6 complete with recorded local coverage; M5.6 deferred pending GPU contention tests**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
 > **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
@@ -125,12 +125,17 @@ H.264 tested; Windows execution remains pending.
 
 ## Milestone 7 — CPU/GPU capability detection and selection (P1)
 
-- [ ] **M7.1** Enumerate FFmpeg version/build, `-encoders`, `-hwaccels`, and selected encoder help; cache results by executable identity/version.
-- [ ] **M7.2** Distinguish encoder *listed by build* from *runtime-tested working* and *unavailable/unknown*; account for driver/device limitations.
-- [ ] **M7.3** Add optional short runtime encode smoke test using synthetic media for candidates such as NVENC, QSV, AMF, VAAPI (only where supported).
-- [ ] **M7.4** Present CPU / GPU / Auto; expose actual encoder and capabilities. Never assume that a named GPU makes an encoder work.
-- [ ] **M7.5** Handle failed GPU initialization with actionable diagnostics and an opt-in/clearly described CPU fallback without overwriting partial outputs.
-- [ ] **M7.6** Test no-GPU, multiple encoder candidates, changing FFmpeg binary, and runtime smoke-test failure; document hardware coverage.
+- [x] **M7.1** Enumerate FFmpeg version/build, `-encoders`, `-hwaccels`, and selected encoder help; cache results by executable identity/version.
+- [x] **M7.2** Distinguish encoder *listed by build* from *runtime-tested working* and *unavailable/unknown*; account for driver/device limitations.
+- [x] **M7.3** Add optional short runtime encode smoke test using synthetic media for candidates such as NVENC, QSV, AMF, VAAPI (only where supported).
+- [x] **M7.4** Present CPU / GPU / Auto; expose actual encoder and capabilities. Never assume that a named GPU makes an encoder work.
+- [x] **M7.5** Handle failed GPU initialization with actionable diagnostics and an opt-in/clearly described CPU fallback without overwriting partial outputs.
+- [x] **M7.6** Test no-GPU, multiple encoder candidates, changing FFmpeg binary, and runtime smoke-test failure; document hardware coverage.
+
+**M7 evidence:** [capability verification](docs/M7_CAPABILITIES.md); 270 tests,
+lint, dependencies and whitespace pass. Actual local GPU probes correctly report
+failed/unknown availability; successful physical GPU encodes and native Windows
+remain unverified. M5.6 is still deferred pending physical contention tests.
 
 **Acceptance:** no unsupported encoder is silently advertised as usable; hardware acceleration is selectable when actually supported, while CPU always remains a valid path for supported operations.
 

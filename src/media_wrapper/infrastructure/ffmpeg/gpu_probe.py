@@ -3,7 +3,11 @@ from pathlib import Path
 from subprocess import TimeoutExpired
 from threading import Event
 
-from media_wrapper.domain.capabilities import GPU_ENCODERS, EncoderCapability, EncoderStatus
+from media_wrapper.domain.capabilities import (
+    GPU_ENCODERS,
+    EncoderCapability,
+    EncoderStatus,
+)
 from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.infrastructure.ffmpeg.probe_service import run_cancellable_probe
 

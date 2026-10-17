@@ -1,7 +1,7 @@
 """Pure operation policy validation."""
 
-from media_wrapper.domain.codec_policy import ALLOWED
 from media_wrapper.domain.capabilities import GPU_ENCODERS
+from media_wrapper.domain.codec_policy import ALLOWED
 from media_wrapper.domain.operations import (
     MediaOperation,
     OperationPlan,

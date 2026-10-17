@@ -54,6 +54,23 @@ The sequential Queue shows status, output paths, progress, arguments, verified r
 
 Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip locally when the binaries are unavailable. The CI workflow requires FFmpeg before running the Linux/Windows test matrix. Hosted CI execution is still pending because no Git remote is configured.
 
+## CPU and GPU selection
+In Settings, **Scan build / refresh capabilities** reads the selected FFmpeg build.
+Enable the optional runtime test checkbox to try short synthetic GPU encodes.
+VAAPI needs an explicit render device. Listing an encoder or hardware API does
+not mean it works: the report distinguishes untested, working and unavailable.
+
+Convert/Compress offers **CPU**, **GPU**, and **Auto**. GPU uses a matching tested
+H.264/HEVC encoder; Auto chooses a tested match or records its CPU choice. GPU
+supports default/bitrate modes here; CRF and target-size/two-pass use CPU. Preview
+and Queue show the actual arguments. Execution rechecks GPU initialization. If a
+GPU job fails, **Retry on CPU** explicitly creates a fresh attempt and preserves
+old diagnostics/partial output. There is no silent runtime fallback.
+
+This environment verified GPU failure detection but had no usable GPU. Successful
+physical GPU encoding and Windows runtime coverage remain pending. See
+[capability verification](docs/M7_CAPABILITIES.md) for the exact coverage.
+
 ## Diagnostics and application directories
 
 Startup shows the diagnostic log location in the status bar. Failures include a

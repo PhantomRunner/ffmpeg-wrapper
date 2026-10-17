@@ -16,6 +16,7 @@ from media_wrapper.application.media_service import MediaService, validate_remux
 from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.application.task_queue import TaskQueue
+from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operation_policy import validate_plan
@@ -32,8 +33,8 @@ from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
 from media_wrapper.ui.workers import (
-    DetectionWorker,
     CapabilityWorker,
+    DetectionWorker,
     EncodingPreviewWorker,
     InspectionWorker,
     RemuxPreparationWorker,
@@ -55,7 +56,7 @@ class DesktopViewModel(QObject):
         self._inspection_cancel = Event()
         self._inspection_paths: tuple[Path, ...] = ()
         self._detecting = False
-        self.capabilities = None
+        self.capabilities: CapabilityReport | None = None
         self.capability_active = False
         self._capability_cancel = Event()
         self.queue = TaskQueue(self)
@@ -323,7 +324,7 @@ class DesktopViewModel(QObject):
         self._capability_cancel.set()
 
     @Slot(object)
-    def _capabilities_ready(self, report: object) -> None:
+    def _capabilities_ready(self, report: CapabilityReport) -> None:
         self.capabilities = report
         self.state.output = 'Capability scan complete. Listed encoders are not assumed runtime usable.'
         self.changed.emit()

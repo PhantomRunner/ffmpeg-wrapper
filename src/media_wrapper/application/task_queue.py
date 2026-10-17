@@ -3,8 +3,8 @@ from dataclasses import replace
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.hardware_selection import cpu_retry_plan
+from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.tasks import TaskRecord, TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
