@@ -3,6 +3,8 @@ import json
 import subprocess
 import time
 from pathlib import Path
+
+from media_wrapper.infrastructure.process_environment import external_environment
 from threading import Event
 
 from media_wrapper.domain.inspection import OperationCancelled
@@ -19,7 +21,7 @@ def inspect_media(ffprobe: Path, source: Path, cancel_event: Event | None = None
     args = [str(ffprobe), "-v", "error", "-show_format", "-show_streams", "-show_chapters",
             "-of", "json", str(source)]
     result = (run_cancellable_probe(args, cancel_event) if cancel_event is not None else
-              subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30, check=False))
+              subprocess.run(args, env=external_environment(), capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30, check=False))
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or f"FFprobe failed ({result.returncode})")
     payload = json.loads(result.stdout)
@@ -32,7 +34,7 @@ def run_cancellable_probe(args: list[str], cancel_event: Event, timeout: float =
     """Run on a worker thread. Drain both pipes and reap the child on every exit."""
     if cancel_event.is_set():
         raise OperationCancelled('Inspection cancelled')
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    process = subprocess.Popen(args, env=external_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                text=True, encoding='utf-8', errors='replace')
     deadline = time.monotonic() + timeout
     try:

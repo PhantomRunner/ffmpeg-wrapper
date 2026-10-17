@@ -1,6 +1,7 @@
 """Nonblocking, single-use Qt process adapter with bounded diagnostics."""
-from PySide6.QtCore import QObject, QProcess, QTimer, Signal
+from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
+from media_wrapper.infrastructure.process_environment import external_environment
 from media_wrapper.infrastructure.ffmpeg.progress_parser import ProgressParser
 
 
@@ -35,6 +36,10 @@ class ProcessRunner(QObject):
         if not arguments or not arguments[0]:
             self._emit(False, 'No executable was supplied')
             return
+        environment = QProcessEnvironment()
+        for key, value in external_environment().items():
+            environment.insert(key, value)
+        self.process.setProcessEnvironment(environment)
         self.process.start(arguments[0], arguments[1:])
 
     def cancel(self) -> None:

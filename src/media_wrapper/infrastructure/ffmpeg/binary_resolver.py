@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+from media_wrapper.infrastructure.process_environment import external_environment
+
+
 @dataclass(frozen=True)
 class Binaries:
     ffmpeg: Path
@@ -45,7 +48,7 @@ def resolve(mode: str = "external", directory: str | Path | None = None) -> Bina
     for binary in paths:
         try:
             result = subprocess.run([str(binary), "-version"], capture_output=True,
-                                    text=True, timeout=8, check=True)
+                                    text=True, timeout=8, check=True, env=external_environment())
         except (OSError, subprocess.SubprocessError) as exc:
             raise RuntimeError(f"Cannot run {binary}: {exc}") from exc
         versions.append(result.stdout.splitlines()[0] if result.stdout else "unknown")

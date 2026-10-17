@@ -16,3 +16,4 @@ htmlcov/
 .codex/
 .agents/
 .aws/
+.venv-build/
