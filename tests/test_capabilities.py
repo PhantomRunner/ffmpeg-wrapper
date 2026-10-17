@@ -41,3 +41,35 @@ def test_listed_is_never_runtime_proof(monkeypatch):
     assert not report.working()
     assert report.gpu[0].status == EncoderStatus.LISTED
     assert any(c.status == EncoderStatus.UNAVAILABLE for c in report.gpu)
+
+
+def test_gpu_smoke_reports_failure_success_and_missing_device(monkeypatch):
+    import subprocess
+    from pathlib import Path
+
+    from media_wrapper.domain.capabilities import EncoderStatus
+    from media_wrapper.infrastructure.ffmpeg.gpu_probe import gpu_probe_command, test_gpu_encoder
+    command = gpu_probe_command(Path('ffmpeg'), 'h264_vaapi', '/dev/dri/renderD129')
+    assert 'format=nv12,hwupload' in command and command[-1] == '-'
+    assert test_gpu_encoder(Path('ffmpeg'), 'h264_vaapi', Event()).status == EncoderStatus.UNKNOWN
+    monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.gpu_probe.run_cancellable_probe',
+                        lambda *a, **k: subprocess.CompletedProcess([], 1, '', 'driver unavailable'))
+    failed = test_gpu_encoder(Path('ffmpeg'), 'h264_nvenc', Event())
+    assert failed.status == EncoderStatus.UNAVAILABLE and 'driver unavailable' in failed.detail
+    monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.gpu_probe.run_cancellable_probe',
+                        lambda *a, **k: subprocess.CompletedProcess([], 0, '', ''))
+    assert test_gpu_encoder(Path('ffmpeg'), 'h264_nvenc', Event()).status == EncoderStatus.WORKING
+
+
+def test_gpu_probe_cancellation_is_not_a_failure(monkeypatch):
+    from pathlib import Path
+
+    import pytest
+
+    from media_wrapper.domain.inspection import OperationCancelled
+    from media_wrapper.infrastructure.ffmpeg.gpu_probe import test_gpu_encoder
+    def cancel(*a, **k):
+        raise OperationCancelled()
+    monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.gpu_probe.run_cancellable_probe', cancel)
+    with pytest.raises(OperationCancelled):
+        test_gpu_encoder(Path('ffmpeg'), 'h264_nvenc', Event())
