@@ -34,10 +34,13 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
 - Asynchronous QProcess execution, separate stdout/stderr, incremental progress,
   terminate/kill cancellation and bounded diagnostics. Workers prepare and verify
   output before no-overwrite hard-link publication; partial files are retained.
+- CPU encoding supports H.264/H.265, AAC, PCM and FFV1 with selected-track mapping,
+  scaling/FPS, CRF/bitrate controls and editable presets. Target-size mode estimates
+  bitrate for two-pass H.264. Both passes share cancellation and output safety.
 - Qt-independent task states and application sequential queue with cancellation,
   fresh-attempt retry and per-task logs/results. Queue state is session-only.
 - Desktop navigation with independent Files/Inspect, Remux and Settings pages;
-  Queue page; placeholder Convert/Compress pages.
+  Queue, Convert and Compress pages.
 - DesktopState and DesktopViewModel own selection, validation and asynchronous
   lifecycle state. Widgets bind state and actions; workers invoke services.
 - Local multi-file selection/drop, current-file inspection, safe output forms and
@@ -68,4 +71,4 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   dynamic FFprobe payloads are parsed into Qt-independent typed entities.
 
 ## Not implemented yet
-Transcode/Compress UI, parallel queue execution, GPU detection and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Parallel queue execution, GPU discovery/runtime validation and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

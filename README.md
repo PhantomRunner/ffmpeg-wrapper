@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper
 
-Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. The Convert and Compress UI workflows are not implemented yet; a minimal typed Convert command API is tested.
+Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. Convert and Compress support CPU encoding, quality/bitrate controls and H.264 two-pass size estimates.
 
 ## Requirements
 - Python 3.11 or later
@@ -46,7 +46,7 @@ python -m pytest -q
 3. In **Remux**, check the video/audio/subtitle tracks to copy, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
 4. Click **Run remux**, or **Add to queue** and start it on the **Queue** page. Execution probes and validates again. Progress includes estimated speed/ETA; cancellation waits for process cleanup. Successful output is verified before publication.
 
-Convert and Compress pages are placeholders. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux; batch conversion is not implemented.
+In Convert or Compress, choose per-track copy/omit/encoding, a new destination, and optional resolution/FPS. Presets remain editable. Preview validates the selected build; Run executes through Queue with cancellation and verified output. Quality modes trade size against quality; target-size mode estimates a size and never guarantees it. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux; batch conversion is not implemented.
 
 Remux copies the selected streams without re-encoding. This initial slice uses a conservative codec/container allowlist; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. Output is written to an adjacent hidden temporary file, verified, then published without replacing an existing destination. Publication requires hard-link support on that filesystem; failure retains the temporary file. Failed or cancelled partial files are retained and reported; inspect or remove them yourself. Cancel or wait for active work to finish before closing.
 

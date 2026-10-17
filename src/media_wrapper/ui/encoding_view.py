@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
 )
 
 from media_wrapper.application.conversion_service import ConversionRequest
-from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.encoding_presets import PRESETS
+from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import MediaOperation
 from media_wrapper.domain.remux import Container
 
@@ -54,6 +54,8 @@ class EncodingView(QScrollArea):
         self.tracks.setHorizontalHeaderLabels(['Source track', 'Action / CPU encoder'])
         self.tracks.horizontalHeader().setStretchLastSection(True)
         self.tracks.setMinimumHeight(120)
+        self.tracks.setMaximumHeight(150)
+        self.tracks.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         form.addRow(self.tracks)
         self.video_width, self.video_height = QSpinBox(), QSpinBox()
         for widget in (self.video_width, self.video_height):

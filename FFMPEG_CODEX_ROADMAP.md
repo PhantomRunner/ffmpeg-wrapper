@@ -112,10 +112,14 @@ Queue history is session-only; partial outputs are retained.
 ## Milestone 6 — Transcoding and compression (P1)
 
 - [x] **M6.1** Add Convert page: output container, video encoder, audio encoder, stream mapping, resolution and FPS, and copy-vs-encode decisions for each stream type.
-- [ ] **M6.2** Add Compress page: quality-oriented mode (codec-appropriate CRF/CQ), bitrate mode, preset/speed, audio quality, and clear size/quality tradeoff labels.
-- [ ] **M6.3** Add optional target-file-size mode with video-bitrate calculation and two-pass support when the selected encoder/mode supports it; do not promise exact sizes.
-- [ ] **M6.4** Build presets for common goals (e.g., quality-oriented H.264 MP4, efficient H.265, audio-only). Keep presets editable.
-- [ ] **M6.5** Test remux-vs-transcode behavior, quality options per encoder, audio stream handling, incompatible containers, and failed encodes.
+- [x] **M6.2** Add Compress page: quality-oriented mode (codec-appropriate CRF/CQ), bitrate mode, preset/speed, audio quality, and clear size/quality tradeoff labels.
+- [x] **M6.3** Add optional target-file-size mode with video-bitrate calculation and two-pass support when the selected encoder/mode supports it; do not promise exact sizes.
+- [x] **M6.4** Build presets for common goals (e.g., quality-oriented H.264 MP4, efficient H.265, audio-only). Keep presets editable.
+- [x] **M6.5** Test remux-vs-transcode behavior, quality options per encoder, audio stream handling, incompatible containers, and failed encodes.
+
+**M6 evidence:** [encoding verification](docs/M6_ENCODING.md); 257 tests, lint,
+dependency and whitespace checks pass locally. Real H.264/H.265/AAC and two-pass
+H.264 tested; Windows execution remains pending.
 
 **Acceptance:** CPU transcoding and compression work end-to-end with command preview, logging, progress, and output verification.
 

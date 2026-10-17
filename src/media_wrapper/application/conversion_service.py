@@ -39,6 +39,10 @@ class ConversionRequest:
 
 
 def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPlan:
+    if request.mode not in {'default', 'quality', 'bitrate', 'target'}:
+        raise ValueError('Unsupported rate control mode')
+    if request.mode == 'target' and request.target_size_bytes is None:
+        raise ValueError('Specify a target file size')
     sources = {s.index: s for s in media.streams}
     streams = []
     fps = Fraction(request.fps) if request.fps.strip() else None

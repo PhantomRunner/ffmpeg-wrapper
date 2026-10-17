@@ -2,7 +2,11 @@
 import math
 from dataclasses import replace
 
-from media_wrapper.domain.operations import OperationPlan, PlanValidationError, ValidationCode
+from media_wrapper.domain.operations import (
+    OperationPlan,
+    PlanValidationError,
+    ValidationCode,
+)
 
 
 def apply_target_size(plan: OperationPlan) -> OperationPlan:

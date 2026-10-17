@@ -170,3 +170,53 @@ def test_presets_are_editable_and_audio_only_is_explicit(video_sample):
     assert view.request().tracks == ((0, 'omit'), (1, 'aac'))
     view.deleteLater()
     app.processEvents()
+
+
+@pytest.mark.parametrize('encoder,mode', [('libx264', 'quality'), ('libx265', 'quality'), ('libx264', 'bitrate')])
+def test_real_compression_modes(video_sample, encoder, mode):
+    app = QApplication.instance() or QApplication([])
+    binaries, base = video_sample
+    if encoder not in list_encoders(binaries.ffmpeg, Event()):
+        pytest.skip(f'No {encoder} in selected build')
+    request = ConversionRequest(base.output.path, base.output.container, ((0, encoder), (1, 'aac')),
+                                mode=mode, crf=28, preset='ultrafast', audio_quality=2)
+    task = OperationTask(TaskRecord(conversion_plan(base.media, request)), binaries)
+    results = []
+    task.finished.connect(lambda *r: results.append(r))
+    task.start()
+    wait(app, lambda: bool(results))
+    assert task.record.status == TaskStatus.COMPLETED, task.record.error + task.record.log
+    assert task.record.result.streams[0].codec == ('hevc' if encoder == 'libx265' else 'h264')
+
+
+def test_failed_encode_has_no_published_output(video_sample, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    binaries, base = video_sample
+    if 'libx264' not in list_encoders(binaries.ffmpeg, Event()):
+        pytest.skip('No libx264')
+    task = OperationTask(TaskRecord(conversion_plan(base.media, ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'),)))), binaries)
+    original = task._prepare
+    def broken_encode():
+        plan, command = original()
+        command.insert(1, '-invalid-encoding-option')
+        return plan, command
+    monkeypatch.setattr(task, '_prepare', broken_encode)
+    results = []
+    task.finished.connect(lambda *r: results.append(r))
+    task.start()
+    wait(app, lambda: bool(results))
+    assert task.record.status == TaskStatus.FAILED and task.record.result is None
+    assert not base.output.path.exists()
+
+
+def test_unknown_encoder_and_incompatible_audio_are_rejected(sample):
+    _, base = sample
+    request = ConversionRequest(base.output.path, base.output.container, ((0, 'aac'),))
+    plan = conversion_plan(base.media, request)
+    with pytest.raises(PlanValidationError, match='unavailable'):
+        CommandBuilder().build(base.media.path, plan)
+    from media_wrapper.domain.remux import Container
+    copied = conversion_plan(base.media, replace(request, tracks=((0, 'copy'),), container=Container.MP4,
+                                                destination=base.output.path.with_suffix('.mp4')))
+    with pytest.raises(PlanValidationError, match='unsupported'):
+        CommandBuilder().build(base.media.path, copied)

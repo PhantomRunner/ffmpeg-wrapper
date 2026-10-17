@@ -1,12 +1,12 @@
 """Asynchronous staged Remux lifecycle, reusable by the sequential queue."""
+import json
+import shutil
+import tempfile
 from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 from threading import Event
 from typing import Any
-import tempfile
-import shutil
-import json
-from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 

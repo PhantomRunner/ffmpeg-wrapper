@@ -348,3 +348,24 @@ def test_queue_view_cancel_pending_and_retry(shell, sample):
     shell.queue_view.retry_button.click()
     assert [r.status for r in shell.model.queue.records] == [TaskStatus.CANCELLED, TaskStatus.PENDING]
     assert shell.queue_view.start_button.isEnabled()
+
+
+def test_convert_preview_and_queue_execution(shell, sample):
+    from test_operation_task import wait
+
+    from media_wrapper.domain.tasks import TaskStatus
+    binaries, plan = sample
+    shell.model.state.binaries = binaries
+    shell.model._inspected(plan.media)
+    shell.navigation.setCurrentRow(2)
+    view = shell.convert_view
+    view.destination.setText(str(plan.output.path))
+    view.preview_button.click()
+    wait(QApplication.instance(), lambda: not shell.model.state.busy)
+    assert 'aac' in view.preview.toPlainText()
+    view.run_button.click()
+    wait(QApplication.instance(), lambda: not shell.model.state.busy)
+    record = shell.model.queue.records[-1]
+    assert record.status == TaskStatus.COMPLETED, record.error
+    assert record.result.streams[0].codec == 'aac'
+    assert shell.pages.currentIndex() == 4

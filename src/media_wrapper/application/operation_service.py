@@ -11,7 +11,7 @@ from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
 
 def prepare_operation(plan: OperationPlan, *, staged: bool = True,
                       available_encoders: frozenset[str] = frozenset()) -> OperationPlan:
-    """No files are created. Finalization belongs to the future common runner.
+    """No files are created. OperationTask verifies and publishes staged output.
 
     Revalidate immediately before starting; -n protects the execution target.
     A caller must publish staged output without replacing an existing final file.
@@ -31,4 +31,6 @@ def prepare_operation(plan: OperationPlan, *, staged: bool = True,
 def prepare_command(ffmpeg: Path, plan: OperationPlan, *, staged: bool = True,
                     available_encoders: frozenset[str] = frozenset()) -> tuple[OperationPlan, list[str]]:
     prepared = prepare_operation(plan, staged=staged, available_encoders=available_encoders)
+    if prepared.two_pass:
+        raise ValueError('Two-pass plans require CommandBuilder.build_passes and sequential execution')
     return prepared, CommandBuilder().build(ffmpeg, prepared, available_encoders)
