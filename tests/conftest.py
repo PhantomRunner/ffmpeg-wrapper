@@ -32,3 +32,15 @@ def sample(tmp_path):
                          OutputTarget(tmp_path/'result.mkv', Container.MATROSKA))
     return binaries, plan
 
+
+from dataclasses import replace
+
+@pytest.fixture
+def video_sample(sample, tmp_path):
+    binaries, plan = sample
+    source = tmp_path/'video ü.mkv'
+    subprocess.run([str(binaries.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=96x64:r=24:d=0.5',
+                    '-i', str(plan.media.path), '-c:v', 'ffv1', '-c:a', 'copy', '-n', str(source)],
+                   check=True, capture_output=True, timeout=15)
+    return binaries, replace(plan, media=MediaService(binaries).inspect(source))
+

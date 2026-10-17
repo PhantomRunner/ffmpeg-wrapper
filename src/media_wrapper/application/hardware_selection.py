@@ -37,3 +37,13 @@ def select_hardware(plan: OperationPlan, report: CapabilityReport | None, mode: 
     if mode == 'GPU' and not any(s.profile.encoder in GPU_ENCODERS for s in streams):
         raise ValueError('Select H.264 or H.265 video encoding to use GPU mode')
     return replace(plan, streams=tuple(streams), hardware_device=device, hardware_note='; '.join(decisions))
+
+
+def cpu_retry_plan(plan: OperationPlan) -> OperationPlan:
+    if not any(s.profile.encoder in GPU_ENCODERS for s in plan.streams):
+        raise ValueError('This plan does not use a GPU encoder')
+    streams = tuple(replace(s, profile=replace(s.profile,
+                    encoder='libx264' if GPU_ENCODERS[s.profile.encoder] == 'h264' else 'libx265', preset='medium'))
+                    if s.profile.encoder in GPU_ENCODERS else s for s in plan.streams)
+    return replace(plan, streams=streams, output=replace(plan.output, temporary_path=None), hardware_device=None,
+                   hardware_note='User explicitly requested CPU retry; previous attempt and partial output retained.')

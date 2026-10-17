@@ -23,6 +23,7 @@ from media_wrapper.application.settings_service import SettingsService
 from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
+from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         self.queue_view.cancel_button.clicked.connect(self.cancel_queue_selected)
         self.queue_view.cancel_all_button.clicked.connect(self.model.queue.cancel_all)
         self.queue_view.retry_button.clicked.connect(self.retry_queue_selected)
+        self.queue_view.cpu_retry_button.clicked.connect(self.retry_queue_cpu)
         self.queue_view.table.itemSelectionChanged.connect(self.render_queue_details)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
         self.remux_view.destination.textChanged.connect(self.output_changed)
@@ -294,6 +296,7 @@ class MainWindow(QMainWindow):
         record = records[row] if 0 <= row < len(records) else None
         self.queue_view.cancel_button.setEnabled(record is not None and record.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
         self.queue_view.retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED))
+        self.queue_view.cpu_retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) and any(s.profile.encoder in GPU_ENCODERS for s in record.plan.streams))
         if record is None:
             self.queue_view.details.clear()
             return
@@ -317,6 +320,13 @@ class MainWindow(QMainWindow):
             record = self.model.queue.records[row]
             if record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED):
                 self.model.queue.retry(record.id)
+
+    def retry_queue_cpu(self) -> None:
+        row = self.queue_view.table.currentRow()
+        if 0 <= row < len(self.model.queue.records):
+            record = self.model.queue.records[row]
+            if record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) and any(s.profile.encoder in GPU_ENCODERS for s in record.plan.streams):
+                self.model.queue.retry_cpu(record.id)
 
     def choose_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, 'Select directory with ffmpeg and ffprobe')

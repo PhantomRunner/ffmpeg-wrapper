@@ -30,3 +30,10 @@ GPU default/bitrate modes are supported; CRF/target size stays CPU in Auto and i
 rejected in forced GPU mode. Execution rechecks GPU initialization before media
 encoding. VAAPI uses the explicit device and software-to-hardware upload filter.
 Milestone-wide tests pending.
+
+## M7.5 implementation
+Failed GPU preflight/execution never silently restarts on CPU. Queue offers an
+explicit Retry on CPU action only for failed/cancelled GPU attempts. It snapshots
+a fresh CPU plan and temporary target, retaining the prior attempt/log/partial.
+CPU encoder availability and destination safety are revalidated. Milestone-wide
+tests pending.

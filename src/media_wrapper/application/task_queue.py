@@ -4,6 +4,7 @@ from dataclasses import replace
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from media_wrapper.application.operation_task import OperationTask
+from media_wrapper.application.hardware_selection import cpu_retry_plan
 from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.tasks import TaskRecord, TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
@@ -76,3 +77,9 @@ class TaskQueue(QObject):
         if record.status not in (TaskStatus.FAILED, TaskStatus.CANCELLED):
             raise ValueError('Only failed or cancelled tasks can be retried')
         return self.add(record.plan, self._binaries[record.id])
+
+    def retry_cpu(self, task_id: str) -> TaskRecord:
+        record = next(r for r in self.records if r.id == task_id)
+        if record.status not in (TaskStatus.FAILED, TaskStatus.CANCELLED):
+            raise ValueError('Only failed or cancelled GPU tasks can be retried on CPU')
+        return self.add(cpu_retry_plan(record.plan), self._binaries[record.id])

@@ -115,3 +115,40 @@ def test_vaapi_command_has_explicit_device_and_upload(sample):
     command = CommandBuilder().build(binaries.ffmpeg, plan, frozenset({'h264_vaapi'}))
     assert command[command.index('-vaapi_device')+1] == '/dev/dri/renderD129'
     assert 'scale=64:48,format=nv12,hwupload' in command
+
+
+def test_failed_gpu_job_requires_explicit_cpu_retry(video_sample, monkeypatch):
+    from dataclasses import replace
+
+    from PySide6.QtWidgets import QApplication
+    from test_operation_task import wait
+
+    from media_wrapper.application.conversion_service import ConversionRequest, conversion_plan
+    from media_wrapper.application.task_queue import TaskQueue
+    from media_wrapper.domain.capabilities import EncoderCapability, EncoderStatus
+    from media_wrapper.domain.tasks import TaskStatus
+    from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
+    app = QApplication.instance() or QApplication([])
+    binaries, base = video_sample
+    real_encoders = list_encoders(binaries.ffmpeg, Event())
+    if 'libx264' not in real_encoders:
+        import pytest
+        pytest.skip('CPU retry requires libx264')
+    plan = conversion_plan(base.media, ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'),)))
+    selected = plan.streams[0]
+    plan = replace(plan, streams=(replace(selected, profile=replace(selected.profile, encoder='h264_nvenc')),))
+    monkeypatch.setattr('media_wrapper.application.operation_task.list_encoders', lambda *a: real_encoders | {'h264_nvenc'})
+    monkeypatch.setattr('media_wrapper.application.operation_task.test_gpu_encoder',
+                        lambda *a: EncoderCapability('h264_nvenc', True, EncoderStatus.UNAVAILABLE, 'driver initialization failed'))
+    queue = TaskQueue()
+    failed = queue.add(plan, binaries)
+    queue.start()
+    wait(app, lambda: not queue.running)
+    assert failed.status == TaskStatus.FAILED and not base.output.path.exists()
+    assert len(queue.records) == 1 and 'driver initialization failed' in failed.log
+    cpu = queue.retry_cpu(failed.id)
+    assert cpu.id != failed.id and cpu.plan.streams[0].profile.encoder == 'libx264'
+    queue.start()
+    wait(app, lambda: not queue.running)
+    assert cpu.status == TaskStatus.COMPLETED, cpu.error
+    assert failed.status == TaskStatus.FAILED and failed.log

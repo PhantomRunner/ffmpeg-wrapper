@@ -28,15 +28,6 @@ def test_encoder_list_parser():
     assert parse_encoders(' V..... = Video\n V....D libx264 H.264\n A..... aac AAC\n S..... mov_text Text') == frozenset({'libx264', 'aac', 'mov_text'})
 
 
-@pytest.fixture
-def video_sample(sample, tmp_path):
-    binaries, plan = sample
-    source = tmp_path/'video ü.mkv'
-    subprocess.run([str(binaries.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=96x64:r=24:d=0.5',
-                    '-i', str(plan.media.path), '-c:v', 'ffv1', '-c:a', 'copy', '-n', str(source)],
-                   check=True, capture_output=True, timeout=15)
-    return binaries, replace(plan, media=MediaService(binaries).inspect(source))
-
 
 def test_real_conversion_scales_and_verifies(video_sample):
     app = QApplication.instance() or QApplication([])

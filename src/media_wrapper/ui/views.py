@@ -235,7 +235,9 @@ class QueueView(QWidget):
         self.cancel_button = QPushButton('Cancel selected')
         self.cancel_all_button = QPushButton('Cancel all')
         self.retry_button = QPushButton('Retry selected')
-        for button in (self.start_button, self.cancel_button, self.cancel_all_button, self.retry_button):
+        self.cpu_retry_button = QPushButton('Retry on CPU')
+        self.cpu_retry_button.setToolTip('Explicitly create a new CPU attempt. Previous diagnostics and partial output are retained.')
+        for button in (self.start_button, self.cancel_button, self.cancel_all_button, self.retry_button, self.cpu_retry_button):
             buttons.addWidget(button)
         layout.addLayout(buttons)
         self.details = QTextEdit()
