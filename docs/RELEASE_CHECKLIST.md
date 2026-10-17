@@ -34,3 +34,10 @@ Before creating a public version tag:
 - Record final source commit, checksums and release approval, then create the tag.
 
 No public release or release tag is created while these gates remain unresolved.
+
+CI definitions: `.github/workflows/tests.yml` runs unit/integration/lint on Linux
+and Windows with Python 3.11/3.14. `distribution.yml` builds native candidates on
+Ubuntu 24.04 and Windows 2022/Python 3.14, runs the packaged installation verifier,
+and retains candidate archives for seven days. Linux uses tar.gz to preserve
+symlinks; Windows uses ZIP. These workflows do not create tags or releases.
+Record their actual run URLs and results here before checking hosted verification.
