@@ -127,6 +127,10 @@ class MainWindow(QMainWindow):
         self.compress_view.run_button.clicked.connect(self.run_convert)
         self.compress_view.enqueue_button.clicked.connect(self.enqueue_convert)
         self.compress_view.browse.clicked.connect(self.browse_convert)
+        for view in (self.convert_view, self.compress_view):
+            view.import_profile_button.clicked.connect(self.import_encoding_profile)
+            view.export_profile_button.clicked.connect(self.export_encoding_profile)
+        self.model.profile_loaded.connect(self.apply_imported_profile)
         self.model.encoding_preview_ready.connect(self.show_encoding_preview)
         self._capability_display_key = None
         self.model.changed.connect(self.render)
@@ -237,7 +241,7 @@ class MainWindow(QMainWindow):
 
     def encoding_sender(self) -> EncodingView:
         view = self.compress_view
-        return view if self.sender() in (view.preview_button, view.run_button, view.enqueue_button, view.browse) else self.convert_view
+        return view if self.sender() in (view.preview_button, view.run_button, view.enqueue_button, view.browse, view.import_profile_button, view.export_profile_button) else self.convert_view
 
     @Slot()
     def preview_convert(self) -> None:
@@ -254,6 +258,34 @@ class MainWindow(QMainWindow):
     @Slot()
     def browse_convert(self) -> None:
         self.choose_encoding_destination(self.encoding_sender())
+
+    @Slot()
+    def import_encoding_profile(self) -> None:
+        self.exchange_encoding_profile(True)
+
+    @Slot()
+    def export_encoding_profile(self) -> None:
+        self.exchange_encoding_profile(False)
+
+    def exchange_encoding_profile(self, importing: bool) -> None:
+        view = self.encoding_sender()
+        try:
+            request = view.request()
+        except ValueError as error:
+            self.model.state.output = str(error)
+            self.render()
+            return
+        name, _ = (QFileDialog.getOpenFileName(self, 'Import profile', '', 'JSON (*.json)') if importing else
+                   QFileDialog.getSaveFileName(self, 'Save profile as a new file', '', 'JSON (*.json)'))
+        if name:
+            self._preview_view = view
+            self.model.exchange_profile(Path(name), request, importing)
+
+    @Slot(object)
+    def apply_imported_profile(self, request: object) -> None:
+        self._preview_view.apply_request(request)
+        self.model.state.output = 'Profile validated against the selected build and applied. Review choices before running.'
+        self.render()
 
     def encoding_action(self, view: EncodingView, action: str) -> None:
         try:

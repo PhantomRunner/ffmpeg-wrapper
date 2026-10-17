@@ -1,7 +1,5 @@
 """Translate typed UI choices into domain plans; validate/probe only on workers."""
-from dataclasses import dataclass
 from fractions import Fraction
-from pathlib import Path
 from threading import Event
 
 from media_wrapper.application.hardware_selection import select_hardware
@@ -11,35 +9,16 @@ from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import (
     EncodingProfile,
-    MediaOperation,
     OperationPlan,
     OutputTarget,
     StreamSelection,
 )
-from media_wrapper.domain.remux import Container
+from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
 
 
-@dataclass(frozen=True)
-class ConversionRequest:
-    destination: Path
-    container: Container
-    tracks: tuple[tuple[int, str], ...]
-    width: int | None = None
-    height: int | None = None
-    fps: str = ''
-    audio_bitrate: int = 128000
-    mode: str = 'default'
-    crf: int = 23
-    video_bitrate: int = 2000000
-    preset: str = 'medium'
-    audio_quality: int | None = None
-    operation: MediaOperation = MediaOperation.CONVERT
-    target_size_bytes: int | None = None
-    hardware_mode: str = 'CPU'
-    gpu_encoder: str = 'auto'
 
 
 def conversion_plan(media: MediaFile, request: ConversionRequest, report: CapabilityReport | None = None) -> OperationPlan:

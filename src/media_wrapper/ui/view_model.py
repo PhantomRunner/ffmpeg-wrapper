@@ -34,18 +34,20 @@ from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
 from media_wrapper.ui.workers import (
     CapabilityWorker,
+    ServiceWorker,
     DetectionWorker,
     EncodingPreviewWorker,
     InspectionWorker,
     RemuxPreparationWorker,
 )
 
-Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingPreviewWorker | CapabilityWorker
+Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingPreviewWorker | CapabilityWorker | ServiceWorker
 
 
 class DesktopViewModel(QObject):
     changed = Signal()
     encoding_preview_ready = Signal(object)
+    profile_loaded = Signal(object)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -305,6 +307,21 @@ class DesktopViewModel(QObject):
 
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container, self.state.selected_streams), self.start_remux)
+
+    def exchange_profile(self, path: Path, request: ConversionRequest, importing: bool) -> None:
+        if self.state.busy or self.state.media is None or self.state.binaries is None:
+            return
+        from media_wrapper.application.profile_service import export_profile, import_profile
+        media, binaries, report = self.state.media, self.state.binaries, self.capabilities
+        if importing:
+            self._start(ServiceWorker(lambda: import_profile(path, request.destination, media, binaries, report), 'Profile import'), self.profile_loaded.emit)
+        else:
+            self._start(ServiceWorker(lambda: export_profile(path, request, media, binaries, report), 'Profile export'), self._document_saved)
+
+    @Slot(object)
+    def _document_saved(self, path: Path) -> None:
+        self.state.output = f'Saved: {path}'
+        self.changed.emit()
 
     def scan_capabilities(self, test_gpu: bool, device: str | None) -> None:
         if self.state.busy or self.state.binaries is None:

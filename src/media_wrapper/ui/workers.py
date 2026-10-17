@@ -1,5 +1,7 @@
 """Background adapters for application services."""
 from pathlib import Path
+from collections.abc import Callable
+from typing import Any
 from threading import Event
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -103,3 +105,20 @@ class CapabilityWorker(QObject):
             self.failed.emit('Capability scan cancelled.')
         except Exception as exc:  # noqa: BLE001 - worker boundary
             self.failed.emit(report_failure('Capability scan', exc))
+
+
+class ServiceWorker(QObject):
+    """Short I/O/application work off the event loop, with the usual error boundary."""
+    finished = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, action: 'Callable[[], Any]', operation: str) -> None:
+        super().__init__()
+        self.action, self.operation = action, operation
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.finished.emit(self.action())
+        except Exception as exc:  # noqa: BLE001 - worker boundary
+            self.failed.emit(report_failure(self.operation, exc))

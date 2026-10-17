@@ -56,6 +56,9 @@ class EncodingView(QScrollArea):
         self.apply_preset_button.clicked.connect(self.apply_preset)
         form.addRow('Starting point', self.presets)
         form.addRow(self.apply_preset_button)
+        self.import_profile_button = QPushButton('Import profile…')
+        self.export_profile_button = QPushButton('Save / export profile…')
+        form.addRow(self.import_profile_button, self.export_profile_button)
         self.container = QComboBox()
         self.container.addItems(['Matroska', 'MP4'])
         self.destination = QLineEdit()
@@ -172,6 +175,27 @@ class EncodingView(QScrollArea):
                 preset.video_encoder if stream.kind == 'video' else 'aac' if stream.kind == 'audio' else 'copy')
             combo.setCurrentText(encoder)
         self.note.setText('Preset applied. Review and edit every track and setting. Audio-only presets explicitly omit non-audio tracks. Encoder availability and container compatibility are checked before execution.')
+        self.clear_preview()
+
+    def apply_request(self, request: ConversionRequest) -> None:
+        self.container.setCurrentIndex(0 if request.container == Container.MATROSKA else 1)
+        self.destination.setText(str(request.destination))
+        self.video_width.setValue(request.width or 0)
+        self.video_height.setValue(request.height or 0)
+        self.fps.setText(request.fps)
+        self.audio_bitrate.setValue(request.audio_bitrate // 1000)
+        self.mode.setCurrentText(request.mode)
+        self.crf.setValue(request.crf)
+        self.video_bitrate.setValue(request.video_bitrate // 1000)
+        self.preset.setCurrentText(request.preset)
+        self.audio_mode.setCurrentText('quality' if request.audio_quality is not None else 'bitrate')
+        self.audio_quality.setValue(request.audio_quality or 2)
+        self.target_size.setValue((request.target_size_bytes or 104857600) // 1048576)
+        self.hardware_mode.setCurrentText(request.hardware_mode)
+        self.gpu_encoder.setCurrentText(request.gpu_encoder)
+        choices = dict(request.tracks)
+        for stream, combo in zip(self._media.streams, self._encoders, strict=True):
+            combo.setCurrentText(choices.get(stream.index, 'omit'))
         self.clear_preview()
 
     def clear_preview(self) -> None:
