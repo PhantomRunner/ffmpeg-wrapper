@@ -201,6 +201,9 @@ class SettingsView(QWidget):
         for widget in (self.mode, self.folder, self.browse_button, self.detect_button):
             controls.addWidget(widget)
         layout.addLayout(controls)
+        self.sidecar_button = QPushButton('Select bundled sidecar folder')
+        self.sidecar_button.setToolTip('Explicitly select ffmpeg/bin beside the packaged executable. Missing files are reported; PATH is not used as a fallback.')
+        layout.addWidget(self.sidecar_button)
         self.status = QLabel('FFmpeg not detected')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)

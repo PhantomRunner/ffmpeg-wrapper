@@ -92,6 +92,7 @@ class MainWindow(QMainWindow):
         self.folder.setText(preferences.binary_directory)
         self.remux_view.advanced_toggle.setChecked(preferences.advanced)
         self.settings_view.browse_button.clicked.connect(self.choose_folder)
+        self.settings_view.sidecar_button.clicked.connect(self.select_sidecar)
         self.detect_button.clicked.connect(self.detect)
         self.settings_view.scan_button.clicked.connect(self.scan_capabilities)
         self.settings_view.cancel_scan.clicked.connect(self.model.cancel_capabilities)
@@ -175,6 +176,7 @@ class MainWindow(QMainWindow):
             view.set_capabilities(self.model.capabilities)
         settings = self.settings_view
         settings.export_diagnostics.setEnabled(not state.busy)
+        settings.sidecar_button.setEnabled(not state.busy)
         settings.scan_button.setEnabled(not state.busy and state.binaries is not None)
         settings.cancel_scan.setEnabled(self.model.capability_active)
         settings.test_gpu.setEnabled(not state.busy)
@@ -248,6 +250,13 @@ class MainWindow(QMainWindow):
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
+
+    @Slot()
+    def select_sidecar(self) -> None:
+        from media_wrapper.infrastructure.ffmpeg.binary_resolver import sidecar_directory
+        self.mode.setCurrentText('bundled')
+        self.folder.setText(str(sidecar_directory()))
+        self.detect()
 
     @Slot()
     def scan_capabilities(self) -> None:

@@ -117,7 +117,7 @@ class DesktopViewModel(QObject):
     @Slot(object)
     def _detected(self, binaries: Binaries) -> None:
         self.state.binaries = binaries
-        self.state.status = f'Detected: {binaries.version}'
+        self.state.status = f'FFmpeg: {binaries.ffmpeg}\nFFprobe: {binaries.ffprobe}\n{binaries.version}'
         self.changed.emit()
 
     def add_files(self, paths: list[Path]) -> None:

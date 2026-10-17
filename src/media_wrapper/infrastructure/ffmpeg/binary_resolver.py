@@ -50,3 +50,9 @@ def resolve(mode: str = "external", directory: str | Path | None = None) -> Bina
             raise RuntimeError(f"Cannot run {binary}: {exc}") from exc
         versions.append(result.stdout.splitlines()[0] if result.stdout else "unknown")
     return Binaries(ffmpeg=paths[0], ffprobe=paths[1], version=f"{versions[0]} | {versions[1]}")
+
+
+def sidecar_directory() -> Path:
+    """Suggested location only; callers must explicitly select bundled mode."""
+    root = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[4]
+    return root / 'ffmpeg' / 'bin'
