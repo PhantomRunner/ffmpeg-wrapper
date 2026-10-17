@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.application.conversion_service import ConversionRequest
 from media_wrapper.domain.media import MediaFile
+from media_wrapper.domain.encoding_presets import PRESETS
 from media_wrapper.domain.operations import MediaOperation
 from media_wrapper.domain.remux import Container
 
@@ -36,6 +37,12 @@ class EncodingView(QScrollArea):
         layout.addWidget(self.source)
         self.form = QWidget()
         form = QFormLayout(self.form)
+        self.presets = QComboBox()
+        self.presets.addItems([p.name for p in PRESETS])
+        self.apply_preset_button = QPushButton('Apply editable preset')
+        self.apply_preset_button.clicked.connect(self.apply_preset)
+        form.addRow('Starting point', self.presets)
+        form.addRow(self.apply_preset_button)
         self.container = QComboBox()
         self.container.addItems(['Matroska', 'MP4'])
         self.destination = QLineEdit()
@@ -118,6 +125,28 @@ class EncodingView(QScrollArea):
             widget.valueChanged.connect(self.preview.clear)
         self.container.currentIndexChanged.connect(self.preview.clear)
         self.update_options()
+
+    def apply_preset(self) -> None:
+        if self._media is None:
+            return
+        preset = PRESETS[self.presets.currentIndex()]
+        self.container.setCurrentIndex(0 if preset.container == Container.MATROSKA else 1)
+        if self.destination.text():
+            self.destination.setText(str(Path(self.destination.text()).with_suffix('.mp4' if preset.container == Container.MP4 else '.mkv')))
+        self.mode.setCurrentText('quality' if preset.video_encoder else 'default')
+        self.crf.setValue(preset.crf)
+        self.preset.setCurrentText(preset.speed)
+        self.audio_mode.setCurrentText('bitrate')
+        self.audio_bitrate.setValue(preset.audio_bitrate // 1000)
+        self.video_width.setValue(0)
+        self.video_height.setValue(0)
+        self.fps.clear()
+        for stream, combo in zip(self._media.streams, self._encoders, strict=True):
+            encoder = ('aac' if stream.kind == 'audio' else 'omit') if preset.video_encoder is None else (
+                preset.video_encoder if stream.kind == 'video' else 'aac' if stream.kind == 'audio' else 'copy')
+            combo.setCurrentText(encoder)
+        self.note.setText('Preset applied. Review and edit every track and setting. Audio-only presets explicitly omit non-audio tracks. Encoder availability and container compatibility are checked before execution.')
+        self.clear_preview()
 
     def clear_preview(self) -> None:
         if hasattr(self, 'preview'):

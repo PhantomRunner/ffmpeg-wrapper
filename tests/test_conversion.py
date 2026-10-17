@@ -150,3 +150,23 @@ def test_target_size_invalid_inputs(video_sample, change):
         request = replace(request, target_size_bytes=1)
     with pytest.raises(PlanValidationError):
         apply_target_size(conversion_plan(base.media, request))
+
+
+def test_presets_are_editable_and_audio_only_is_explicit(video_sample):
+    app = QApplication.instance() or QApplication([])
+    _, plan = video_sample
+    view = EncodingView('Compress')
+    view.set_media(plan.media, False)
+    view.apply_preset()
+    assert view.request().tracks == ((0, 'libx264'), (1, 'aac'))
+    assert view.request().crf == 20
+    view.crf.setValue(25)
+    assert view.request().crf == 25
+    view.presets.setCurrentIndex(1)
+    view.apply_preset()
+    assert view.request().tracks[0][1] == 'libx265'
+    view.presets.setCurrentIndex(2)
+    view.apply_preset()
+    assert view.request().tracks == ((0, 'omit'), (1, 'aac'))
+    view.deleteLater()
+    app.processEvents()

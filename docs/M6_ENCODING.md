@@ -15,3 +15,9 @@ reserve. Supports one libx264 video, requires known duration and known-rate audi
 and runs two passes. Both commands are previewed; pass logs are private per
 attempt, cleaned on success and retained/reported on failure. No exact-size claim.
 Milestone-wide verification pending.
+
+## M6.4 implementation
+Editable H.264 MP4, efficient H.265 MP4 and audio-only AAC MP4 starting points.
+Applying a preset populates visible controls; user changes remain editable.
+Audio-only explicitly omits non-audio tracks; other presets retain subtitles for
+explicit compatibility validation. Milestone-wide verification pending.
