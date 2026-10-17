@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.application.conversion_service import ConversionRequest
 from media_wrapper.domain.media import MediaFile
+from media_wrapper.domain.operations import MediaOperation
 from media_wrapper.domain.remux import Container
 
 
@@ -61,8 +62,36 @@ class EncodingView(QScrollArea):
         form.addRow('Video height', self.video_height)
         form.addRow('Video FPS', self.fps)
         form.addRow('AAC bitrate (kb/s)', self.audio_bitrate)
+        self.mode = QComboBox()
+        self.mode.addItems(['default', 'quality', 'bitrate'])
+        self.mode.setCurrentText('quality' if title == 'Compress' else 'default')
+        self.crf = QSpinBox()
+        self.crf.setRange(0, 51)
+        self.crf.setValue(23)
+        self.video_bitrate = QSpinBox()
+        self.video_bitrate.setRange(32, 200000)
+        self.video_bitrate.setValue(2000)
+        self.preset = QComboBox()
+        self.preset.addItems(['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'])
+        self.preset.setCurrentText('medium')
+        self.audio_mode = QComboBox()
+        self.audio_mode.addItems(['bitrate', 'quality'])
+        self.audio_quality = QSpinBox()
+        self.audio_quality.setRange(1, 5)
+        self.audio_quality.setValue(2)
+        form.addRow('Video rate control', self.mode)
+        form.addRow('H.264/H.265 CRF (lower = higher quality)', self.crf)
+        form.addRow('Video bitrate (kb/s)', self.video_bitrate)
+        form.addRow('Encoder speed preset', self.preset)
+        form.addRow('AAC rate control', self.audio_mode)
+        form.addRow('AAC quality (higher = higher quality)', self.audio_quality)
+        self.mode.currentIndexChanged.connect(self.update_options)
+        self.audio_mode.currentIndexChanged.connect(self.update_options)
+        for widget in (self.crf, self.video_bitrate, self.audio_quality):
+            widget.valueChanged.connect(self.clear_preview)
+        self.preset.currentIndexChanged.connect(self.clear_preview)
         layout.addWidget(self.form)
-        self.note = QLabel('Encoders are checked against your FFmpeg build before running. Copy preserves the original stream; Omit removes it explicitly. Scaling uses the exact dimensions entered.')
+        self.note = QLabel('Quality mode gives variable size; lower CRF usually uses more space. Slower presets trade time for efficiency. Bitrate mode targets a rate, not an exact size. Encoders are checked against your FFmpeg build before running. Copy preserves the original stream; Omit removes it explicitly. Scaling uses the exact dimensions entered.')
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         buttons = QHBoxLayout()
@@ -83,6 +112,19 @@ class EncodingView(QScrollArea):
         for widget in (self.video_width, self.video_height, self.audio_bitrate):
             widget.valueChanged.connect(self.preview.clear)
         self.container.currentIndexChanged.connect(self.preview.clear)
+        self.update_options()
+
+    def clear_preview(self) -> None:
+        if hasattr(self, 'preview'):
+            self.preview.clear()
+
+    def update_options(self) -> None:
+        self.crf.setEnabled(self.mode.currentText() == 'quality')
+        self.video_bitrate.setEnabled(self.mode.currentText() == 'bitrate')
+        self.preset.setEnabled(self.mode.currentText() != 'default')
+        self.audio_bitrate.setEnabled(self.audio_mode.currentText() == 'bitrate')
+        self.audio_quality.setEnabled(self.audio_mode.currentText() == 'quality')
+        self.clear_preview()
 
     def set_media(self, media: MediaFile | None, busy: bool) -> None:
         self.form.setEnabled(not busy and media is not None)
@@ -124,4 +166,7 @@ class EncodingView(QScrollArea):
         return ConversionRequest(Path(self.destination.text()),
                                  Container.MATROSKA if self.container.currentIndex() == 0 else Container.MP4,
                                  tuple(tracks), self.video_width.value() or None, self.video_height.value() or None,
-                                 self.fps.text(), self.audio_bitrate.value() * 1000)
+                                 self.fps.text(), self.audio_bitrate.value() * 1000,
+                                 self.mode.currentText(), self.crf.value(), self.video_bitrate.value() * 1000,
+                                 self.preset.currentText(), self.audio_quality.value() if self.audio_mode.currentText() == 'quality' else None,
+                                 MediaOperation.COMPRESS if self.title == 'Compress' else MediaOperation.CONVERT)

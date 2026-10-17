@@ -41,6 +41,12 @@ class CommandBuilder:
                 profile = selection.profile
                 if profile.encoder in {'libx264', 'libx265'}:
                     args.extend([f'-pix_fmt:{position}', 'yuv420p'])
+                if profile.crf is not None:
+                    args.extend([f'-crf:{position}', str(profile.crf)])
+                if profile.preset is not None:
+                    args.extend([f'-preset:{position}', profile.preset])
+                if profile.audio_quality is not None:
+                    args.extend([f'-q:{position}', str(profile.audio_quality)])
                 if profile.width is not None:
                     args.extend([f'-filter:{position}', f'scale={profile.width}:{profile.height}'])
                 if profile.fps is not None:

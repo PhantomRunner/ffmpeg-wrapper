@@ -29,6 +29,12 @@ class ConversionRequest:
     height: int | None = None
     fps: str = ''
     audio_bitrate: int = 128000
+    mode: str = 'default'
+    crf: int = 23
+    video_bitrate: int = 2000000
+    preset: str = 'medium'
+    audio_quality: int | None = None
+    operation: MediaOperation = MediaOperation.CONVERT
 
 
 def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPlan:
@@ -43,14 +49,17 @@ def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPl
         kind = sources[index].kind
         profile = EncodingProfile(encoder)
         if encoder != 'copy':
-            profile = EncodingProfile(encoder, request.audio_bitrate if encoder == 'aac' else None,
+            profile = EncodingProfile(encoder, (request.audio_bitrate if request.audio_quality is None else None) if encoder == 'aac' else (request.video_bitrate if kind == 'video' and request.mode == 'bitrate' else None),
                                       request.width if kind == 'video' else None,
                                       request.height if kind == 'video' else None,
-                                      fps if kind == 'video' else None)
+                                      fps if kind == 'video' else None,
+                                      request.crf if kind == 'video' and request.mode == 'quality' else None,
+                                      request.preset if kind == 'video' and request.mode != 'default' else None,
+                                      request.audio_quality if encoder == 'aac' else None)
         elif kind == 'video' and any(v is not None for v in (request.width, request.height, fps)):
             raise ValueError('Choose a video encoder to change resolution or FPS')
         streams.append(StreamSelection(index, profile))
-    return OperationPlan(MediaOperation.CONVERT, media, tuple(streams),
+    return OperationPlan(request.operation, media, tuple(streams),
                          OutputTarget(request.destination.expanduser().absolute(), request.container))
 
 

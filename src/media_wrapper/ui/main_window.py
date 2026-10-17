@@ -29,7 +29,6 @@ from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.view_model import DesktopViewModel
 from media_wrapper.ui.views import (
     FilesView,
-    PlaceholderView,
     QueueView,
     RemuxView,
     SettingsView,
@@ -63,9 +62,10 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView()
         self.queue_view = QueueView()
         self.convert_view = EncodingView()
+        self.compress_view = EncodingView('Compress')
         for page in (self.files_view, self.remux_view,
                      self.convert_view,
-                     PlaceholderView('Compress', 'Compression controls will be added in a later milestone.'),
+                     self.compress_view,
                      self.queue_view,
                      self.settings_view):
             self.pages.addWidget(page)
@@ -118,6 +118,10 @@ class MainWindow(QMainWindow):
         self.convert_view.run_button.clicked.connect(self.run_convert)
         self.convert_view.enqueue_button.clicked.connect(self.enqueue_convert)
         self.convert_view.browse.clicked.connect(self.browse_convert)
+        self.compress_view.preview_button.clicked.connect(self.preview_convert)
+        self.compress_view.run_button.clicked.connect(self.run_convert)
+        self.compress_view.enqueue_button.clicked.connect(self.enqueue_convert)
+        self.compress_view.browse.clicked.connect(self.browse_convert)
         self.model.encoding_preview_ready.connect(self.show_encoding_preview)
         self.model.changed.connect(self.render)
         self.render()
@@ -145,6 +149,7 @@ class MainWindow(QMainWindow):
         state = self.model.state
         self.status.setText(state.status)
         self.convert_view.set_media(state.media, state.busy)
+        self.compress_view.set_media(state.media, state.busy)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
@@ -196,21 +201,25 @@ class MainWindow(QMainWindow):
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
 
+    def encoding_sender(self) -> EncodingView:
+        view = self.compress_view
+        return view if self.sender() in (view.preview_button, view.run_button, view.enqueue_button, view.browse) else self.convert_view
+
     @Slot()
     def preview_convert(self) -> None:
-        self.encoding_action(self.convert_view, 'preview')
+        self.encoding_action(self.encoding_sender(), 'preview')
 
     @Slot()
     def run_convert(self) -> None:
-        self.encoding_action(self.convert_view, 'run')
+        self.encoding_action(self.encoding_sender(), 'run')
 
     @Slot()
     def enqueue_convert(self) -> None:
-        self.encoding_action(self.convert_view, 'enqueue')
+        self.encoding_action(self.encoding_sender(), 'enqueue')
 
     @Slot()
     def browse_convert(self) -> None:
-        self.choose_encoding_destination(self.convert_view)
+        self.choose_encoding_destination(self.encoding_sender())
 
     def encoding_action(self, view: EncodingView, action: str) -> None:
         try:

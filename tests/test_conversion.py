@@ -78,3 +78,26 @@ def test_convert_form_explicit_track_choices(sample):
     assert not view.run_button.isEnabled()
     view.deleteLater()
     app.processEvents()
+
+
+@pytest.mark.parametrize('encoder', ['libx264', 'libx265'])
+def test_quality_and_preset_options(video_sample, encoder):
+    _, base = video_sample
+    request = ConversionRequest(base.output.path, base.output.container, ((0, encoder), (1, 'aac')),
+                                mode='quality', crf=28, preset='slow', audio_quality=3)
+    plan = conversion_plan(base.media, request)
+    command = CommandBuilder().build(base.media.path, plan, frozenset({encoder, 'aac'}))
+    assert command[command.index('-crf:0') + 1] == '28'
+    assert command[command.index('-preset:0') + 1] == 'slow'
+    assert command[command.index('-q:1') + 1] == '3'
+    assert '-b:0' not in command and '-b:1' not in command
+
+
+@pytest.mark.parametrize('profile', [EncodingProfile('libx264', bitrate=100000, crf=23),
+                                     EncodingProfile('ffv1', crf=23), EncodingProfile('libx265', preset='invalid'),
+                                     EncodingProfile('libx264', crf=52)])
+def test_conflicting_quality_options(video_sample, profile):
+    _, base = video_sample
+    plan = conversion_plan(base.media, ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'),)))
+    with pytest.raises(PlanValidationError):
+        CommandBuilder().build(base.media.path, replace(plan, streams=(StreamSelection(0, profile),)), frozenset({'libx264', 'libx265', 'ffv1'}))

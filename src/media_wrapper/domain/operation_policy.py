@@ -41,7 +41,7 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
         stream, profile = source[selection.index], selection.profile
         codec = stream.codec
         if profile.encoder == 'copy':
-            if any(v is not None for v in (profile.bitrate, profile.width, profile.height, profile.fps)):
+            if any(v is not None for v in (profile.bitrate, profile.width, profile.height, profile.fps, profile.crf, profile.preset, profile.audio_quality)):
                 fail(ValidationCode.OPTION, 'Copy cannot specify encoding options or filters')
         else:
             if plan.operation == MediaOperation.REMUX:
@@ -59,6 +59,12 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
             from fractions import Fraction
             if stream.kind != 'video' or not isinstance(profile.fps, Fraction) or not 0 < profile.fps <= 240:
                 fail(ValidationCode.OPTION, 'Video FPS must be a positive rational value up to 240')
+        if profile.crf is not None and (profile.encoder not in {'libx264', 'libx265'} or type(profile.crf) is not int or not 0 <= profile.crf <= 51 or profile.bitrate is not None):
+            fail(ValidationCode.OPTION, 'CRF requires H.264/H.265, a value from 0 to 51, and no bitrate')
+        if profile.preset is not None and (profile.encoder not in {'libx264', 'libx265'} or profile.preset not in {'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'}):
+            fail(ValidationCode.OPTION, 'Unsupported encoder speed preset')
+        if profile.audio_quality is not None and (profile.encoder != 'aac' or type(profile.audio_quality) is not int or not 1 <= profile.audio_quality <= 5 or profile.bitrate is not None):
+            fail(ValidationCode.OPTION, 'AAC quality must be 1–5 and cannot be combined with bitrate')
         if codec not in ALLOWED[plan.output.container].get(stream.kind, set()):
             fail(ValidationCode.COMPATIBILITY, f'Stream {stream.index}: {stream.kind}/{codec} is unsupported in {plan.output.container.value}')
     suffix = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[plan.output.container]

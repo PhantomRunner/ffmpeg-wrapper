@@ -11,6 +11,7 @@ from media_wrapper.domain.remux import Container
 class MediaOperation(str, Enum):
     REMUX = 'remux'
     CONVERT = 'convert'
+    COMPRESS = 'compress'
 
 
 class ValidationCode(str, Enum):
@@ -34,6 +35,9 @@ class EncodingProfile:
     width: int | None = None
     height: int | None = None
     fps: Fraction | None = None
+    crf: int | None = None
+    preset: str | None = None
+    audio_quality: int | None = None
 
 
 @dataclass(frozen=True)
