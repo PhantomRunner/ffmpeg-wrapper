@@ -39,3 +39,8 @@ exact source/archive and patches, reproducible build instructions, applicable
 licenses, notices, and source delivery obligations. Review both binaries and their
 runtime dependencies. Obtain documented release approval; never substitute an
 unreviewed binary just because it runs. This milestone intentionally ships none.
+
+Use `packaging/ffmpeg-review.template.json` as the per-build evidence record.
+An empty template is not approval. The current build manifest always records
+`ffmpeg_bundled: false`; adding binaries to a candidate by hand requires a fresh
+inventory, checksum generation, review and installation verification.

@@ -1,0 +1,17 @@
+{
+  "status": "unreviewed-do-not-bundle",
+  "provider_url": null,
+  "source_revision": null,
+  "source_archive_url": null,
+  "patches_and_build_instructions": null,
+  "ffmpeg_sha256": null,
+  "ffprobe_sha256": null,
+  "ffmpeg_version_output": null,
+  "ffprobe_version_output": null,
+  "build_configuration": null,
+  "enabled_external_libraries": [],
+  "applicable_license_texts": [],
+  "runtime_dependencies": [],
+  "source_delivery_and_relinking_materials": null,
+  "reviewer_and_approval_date": null
+}
