@@ -1,4 +1,5 @@
 """Pure, typed FFmpeg command construction. Never creates shell strings."""
+import os
 from pathlib import Path
 
 from media_wrapper.domain.operation_policy import validate_plan
@@ -55,3 +56,13 @@ class CommandBuilder:
                     args.extend([f'-b:{position}', str(selection.profile.bitrate)])
         args.extend(['-f', plan.output.container.value, str(plan.output.execution_path)])
         return args
+
+    def build_passes(self, ffmpeg: Path, plan: OperationPlan, available_encoders: frozenset[str],
+                     passlog: Path) -> list[list[str]]:
+        command = self.build(ffmpeg, plan, available_encoders, progress=True)
+        if not plan.two_pass:
+            return [command]
+        position = next(i for i, s in enumerate(plan.streams) if s.profile.encoder == 'libx264')
+        first = command[:-3] + [f'-pass:{position}', '1', f'-passlogfile:{position}', str(passlog), '-f', 'null', os.devnull]
+        second = command[:-3] + [f'-pass:{position}', '2', f'-passlogfile:{position}', str(passlog)] + command[-3:]
+        return [first, second]

@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from media_wrapper.application.operation_validation import validate_paths, validate_plan
 from media_wrapper.domain.operations import OperationPlan
+from media_wrapper.domain.target_size import apply_target_size
 from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
 
 
@@ -15,6 +16,7 @@ def prepare_operation(plan: OperationPlan, *, staged: bool = True,
     Revalidate immediately before starting; -n protects the execution target.
     A caller must publish staged output without replacing an existing final file.
     """
+    plan = apply_target_size(plan)
     validate_plan(plan, available_encoders)
     validate_paths(plan)
     if staged and plan.output.temporary_path is None:

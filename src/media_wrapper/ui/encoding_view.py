@@ -63,7 +63,7 @@ class EncodingView(QScrollArea):
         form.addRow('Video FPS', self.fps)
         form.addRow('AAC bitrate (kb/s)', self.audio_bitrate)
         self.mode = QComboBox()
-        self.mode.addItems(['default', 'quality', 'bitrate'])
+        self.mode.addItems(['default', 'quality', 'bitrate', 'target'])
         self.mode.setCurrentText('quality' if title == 'Compress' else 'default')
         self.crf = QSpinBox()
         self.crf.setRange(0, 51)
@@ -79,7 +79,12 @@ class EncodingView(QScrollArea):
         self.audio_quality = QSpinBox()
         self.audio_quality.setRange(1, 5)
         self.audio_quality.setValue(2)
+        self.target_size = QSpinBox()
+        self.target_size.setRange(1, 1000000)
+        self.target_size.setValue(100)
+        self.target_size.valueChanged.connect(self.clear_preview)
         form.addRow('Video rate control', self.mode)
+        form.addRow('Approximate target (MiB, H.264 two-pass)', self.target_size)
         form.addRow('H.264/H.265 CRF (lower = higher quality)', self.crf)
         form.addRow('Video bitrate (kb/s)', self.video_bitrate)
         form.addRow('Encoder speed preset', self.preset)
@@ -91,7 +96,7 @@ class EncodingView(QScrollArea):
             widget.valueChanged.connect(self.clear_preview)
         self.preset.currentIndexChanged.connect(self.clear_preview)
         layout.addWidget(self.form)
-        self.note = QLabel('Quality mode gives variable size; lower CRF usually uses more space. Slower presets trade time for efficiency. Bitrate mode targets a rate, not an exact size. Encoders are checked against your FFmpeg build before running. Copy preserves the original stream; Omit removes it explicitly. Scaling uses the exact dimensions entered.')
+        self.note = QLabel('Quality mode gives variable size; lower CRF usually uses more space. Slower presets trade time for efficiency. Bitrate mode targets a rate, not an exact size. Target size estimates overhead and uses two-pass H.264; actual size can differ. Encoders are checked against your FFmpeg build before running. Copy preserves the original stream; Omit removes it explicitly. Scaling uses the exact dimensions entered.')
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         buttons = QHBoxLayout()
@@ -119,6 +124,7 @@ class EncodingView(QScrollArea):
             self.preview.clear()
 
     def update_options(self) -> None:
+        self.target_size.setEnabled(self.mode.currentText() == 'target')
         self.crf.setEnabled(self.mode.currentText() == 'quality')
         self.video_bitrate.setEnabled(self.mode.currentText() == 'bitrate')
         self.preset.setEnabled(self.mode.currentText() != 'default')
@@ -169,4 +175,5 @@ class EncodingView(QScrollArea):
                                  self.fps.text(), self.audio_bitrate.value() * 1000,
                                  self.mode.currentText(), self.crf.value(), self.video_bitrate.value() * 1000,
                                  self.preset.currentText(), self.audio_quality.value() if self.audio_mode.currentText() == 'quality' else None,
-                                 MediaOperation.COMPRESS if self.title == 'Compress' else MediaOperation.CONVERT)
+                                 MediaOperation.COMPRESS if self.title == 'Compress' else MediaOperation.CONVERT,
+                                 self.target_size.value() * 1024 * 1024 if self.mode.currentText() == 'target' else None)

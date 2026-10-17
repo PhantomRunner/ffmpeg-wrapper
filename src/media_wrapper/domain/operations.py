@@ -63,3 +63,5 @@ class OperationPlan:
     media: MediaFile
     streams: tuple[StreamSelection, ...]
     output: OutputTarget
+    target_size_bytes: int | None = None
+    two_pass: bool = False

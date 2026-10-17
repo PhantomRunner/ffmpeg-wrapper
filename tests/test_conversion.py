@@ -101,3 +101,52 @@ def test_conflicting_quality_options(video_sample, profile):
     plan = conversion_plan(base.media, ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'),)))
     with pytest.raises(PlanValidationError):
         CommandBuilder().build(base.media.path, replace(plan, streams=(StreamSelection(0, profile),)), frozenset({'libx264', 'libx265', 'ffv1'}))
+
+
+def test_target_size_estimate_and_two_pass(video_sample):
+    from media_wrapper.domain.target_size import apply_target_size
+    _, base = video_sample
+    request = ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'), (1, 'aac')),
+                                mode='target', target_size_bytes=100000)
+    plan = apply_target_size(conversion_plan(base.media, request))
+    assert plan.two_pass and plan.streams[0].profile.crf is None
+    assert plan.streams[0].profile.bitrate == int(100000 * 8 * .98 / base.media.duration - 128000)
+    commands = CommandBuilder().build_passes(base.media.path, plan, frozenset({'libx264', 'aac'}), base.output.path.with_suffix('.log'))
+    assert len(commands) == 2
+    assert commands[0][commands[0].index('-pass:0') + 1] == '1'
+    assert commands[1][commands[1].index('-pass:0') + 1] == '2'
+
+
+def test_real_two_pass_compression(video_sample):
+    app = QApplication.instance() or QApplication([])
+    binaries, base = video_sample
+    if 'libx264' not in list_encoders(binaries.ffmpeg, Event()):
+        pytest.skip('No libx264')
+    request = ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'), (1, 'aac')),
+                                mode='target', target_size_bytes=100000, preset='ultrafast')
+    task = OperationTask(TaskRecord(conversion_plan(base.media, request)), binaries)
+    results = []
+    task.finished.connect(lambda *r: results.append(r))
+    task.start()
+    wait(app, lambda: bool(results))
+    assert task.record.status == TaskStatus.COMPLETED, task.record.error + task.record.log
+    assert task.record.result.streams[0].codec == 'h264'
+    assert task._pass_directory is None
+
+
+@pytest.mark.parametrize('change', ['duration', 'audio', 'encoder', 'tiny'])
+def test_target_size_invalid_inputs(video_sample, change):
+    from media_wrapper.domain.target_size import apply_target_size
+    _, base = video_sample
+    request = ConversionRequest(base.output.path, base.output.container, ((0, 'libx264'), (1, 'aac')),
+                                mode='target', target_size_bytes=100000)
+    if change == 'duration':
+        base = replace(base, media=replace(base.media, duration=None))
+    elif change == 'audio':
+        request = replace(request, audio_quality=3)
+    elif change == 'encoder':
+        request = replace(request, tracks=((0, 'libx265'),))
+    else:
+        request = replace(request, target_size_bytes=1)
+    with pytest.raises(PlanValidationError):
+        apply_target_size(conversion_plan(base.media, request))

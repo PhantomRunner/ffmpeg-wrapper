@@ -3,12 +3,16 @@ from collections.abc import Callable
 from dataclasses import replace
 from threading import Event
 from typing import Any
+import tempfile
+import shutil
+import json
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from media_wrapper.application.errors import report_failure
 from media_wrapper.application.media_service import MediaService
-from media_wrapper.application.operation_service import prepare_command
+from media_wrapper.application.operation_service import prepare_operation
 from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operation_policy import ENCODERS
@@ -49,6 +53,8 @@ class OperationTask(QObject):
         self.runner: ProcessRunner | None = None
         self.prepared: OperationPlan | None = None
         self._reply: tuple[bool, Any] | None = None
+        self._remaining_commands: list[list[str]] = []
+        self._pass_directory: Path | None = None
         self._callback: Callable[[Any], None] | None = None
 
     def start(self) -> None:
@@ -66,10 +72,16 @@ class OperationTask(QObject):
         media = MediaService(self.binaries).inspect(self.record.plan.media.path, self.cancel_event)
         plan = replace(self.record.plan, media=media)
         available = list_encoders(self.binaries.ffmpeg, self.cancel_event) if any(s.profile.encoder != 'copy' for s in plan.streams) else frozenset()
-        prepared, _command = prepare_command(self.binaries.ffmpeg, plan, available_encoders=available)
+        prepared = prepare_operation(plan, available_encoders=available)
         # Progress options belong to the infrastructure command builder.
         from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
-        return prepared, CommandBuilder().build(self.binaries.ffmpeg, prepared, available, progress=True)
+        prefix = prepared.output.execution_path.with_suffix('.passlog')
+        if prepared.two_pass:
+            self._pass_directory = Path(tempfile.mkdtemp(prefix='media-wrapper-pass-'))
+            prefix = self._pass_directory / 'pass'
+        commands = CommandBuilder().build_passes(self.binaries.ffmpeg, prepared, available, prefix)
+        self._remaining_commands = commands[1:]
+        return prepared, commands[0]
 
     def _work(self, action: Callable[[], Any], callback: Callable[[Any], None]) -> None:
         self._callback = callback
@@ -108,6 +120,11 @@ class OperationTask(QObject):
             self._end(OperationCancelled())
             return
         self.record.transition(TaskStatus.RUNNING)
+        self._start_command(command)
+
+    def _start_command(self, command: list[str]) -> None:
+        self.record.command = tuple(command)
+        self.record.append_log("\nArguments: " + json.dumps(command) + "\n")
         self.runner = ProcessRunner(self)
         self.runner.progress.connect(self._progress)
         self.runner.diagnostics.connect(self.record.append_log)
@@ -125,6 +142,9 @@ class OperationTask(QObject):
         self.record.append_log(details)
         if not success or self.cancel_event.is_set():
             self._end(RuntimeError(details))
+        elif self._remaining_commands:
+            self.runner.deleteLater()
+            self._start_command(self._remaining_commands.pop(0))
         else:
             self._work(self._verify_publish, self._published)
 
@@ -146,6 +166,9 @@ class OperationTask(QObject):
             raise OperationCancelled()
         # Publication is the commit point: once linked, report completion even if a
         # cancellation arrives immediately afterwards. Never erase a published file.
+        if self._pass_directory is not None:
+            shutil.rmtree(self._pass_directory)
+            self._pass_directory = None
         warning = publish_output(output.execution_path, output.path)
         return replace(info, path=output.path), warning
 
@@ -157,6 +180,10 @@ class OperationTask(QObject):
         self.finished.emit(True, f'Output: {self.record.result.path}\n{warning}')
 
     def _end(self, error: Exception) -> None:
+        # Keep pass logs on failure for diagnosis, just like partial media.
+        if self._pass_directory is not None:
+            self.record.append_log(f'\nPass logs retained: {self._pass_directory}\n')
+            self._pass_directory = None
         if self.cancel_event.is_set() or isinstance(error, OperationCancelled):
             self.record.transition(TaskStatus.CANCELLED)
             message = f'{self.record.plan.operation.value.title()} cancelled.'

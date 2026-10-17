@@ -8,3 +8,10 @@ Convert form offers per-track copy/omit/CPU encoding, container/output, resoluti
 ## M6.2 implementation
 Compress form adds CRF/bitrate, encoder preset and AAC bitrate/quality controls.
 Conflicts are rejected in domain policy. Milestone-wide verification pending.
+
+## M6.3 implementation
+Target-size mode estimates video bitrate after known audio rates and 2% muxing
+reserve. Supports one libx264 video, requires known duration and known-rate audio,
+and runs two passes. Both commands are previewed; pass logs are private per
+attempt, cleaned on success and retained/reported on failure. No exact-size claim.
+Milestone-wide verification pending.

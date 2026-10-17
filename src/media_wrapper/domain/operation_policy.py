@@ -67,6 +67,10 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
             fail(ValidationCode.OPTION, 'AAC quality must be 1–5 and cannot be combined with bitrate')
         if codec not in ALLOWED[plan.output.container].get(stream.kind, set()):
             fail(ValidationCode.COMPATIBILITY, f'Stream {stream.index}: {stream.kind}/{codec} is unsupported in {plan.output.container.value}')
+    if plan.two_pass:
+        video = [s for s in plan.streams if source[s.index].kind == 'video']
+        if len(video) != 1 or video[0].profile.encoder != 'libx264' or video[0].profile.bitrate is None or video[0].profile.crf is not None:
+            fail(ValidationCode.OPTION, 'Two-pass encoding requires one bitrate-controlled libx264 video')
     suffix = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[plan.output.container]
     if plan.output.path.suffix.lower() != suffix:
         fail(ValidationCode.OUTPUT, f'Destination must use {suffix}')

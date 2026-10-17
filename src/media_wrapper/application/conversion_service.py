@@ -35,6 +35,7 @@ class ConversionRequest:
     preset: str = 'medium'
     audio_quality: int | None = None
     operation: MediaOperation = MediaOperation.CONVERT
+    target_size_bytes: int | None = None
 
 
 def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPlan:
@@ -49,7 +50,7 @@ def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPl
         kind = sources[index].kind
         profile = EncodingProfile(encoder)
         if encoder != 'copy':
-            profile = EncodingProfile(encoder, (request.audio_bitrate if request.audio_quality is None else None) if encoder == 'aac' else (request.video_bitrate if kind == 'video' and request.mode == 'bitrate' else None),
+            profile = EncodingProfile(encoder, (request.audio_bitrate if request.audio_quality is None else None) if encoder == 'aac' else (request.video_bitrate if kind == 'video' and request.mode in {'bitrate', 'target'} else None),
                                       request.width if kind == 'video' else None,
                                       request.height if kind == 'video' else None,
                                       fps if kind == 'video' else None,
@@ -60,14 +61,16 @@ def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPl
             raise ValueError('Choose a video encoder to change resolution or FPS')
         streams.append(StreamSelection(index, profile))
     return OperationPlan(request.operation, media, tuple(streams),
-                         OutputTarget(request.destination.expanduser().absolute(), request.container))
+                         OutputTarget(request.destination.expanduser().absolute(), request.container),
+                         request.target_size_bytes if request.mode == 'target' else None)
 
 
-def preview_conversion(binaries: Binaries, plan: OperationPlan) -> list[str]:
+def preview_conversion(binaries: Binaries, plan: OperationPlan) -> list[list[str]]:
     event = Event()
     media = MediaService(binaries).inspect(plan.media.path, event)
     from dataclasses import replace
     plan = replace(plan, media=media)
     available = list_encoders(binaries.ffmpeg, event)
     prepared = prepare_operation(plan, available_encoders=available)
-    return CommandBuilder().build(binaries.ffmpeg, prepared, available, progress=True)
+    prefix = prepared.output.execution_path.with_suffix('.passlog')
+    return CommandBuilder().build_passes(binaries.ffmpeg, prepared, available, prefix)
