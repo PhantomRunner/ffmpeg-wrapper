@@ -5,6 +5,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class Preferences:
+    log_level: str = 'INFO'
     version: int = 1
     binary_mode: str = 'external'
     binary_directory: str = ''
@@ -25,6 +26,8 @@ class Preferences:
         if set(payload) - set(values):
             raise ValueError('Settings contain unknown fields; preserve them for a compatible application')
         values.update(payload)
+        if values['log_level'] not in ('DEBUG', 'INFO', 'WARNING', 'ERROR'):
+            raise ValueError('Invalid diagnostic log level')
         if values['binary_mode'] not in ('external', 'bundled'):
             raise ValueError('Invalid binary mode')
         if values['container'] not in ('matroska', 'mp4'):

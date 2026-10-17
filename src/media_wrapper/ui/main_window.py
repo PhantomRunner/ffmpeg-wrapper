@@ -62,6 +62,11 @@ class MainWindow(QMainWindow):
         self.files_view = FilesView()
         self.remux_view = RemuxView()
         self.settings_view = SettingsView()
+        self.settings_view.log_level.setCurrentText(preferences.log_level)
+        from media_wrapper.application.diagnostic_service import set_log_level
+        set_log_level(preferences.log_level)
+        self.settings_view.log_level.currentTextChanged.connect(set_log_level)
+        self.settings_view.export_diagnostics.clicked.connect(self.export_diagnostics)
         self.queue_view = QueueView()
         self.convert_view = EncodingView()
         self.compress_view = EncodingView('Compress')
@@ -167,6 +172,7 @@ class MainWindow(QMainWindow):
         for view in (self.convert_view, self.compress_view):
             view.set_capabilities(self.model.capabilities)
         settings = self.settings_view
+        settings.export_diagnostics.setEnabled(not state.busy)
         settings.scan_button.setEnabled(not state.busy and state.binaries is not None)
         settings.cancel_scan.setEnabled(self.model.capability_active)
         settings.test_gpu.setEnabled(not state.busy)
@@ -447,8 +453,13 @@ class MainWindow(QMainWindow):
     def start_remux(self, command: list[str]) -> None:
         self.model.start_remux(command)
 
+    def export_diagnostics(self) -> None:
+        name, _ = QFileDialog.getSaveFileName(self, 'Export diagnostics to a new file', '', 'JSON (*.json)')
+        if name:
+            self.model.export_diagnostics(Path(name), self.settings_view.private_diagnostics.isChecked())
+
     def preferences(self) -> Preferences:
-        return Preferences(binary_mode=self.mode.currentText(), binary_directory=self.folder.text(),
+        return Preferences(log_level=self.settings_view.log_level.currentText(), binary_mode=self.mode.currentText(), binary_directory=self.folder.text(),
                            recent_destination=str(self.model.state.recent_destination) if self.model.state.recent_destination else None,
                            container=self.model.state.container.value,
                            advanced=self.remux_view.advanced_toggle.isChecked(), page=self.pages.currentIndex(),

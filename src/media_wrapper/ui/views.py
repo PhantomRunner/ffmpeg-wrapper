@@ -209,6 +209,14 @@ class SettingsView(QWidget):
         self.capabilities.setReadOnly(True)
         for widget in (self.test_gpu, self.gpu_device, self.scan_button, self.cancel_scan, self.capabilities):
             layout.addWidget(widget)
+        self.log_level = QComboBox()
+        self.log_level.addItems(['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+        self.private_diagnostics = QCheckBox('Include private paths, executed arguments and raw task logs')
+        self.private_diagnostics.setToolTip('Leave unchecked for a shareable summary without paths, metadata or raw errors.')
+        self.export_diagnostics = QPushButton('Export diagnostics…')
+        layout.addWidget(QLabel('Local diagnostic log level'))
+        for widget in (self.log_level, self.private_diagnostics, self.export_diagnostics):
+            layout.addWidget(widget)
         layout.addStretch()
 
 

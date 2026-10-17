@@ -334,6 +334,13 @@ class DesktopViewModel(QObject):
         self.state.output = f'Added {len(plans)} validated jobs. Review Queue, then start.'
         self.changed.emit()
 
+    def export_diagnostics(self, path: Path, include_private: bool) -> None:
+        if self.state.busy:
+            return
+        from media_wrapper.application.diagnostic_service import diagnostic_snapshot, export_diagnostics
+        snapshot = diagnostic_snapshot(self.queue.records, include_private)
+        self._start(ServiceWorker(lambda: export_diagnostics(path, snapshot), 'Diagnostics export'), self._document_saved)
+
     def exchange_profile(self, path: Path, request: ConversionRequest, importing: bool) -> None:
         if self.state.busy or self.state.media is None or self.state.binaries is None:
             return

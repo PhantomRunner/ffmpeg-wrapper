@@ -25,3 +25,10 @@ chapters. FFprobe now returns typed chapters and container tags; publication
 checks the requested chapter count/removal. Metadata preservation is limited by
 the destination container; encoder/muxer-generated tags may remain when stripping.
 Tests deferred to milestone end.
+
+## M8.4 implementation
+Settings persists the chosen DEBUG/INFO/WARNING/ERROR local logging level.
+Diagnostics export defaults to an allowlisted task summary without paths,
+metadata, raw errors or arguments. A clearly labeled opt-in adds private task
+paths, arguments and retained logs. Exports refuse overwrite and run on a worker.
+Tests deferred to milestone end.
