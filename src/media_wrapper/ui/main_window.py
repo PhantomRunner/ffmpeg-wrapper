@@ -128,6 +128,7 @@ class MainWindow(QMainWindow):
         self.compress_view.enqueue_button.clicked.connect(self.enqueue_convert)
         self.compress_view.browse.clicked.connect(self.browse_convert)
         for view in (self.convert_view, self.compress_view):
+            view.batch_button.clicked.connect(self.enqueue_encoding_batch)
             view.import_profile_button.clicked.connect(self.import_encoding_profile)
             view.export_profile_button.clicked.connect(self.export_encoding_profile)
         self.model.profile_loaded.connect(self.apply_imported_profile)
@@ -241,7 +242,7 @@ class MainWindow(QMainWindow):
 
     def encoding_sender(self) -> EncodingView:
         view = self.compress_view
-        return view if self.sender() in (view.preview_button, view.run_button, view.enqueue_button, view.browse, view.import_profile_button, view.export_profile_button) else self.convert_view
+        return view if self.sender() in (view.preview_button, view.run_button, view.enqueue_button, view.browse, view.import_profile_button, view.export_profile_button, view.batch_button) else self.convert_view
 
     @Slot()
     def preview_convert(self) -> None:
@@ -258,6 +259,19 @@ class MainWindow(QMainWindow):
     @Slot()
     def browse_convert(self) -> None:
         self.choose_encoding_destination(self.encoding_sender())
+
+    @Slot()
+    def enqueue_encoding_batch(self) -> None:
+        view = self.encoding_sender()
+        try:
+            request = view.request()
+        except ValueError as error:
+            self.model.state.output = str(error)
+            self.render()
+            return
+        paths = tuple(Path(item.data(Qt.ItemDataRole.UserRole)) for item in self.files_view.file_list.selectedItems())
+        folder = Path(view.batch_folder.text()) if view.batch_folder.text().strip() else request.destination.parent
+        self.model.enqueue_batch(paths, request, folder, view.batch_template.text())
 
     @Slot()
     def import_encoding_profile(self) -> None:

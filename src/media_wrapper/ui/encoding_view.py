@@ -120,6 +120,13 @@ class EncodingView(QScrollArea):
         for widget in (self.crf, self.video_bitrate, self.audio_quality):
             widget.valueChanged.connect(self.clear_preview)
         self.preset.currentIndexChanged.connect(self.clear_preview)
+        self.batch_folder = QLineEdit()
+        self.batch_folder.setPlaceholderText('Output folder (empty = current destination folder)')
+        self.batch_template = QLineEdit('{stem}_{index}_encoded{ext}')
+        self.batch_button = QPushButton('Add selected Files rows as batch')
+        form.addRow('Batch output folder', self.batch_folder)
+        form.addRow('Batch filename template', self.batch_template)
+        form.addRow(self.batch_button)
         layout.addWidget(self.form)
         self.note = QLabel('Quality mode gives variable size; lower CRF usually uses more space. Slower presets trade time for efficiency. Bitrate mode targets a rate, not an exact size. Target size estimates overhead and uses two-pass H.264; actual size can differ. Encoders are checked against your FFmpeg build before running. Copy preserves the original stream; Omit removes it explicitly. Scaling uses the exact dimensions entered.')
         self.note.setWordWrap(True)

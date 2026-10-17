@@ -308,6 +308,22 @@ class DesktopViewModel(QObject):
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container, self.state.selected_streams), self.start_remux)
 
+    def enqueue_batch(self, paths: tuple[Path, ...], request: ConversionRequest, folder: Path, template: str) -> None:
+        if self.state.busy or self.state.binaries is None:
+            return
+        from media_wrapper.application.batch_service import plan_batch
+        from media_wrapper.domain.tasks import TaskStatus
+        reserved = tuple(r.plan.output.path for r in self.queue.records if r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
+        binaries, report = self.state.binaries, self.capabilities
+        self._start(ServiceWorker(lambda: plan_batch(paths, request, folder, template, binaries, report, reserved), 'Batch planning'), self._batch_ready)
+
+    @Slot(object)
+    def _batch_ready(self, plans: tuple[OperationPlan, ...]) -> None:
+        for plan in plans:
+            self.queue.add(plan, self.state.binaries)
+        self.state.output = f'Added {len(plans)} validated jobs. Review Queue, then start.'
+        self.changed.emit()
+
     def exchange_profile(self, path: Path, request: ConversionRequest, importing: bool) -> None:
         if self.state.busy or self.state.media is None or self.state.binaries is None:
             return
