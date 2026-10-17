@@ -65,3 +65,5 @@ class OperationPlan:
     output: OutputTarget
     target_size_bytes: int | None = None
     two_pass: bool = False
+    hardware_device: str | None = None
+    hardware_note: str = ''

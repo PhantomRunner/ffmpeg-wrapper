@@ -16,6 +16,8 @@ from media_wrapper.application.operation_service import prepare_operation
 from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operation_policy import ENCODERS
+from media_wrapper.domain.capabilities import GPU_ENCODERS, EncoderStatus
+from media_wrapper.infrastructure.ffmpeg.gpu_probe import test_gpu_encoder
 from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.progress import Progress
 from media_wrapper.domain.tasks import TaskRecord, TaskStatus
@@ -72,6 +74,12 @@ class OperationTask(QObject):
         media = MediaService(self.binaries).inspect(self.record.plan.media.path, self.cancel_event)
         plan = replace(self.record.plan, media=media)
         available = list_encoders(self.binaries.ffmpeg, self.cancel_event) if any(s.profile.encoder != 'copy' for s in plan.streams) else frozenset()
+        for encoder in {s.profile.encoder for s in plan.streams} & set(GPU_ENCODERS):
+            if encoder not in available:
+                raise ValueError(f'{encoder} is unavailable in the selected FFmpeg build')
+            tested = test_gpu_encoder(self.binaries.ffmpeg, encoder, self.cancel_event, plan.hardware_device)
+            if tested.status != EncoderStatus.WORKING:
+                raise RuntimeError(f'{encoder} runtime initialization failed: {tested.detail}. Select Retry on CPU in Queue or fix the device/driver.')
         prepared = prepare_operation(plan, available_encoders=available)
         # Progress options belong to the infrastructure command builder.
         from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
@@ -114,6 +122,7 @@ class OperationTask(QObject):
 
     def _run(self, result: tuple[OperationPlan, list[str]]) -> None:
         self.prepared, command = result
+        self.record.append_log(self.prepared.hardware_note + "\n")
         self.record.partial_path = self.prepared.output.execution_path
         self.record.command = tuple(command)
         if self.cancel_event.is_set():
@@ -180,6 +189,7 @@ class OperationTask(QObject):
         self.finished.emit(True, f'Output: {self.record.result.path}\n{warning}')
 
     def _end(self, error: Exception) -> None:
+        self.record.append_log(str(error) + "\n")
         # Keep pass logs on failure for diagnosis, just like partial media.
         if self._pass_directory is not None:
             self.record.append_log(f'\nPass logs retained: {self._pass_directory}\n')

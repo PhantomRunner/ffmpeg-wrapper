@@ -5,6 +5,8 @@ from pathlib import Path
 from threading import Event
 
 from media_wrapper.application.media_service import MediaService
+from media_wrapper.application.hardware_selection import select_hardware
+from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.application.operation_service import prepare_operation
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import (
@@ -36,9 +38,11 @@ class ConversionRequest:
     audio_quality: int | None = None
     operation: MediaOperation = MediaOperation.CONVERT
     target_size_bytes: int | None = None
+    hardware_mode: str = 'CPU'
+    gpu_encoder: str = 'auto'
 
 
-def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPlan:
+def conversion_plan(media: MediaFile, request: ConversionRequest, report: CapabilityReport | None = None) -> OperationPlan:
     if request.mode not in {'default', 'quality', 'bitrate', 'target'}:
         raise ValueError('Unsupported rate control mode')
     if request.mode == 'target' and request.target_size_bytes is None:
@@ -64,9 +68,10 @@ def conversion_plan(media: MediaFile, request: ConversionRequest) -> OperationPl
         elif kind == 'video' and any(v is not None for v in (request.width, request.height, fps)):
             raise ValueError('Choose a video encoder to change resolution or FPS')
         streams.append(StreamSelection(index, profile))
-    return OperationPlan(request.operation, media, tuple(streams),
+    plan = OperationPlan(request.operation, media, tuple(streams),
                          OutputTarget(request.destination.expanduser().absolute(), request.container),
                          request.target_size_bytes if request.mode == 'target' else None)
+    return select_hardware(plan, report, request.hardware_mode, request.gpu_encoder)
 
 
 def preview_conversion(binaries: Binaries, plan: OperationPlan) -> list[list[str]]:

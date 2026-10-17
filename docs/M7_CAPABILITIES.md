@@ -20,3 +20,13 @@ Optional worker-based NVENC/QSV/AMF/VAAPI synthetic encode tests have a 15-secon
 per-candidate timeout and cancellation/reaping. Output goes to the null muxer;
 no user media or output is touched. VAAPI requires an explicit render device.
 Unknown/failed tests never become runnable claims. Milestone-wide tests pending.
+
+## M7.4 implementation
+Settings offers asynchronous scan/refresh, opt-in runtime tests, explicit VAAPI
+render-device selection, cancellation and build/help/runtime diagnostics. Convert
+and Compress offer CPU/GPU/Auto; only runtime-tested candidates appear as GPU
+choices. Auto chooses a tested matching codec or explicitly records CPU choice.
+GPU default/bitrate modes are supported; CRF/target size stays CPU in Auto and is
+rejected in forced GPU mode. Execution rechecks GPU initialization before media
+encoding. VAAPI uses the explicit device and software-to-hardware upload filter.
+Milestone-wide tests pending.

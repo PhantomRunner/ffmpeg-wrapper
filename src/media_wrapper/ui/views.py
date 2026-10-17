@@ -193,6 +193,15 @@ class SettingsView(QWidget):
         self.status = QLabel('FFmpeg not detected')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.test_gpu = QCheckBox('Also runtime-test listed GPU encoders (short synthetic encodes)')
+        self.gpu_device = QLineEdit()
+        self.gpu_device.setPlaceholderText('Optional VAAPI render device, e.g. /dev/dri/renderD128')
+        self.scan_button = QPushButton('Scan build / refresh capabilities')
+        self.cancel_scan = QPushButton('Cancel capability scan')
+        self.capabilities = QTextEdit()
+        self.capabilities.setReadOnly(True)
+        for widget in (self.test_gpu, self.gpu_device, self.scan_button, self.cancel_scan, self.capabilities):
+            layout.addWidget(widget)
         layout.addStretch()
 
 

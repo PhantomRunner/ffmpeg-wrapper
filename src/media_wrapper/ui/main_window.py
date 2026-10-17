@@ -86,6 +86,9 @@ class MainWindow(QMainWindow):
         self.remux_view.advanced_toggle.setChecked(preferences.advanced)
         self.settings_view.browse_button.clicked.connect(self.choose_folder)
         self.detect_button.clicked.connect(self.detect)
+        self.settings_view.scan_button.clicked.connect(self.scan_capabilities)
+        self.settings_view.cancel_scan.clicked.connect(self.model.cancel_capabilities)
+        self.settings_view.gpu_device.textChanged.connect(self.model.invalidate_capabilities)
         self.mode.currentIndexChanged.connect(self.model.binary_selection_changed)
         self.folder.textChanged.connect(self.model.binary_selection_changed)
         self.choose_file_button.clicked.connect(self.choose_file)
@@ -150,6 +153,25 @@ class MainWindow(QMainWindow):
         self.status.setText(state.status)
         self.convert_view.set_media(state.media, state.busy)
         self.compress_view.set_media(state.media, state.busy)
+        for view in (self.convert_view, self.compress_view):
+            view.set_capabilities(self.model.capabilities)
+        settings = self.settings_view
+        settings.scan_button.setEnabled(not state.busy and state.binaries is not None)
+        settings.cancel_scan.setEnabled(self.model.capability_active)
+        settings.test_gpu.setEnabled(not state.busy)
+        settings.gpu_device.setEnabled(not state.busy)
+        report = self.model.capabilities
+        capability_text = 'Scanning…' if self.model.capability_active and report is None else 'Scan the selected FFmpeg build to inspect capabilities.'
+        if report is not None:
+            capability_text = report.build.version + '\n' + report.build.configuration
+            capability_text += '\nHardware APIs listed: ' + ', '.join(report.build.hwaccels)
+            capability_text += '\nEncoders listed: ' + ', '.join(sorted(report.build.encoders))
+            for capability in report.gpu:
+                capability_text += f'\n\n{capability.name}: {capability.status.value}\n{capability.detail}'
+            for name, help_text in report.build.encoder_help:
+                capability_text += f'\n\n{name} help:\n{help_text}'
+        if settings.capabilities.toPlainText() != capability_text:
+            settings.capabilities.setPlainText(capability_text)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
@@ -200,6 +222,10 @@ class MainWindow(QMainWindow):
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
+
+    @Slot()
+    def scan_capabilities(self) -> None:
+        self.model.scan_capabilities(self.settings_view.test_gpu.isChecked(), self.settings_view.gpu_device.text().strip() or None)
 
     def encoding_sender(self) -> EncodingView:
         view = self.compress_view

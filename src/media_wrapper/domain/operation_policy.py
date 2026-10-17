@@ -1,6 +1,7 @@
 """Pure operation policy validation."""
 
 from media_wrapper.domain.codec_policy import ALLOWED
+from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.operations import (
     MediaOperation,
     OperationPlan,
@@ -13,7 +14,8 @@ from media_wrapper.domain.remux import Container
 ENCODERS = {'aac': ('audio', 'aac'), 'pcm_s16le': ('audio', 'pcm_s16le'),
             'ffv1': ('video', 'ffv1'), 'libx264': ('video', 'h264'),
             'libx265': ('video', 'hevc'), 'mov_text': ('subtitle', 'mov_text'),
-            'srt': ('subtitle', 'subrip'), 'ass': ('subtitle', 'ass')}
+            'srt': ('subtitle', 'subrip'), 'ass': ('subtitle', 'ass'),
+            **{name: ('video', codec) for name, codec in GPU_ENCODERS.items()}}
 
 
 def fail(code: ValidationCode, message: str) -> None:
@@ -51,7 +53,7 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
             kind, codec = ENCODERS[profile.encoder]
             if kind != stream.kind:
                 fail(ValidationCode.OPTION, 'Encoder does not match stream type')
-            if profile.bitrate is not None and (type(profile.bitrate) is not int or profile.bitrate <= 0 or profile.encoder not in {'aac', 'libx264', 'libx265'}):
+            if profile.bitrate is not None and (type(profile.bitrate) is not int or profile.bitrate <= 0 or profile.encoder not in {'aac', 'libx264', 'libx265', *GPU_ENCODERS}):
                 fail(ValidationCode.OPTION, 'Bitrate requires AAC, H.264 or H.265 and a positive integer value')
         if (profile.width is not None or profile.height is not None) and (stream.kind != 'video' or any(type(v) is not int or v <= 0 or v % 2 for v in (profile.width, profile.height))):
             fail(ValidationCode.OPTION, 'Resolution requires two positive even video dimensions')
@@ -59,6 +61,8 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
             from fractions import Fraction
             if stream.kind != 'video' or not isinstance(profile.fps, Fraction) or not 0 < profile.fps <= 240:
                 fail(ValidationCode.OPTION, 'Video FPS must be a positive rational value up to 240')
+        if profile.encoder.endswith('_vaapi') and not plan.hardware_device:
+            fail(ValidationCode.OPTION, 'VAAPI requires an explicit tested render device')
         if profile.crf is not None and (profile.encoder not in {'libx264', 'libx265'} or type(profile.crf) is not int or not 0 <= profile.crf <= 51 or profile.bitrate is not None):
             fail(ValidationCode.OPTION, 'CRF requires H.264/H.265, a value from 0 to 51, and no bitrate')
         if profile.preset is not None and (profile.encoder not in {'libx264', 'libx265'} or profile.preset not in {'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'}):

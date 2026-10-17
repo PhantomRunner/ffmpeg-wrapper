@@ -33,12 +33,13 @@ from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
 from media_wrapper.ui.workers import (
     DetectionWorker,
+    CapabilityWorker,
     EncodingPreviewWorker,
     InspectionWorker,
     RemuxPreparationWorker,
 )
 
-Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingPreviewWorker
+Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingPreviewWorker | CapabilityWorker
 
 
 class DesktopViewModel(QObject):
@@ -54,6 +55,9 @@ class DesktopViewModel(QObject):
         self._inspection_cancel = Event()
         self._inspection_paths: tuple[Path, ...] = ()
         self._detecting = False
+        self.capabilities = None
+        self.capability_active = False
+        self._capability_cancel = Event()
         self.queue = TaskQueue(self)
         self.queue.changed.connect(self._queue_changed)
 
@@ -76,6 +80,7 @@ class DesktopViewModel(QObject):
     def binary_selection_changed(self) -> None:
         if self.state.busy:
             return
+        self.capabilities = None
         self.state.binaries = None
         self.state.inspections.clear()
         self.state.inspection_summary = ''
@@ -91,6 +96,7 @@ class DesktopViewModel(QObject):
     def detect(self, mode: str, directory: str | None) -> None:
         if self.state.busy:
             return
+        self.capabilities = None
         self.state.binaries = None
         self.state.inspections.clear()
         self.state.inspection_summary = ''
@@ -299,11 +305,34 @@ class DesktopViewModel(QObject):
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
                                           destination, container, self.state.selected_streams), self.start_remux)
 
+    def scan_capabilities(self, test_gpu: bool, device: str | None) -> None:
+        if self.state.busy or self.state.binaries is None:
+            return
+        self.capabilities = None
+        self.capability_active = True
+        self._capability_cancel = Event()
+        self.state.output = 'Scanning selected build and optional GPU tests…'
+        self._start(CapabilityWorker(self.state.binaries, self._capability_cancel, test_gpu, device), self._capabilities_ready)
+
+    def invalidate_capabilities(self) -> None:
+        if not self.state.busy:
+            self.capabilities = None
+            self.changed.emit()
+
+    def cancel_capabilities(self) -> None:
+        self._capability_cancel.set()
+
+    @Slot(object)
+    def _capabilities_ready(self, report: object) -> None:
+        self.capabilities = report
+        self.state.output = 'Capability scan complete. Listed encoders are not assumed runtime usable.'
+        self.changed.emit()
+
     def encode(self, request: ConversionRequest, action: str) -> None:
         if self.state.busy or self.state.media is None or self.state.binaries is None:
             return
         try:
-            plan = conversion_plan(self.state.media, request)
+            plan = conversion_plan(self.state.media, request, self.capabilities)
         except (ValueError, ZeroDivisionError) as error:
             self.state.output = str(error)
             self.changed.emit()
@@ -403,6 +432,7 @@ class DesktopViewModel(QObject):
         self.worker = None
         self.thread = None
         self._detecting = False
+        self.capability_active = False
         self.state.inspection_active = False
         self.state.cancel_requested = False
         self.state.busy = self.remux_task is not None or self.queue.running

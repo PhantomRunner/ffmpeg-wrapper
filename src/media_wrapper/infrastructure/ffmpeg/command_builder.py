@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from media_wrapper.domain.operation_policy import validate_plan
+from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.remux import Container, RemuxRequest
 
@@ -30,6 +31,8 @@ class CommandBuilder:
               available_encoders: frozenset[str] = frozenset(), *, progress: bool = False) -> list[str]:
         validate_plan(plan, available_encoders)
         args = [str(ffmpeg), '-hide_banner', '-nostdin', '-n', '-i', str(plan.media.path)]
+        if any(s.profile.encoder.endswith('_vaapi') for s in plan.streams):
+            args[4:4] = ['-vaapi_device', plan.hardware_device]
         if progress:
             args[4:4] = ['-progress', 'pipe:1', '-nostats']
         for selection in plan.streams:
@@ -48,8 +51,13 @@ class CommandBuilder:
                     args.extend([f'-preset:{position}', profile.preset])
                 if profile.audio_quality is not None:
                     args.extend([f'-q:{position}', str(profile.audio_quality)])
-                if profile.width is not None:
-                    args.extend([f'-filter:{position}', f'scale={profile.width}:{profile.height}'])
+                filters = [f'scale={profile.width}:{profile.height}'] if profile.width is not None else []
+                if profile.encoder.endswith('_vaapi'):
+                    filters.extend(['format=nv12', 'hwupload'])
+                elif profile.encoder in GPU_ENCODERS:
+                    args.extend([f'-pix_fmt:{position}', 'nv12'])
+                if filters:
+                    args.extend([f'-filter:{position}', ','.join(filters)])
                 if profile.fps is not None:
                     args.extend([f'-r:{position}', str(profile.fps)])
                 if selection.profile.bitrate is not None:

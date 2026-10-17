@@ -1,6 +1,7 @@
 """Convert form: typed choices only, never FFmpeg arguments."""
 from pathlib import Path
 
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -37,6 +38,17 @@ class EncodingView(QScrollArea):
         layout.addWidget(self.source)
         self.form = QWidget()
         form = QFormLayout(self.form)
+        self.hardware_mode = QComboBox()
+        self.hardware_mode.addItems(['CPU', 'GPU', 'Auto'])
+        self.gpu_encoder = QComboBox()
+        self.gpu_encoder.addItem('auto')
+        self.hardware_status = QLabel('Scan and test GPUs in Settings. CPU is the default.')
+        self.hardware_status.setWordWrap(True)
+        self.hardware_mode.currentIndexChanged.connect(self.clear_preview)
+        self.gpu_encoder.currentIndexChanged.connect(self.clear_preview)
+        form.addRow('Processing', self.hardware_mode)
+        form.addRow('Tested GPU encoder', self.gpu_encoder)
+        form.addRow(self.hardware_status)
         self.presets = QComboBox()
         self.presets.addItems([p.name for p in PRESETS])
         self.apply_preset_button = QPushButton('Apply editable preset')
@@ -128,6 +140,17 @@ class EncodingView(QScrollArea):
         self.container.currentIndexChanged.connect(self.preview.clear)
         self.update_options()
 
+    def set_capabilities(self, report: object) -> None:
+        names = ['auto', *sorted(report.working())] if report else ['auto']
+        if names != [self.gpu_encoder.itemText(i) for i in range(self.gpu_encoder.count())]:
+            previous = self.gpu_encoder.currentText()
+            with QSignalBlocker(self.gpu_encoder):
+                self.gpu_encoder.clear()
+                self.gpu_encoder.addItems(names)
+                self.gpu_encoder.setCurrentText(previous if previous in names else 'auto')
+            self.clear_preview()
+        self.hardware_status.setText('GPU/Auto uses only runtime-tested matching encoders. GPU supports default/bitrate modes; quality/two-pass stays CPU.' if len(names) > 1 else 'No runtime-tested GPU is available. CPU remains selectable; scan/test in Settings.')
+
     def apply_preset(self) -> None:
         if self._media is None:
             return
@@ -207,4 +230,5 @@ class EncodingView(QScrollArea):
                                  self.mode.currentText(), self.crf.value(), self.video_bitrate.value() * 1000,
                                  self.preset.currentText(), self.audio_quality.value() if self.audio_mode.currentText() == 'quality' else None,
                                  MediaOperation.COMPRESS if self.title == 'Compress' else MediaOperation.CONVERT,
-                                 self.target_size.value() * 1024 * 1024 if self.mode.currentText() == 'target' else None)
+                                 self.target_size.value() * 1024 * 1024 if self.mode.currentText() == 'target' else None,
+                                 self.hardware_mode.currentText(), self.gpu_encoder.currentText())
