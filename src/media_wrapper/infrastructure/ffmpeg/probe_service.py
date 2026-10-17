@@ -16,7 +16,7 @@ def inspect_media(ffprobe: Path, source: Path, cancel_event: Event | None = None
     source = source.expanduser().absolute()
     if not source.is_file():
         raise FileNotFoundError(f"File does not exist: {source}")
-    args = [str(ffprobe), "-v", "error", "-show_format", "-show_streams",
+    args = [str(ffprobe), "-v", "error", "-show_format", "-show_streams", "-show_chapters",
             "-of", "json", str(source)]
     result = (run_cancellable_probe(args, cancel_event) if cancel_event is not None else
               subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=30, check=False))

@@ -24,6 +24,7 @@ from media_wrapper.domain.operations import (
     MediaOperation,
     OperationPlan,
     OutputTarget,
+    PreservationPolicy,
     PlanValidationError,
     StreamSelection,
 )
@@ -245,6 +246,13 @@ class DesktopViewModel(QObject):
         self._validate_form()
         self.changed.emit()
 
+    def set_preservation(self, metadata: PreservationPolicy, chapters: PreservationPolicy) -> None:
+        if self.state.busy:
+            return
+        self.state.metadata_policy, self.state.chapter_policy = metadata, chapters
+        self.state.command = ()
+        self.changed.emit()
+
     def set_output(self, destination: str, container: Container) -> None:
         if self.state.busy:
             return
@@ -265,7 +273,8 @@ class DesktopViewModel(QObject):
                 if self.state.media is not None:
                     validate_plan(OperationPlan(MediaOperation.REMUX, self.state.media,
                                   tuple(StreamSelection(i) for i in self.state.selected_streams),
-                                  OutputTarget(Path(self.state.destination).expanduser().absolute(), self.state.container)))
+                                  OutputTarget(Path(self.state.destination).expanduser().absolute(), self.state.container),
+                             metadata_policy=self.state.metadata_policy, chapter_policy=self.state.chapter_policy))
                 self.state.form_error = ''
             except (ApplicationError, PlanValidationError) as error:
                 self.state.form_error = str(error)
@@ -279,7 +288,7 @@ class DesktopViewModel(QObject):
             return
         self.state.command = ()
         self._start(RemuxPreparationWorker(MediaService(self.state.binaries), self.state.source,
-                                          Path(self.state.destination), self.state.container, self.state.selected_streams), self._preview_ready)
+                                          Path(self.state.destination), self.state.container, self.state.selected_streams, self.state.metadata_policy, self.state.chapter_policy), self._preview_ready)
 
     @Slot(object)
     def _preview_ready(self, command: list[str]) -> None:
@@ -296,7 +305,8 @@ class DesktopViewModel(QObject):
         if self.state.media is not None:
             plan = OperationPlan(MediaOperation.REMUX, self.state.media,
                                  tuple(StreamSelection(i) for i in self.state.selected_streams),
-                                 OutputTarget(destination.expanduser().absolute(), container))
+                                 OutputTarget(destination.expanduser().absolute(), container),
+                                 metadata_policy=self.state.metadata_policy, chapter_policy=self.state.chapter_policy)
             self.state.busy = True
             task = OperationTask(TaskRecord(plan), self.state.binaries, self)
             self.remux_task = task
@@ -390,7 +400,8 @@ class DesktopViewModel(QObject):
             return
         plan = OperationPlan(MediaOperation.REMUX, self.state.media,
                              tuple(StreamSelection(i) for i in self.state.selected_streams),
-                             OutputTarget(Path(self.state.destination).expanduser().absolute(), self.state.container))
+                             OutputTarget(Path(self.state.destination).expanduser().absolute(), self.state.container),
+                             metadata_policy=self.state.metadata_policy, chapter_policy=self.state.chapter_policy)
         self.queue.add(plan, self.state.binaries)
         self.state.output = 'Added to queue. Start it on the Queue page.'
         self.changed.emit()

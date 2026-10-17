@@ -24,6 +24,7 @@ from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
+from media_wrapper.domain.operations import PreservationPolicy
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
@@ -102,6 +103,8 @@ class MainWindow(QMainWindow):
         self.queue_view.retry_button.clicked.connect(self.retry_queue_selected)
         self.queue_view.cpu_retry_button.clicked.connect(self.retry_queue_cpu)
         self.queue_view.table.itemSelectionChanged.connect(self.render_queue_details)
+        self.remux_view.metadata_policy.currentIndexChanged.connect(self.preservation_changed)
+        self.remux_view.chapter_policy.currentIndexChanged.connect(self.preservation_changed)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
         self.remux_view.destination.textChanged.connect(self.output_changed)
         self.container.currentIndexChanged.connect(self.output_changed)
@@ -188,6 +191,8 @@ class MainWindow(QMainWindow):
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
+        self.remux_view.metadata_policy.setEnabled(not state.busy)
+        self.remux_view.chapter_policy.setEnabled(not state.busy)
         self.remux_view.cancel_button.setEnabled(self.model.remux_task is not None)
         self.remux_view.progress_label.setText(state.remux_progress)
         self.files_view.stream_table.setEnabled(not state.busy)
@@ -423,6 +428,10 @@ class MainWindow(QMainWindow):
         if name:
             self.model.state.recent_destination = Path(name).parent
             self.model.set_output(name, container)
+
+    def preservation_changed(self) -> None:
+        self.model.set_preservation(PreservationPolicy(self.remux_view.metadata_policy.currentText()),
+                                    PreservationPolicy(self.remux_view.chapter_policy.currentText()))
 
     def output_changed(self) -> None:
         container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]

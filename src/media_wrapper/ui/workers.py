@@ -11,7 +11,7 @@ from media_wrapper.application.conversion_service import preview_conversion
 from media_wrapper.application.errors import report_failure
 from media_wrapper.application.inspection_batch import InspectionBatch
 from media_wrapper.application.media_service import MediaService
-from media_wrapper.domain.operations import OperationPlan
+from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
@@ -54,16 +54,17 @@ class RemuxPreparationWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, service: MediaService, source: Path, destination: Path, container: Container, indices: tuple[int, ...] | None = None) -> None:
+    def __init__(self, service: MediaService, source: Path, destination: Path, container: Container, indices: tuple[int, ...] | None = None, metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE, chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE) -> None:
         super().__init__()
         self.service, self.source = service, source
         self.destination, self.container = destination, container
         self.indices = indices
+        self.metadata_policy, self.chapter_policy = metadata_policy, chapter_policy
 
     @Slot()
     def run(self) -> None:
         try:
-            self.finished.emit(self.service.prepare_remux(self.source, self.destination, self.container, self.indices))
+            self.finished.emit(self.service.prepare_remux(self.source, self.destination, self.container, self.indices, self.metadata_policy, self.chapter_policy))
         except Exception as exc:  # noqa: BLE001 - report failures across the Qt worker boundary
             self.failed.emit(report_failure('Remux preparation', exc))
 

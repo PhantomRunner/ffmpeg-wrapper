@@ -4,7 +4,7 @@ from pathlib import Path
 
 from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.operation_policy import validate_plan
-from media_wrapper.domain.operations import OperationPlan
+from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.remux import Container, RemuxRequest
 
 
@@ -62,6 +62,10 @@ class CommandBuilder:
                     args.extend([f'-r:{position}', str(profile.fps)])
                 if selection.profile.bitrate is not None:
                     args.extend([f'-b:{position}', str(selection.profile.bitrate)])
+        args.extend(['-map_metadata', '0' if plan.metadata_policy == PreservationPolicy.PRESERVE else '-1',
+                     '-map_chapters', '0' if plan.chapter_policy == PreservationPolicy.PRESERVE else '-1'])
+        for position, selection in enumerate(plan.streams):
+            args.extend([f'-map_metadata:s:{position}', f'0:s:{selection.index}' if plan.metadata_policy == PreservationPolicy.PRESERVE else '-1'])
         args.extend(['-f', plan.output.container.value, str(plan.output.execution_path)])
         return args
 

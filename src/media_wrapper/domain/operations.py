@@ -14,6 +14,11 @@ class MediaOperation(str, Enum):
     COMPRESS = 'compress'
 
 
+class PreservationPolicy(str, Enum):
+    PRESERVE = 'preserve'
+    STRIP = 'strip'
+
+
 class ValidationCode(str, Enum):
     INPUT = 'input'
     OUTPUT = 'output'
@@ -67,3 +72,5 @@ class OperationPlan:
     two_pass: bool = False
     hardware_device: str | None = None
     hardware_note: str = ''
+    metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
+    chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE

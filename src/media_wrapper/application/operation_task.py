@@ -17,7 +17,7 @@ from media_wrapper.domain.capabilities import GPU_ENCODERS, EncoderStatus
 from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operation_policy import ENCODERS
-from media_wrapper.domain.operations import OperationPlan
+from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.progress import Progress
 from media_wrapper.domain.tasks import TaskRecord, TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
@@ -171,6 +171,10 @@ class OperationTask(QObject):
                 raise ValueError('Output resolution verification failed')
             if profile.fps is not None and output_stream.frame_rate != profile.fps:
                 raise ValueError('Output frame rate verification failed')
+        if self.prepared.chapter_policy == PreservationPolicy.STRIP and info.chapters:
+            raise ValueError('Output chapter removal verification failed')
+        if self.prepared.chapter_policy == PreservationPolicy.PRESERVE and len(info.chapters) != len(self.prepared.media.chapters):
+            raise ValueError('Output chapter count verification failed')
         if self.cancel_event.is_set():
             raise OperationCancelled()
         # Publication is the commit point: once linked, report completion even if a

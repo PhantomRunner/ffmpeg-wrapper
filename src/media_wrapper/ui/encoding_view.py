@@ -22,7 +22,7 @@ from media_wrapper.application.conversion_service import ConversionRequest
 from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.domain.encoding_presets import PRESETS
 from media_wrapper.domain.media import MediaFile
-from media_wrapper.domain.operations import MediaOperation
+from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
 
 
@@ -73,6 +73,16 @@ class EncodingView(QScrollArea):
         self.tracks.setMaximumHeight(150)
         self.tracks.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         form.addRow(self.tracks)
+        self.track_order = QLineEdit()
+        self.track_order.setPlaceholderText('Optional selected indices in output order, e.g. 2,0,3')
+        self.metadata_policy, self.chapter_policy = QComboBox(), QComboBox()
+        for combo in (self.metadata_policy, self.chapter_policy):
+            combo.addItems(['preserve', 'strip'])
+            combo.currentIndexChanged.connect(self.clear_preview)
+        self.track_order.textChanged.connect(self.clear_preview)
+        form.addRow('Explicit output track order', self.track_order)
+        form.addRow('Global and track metadata', self.metadata_policy)
+        form.addRow('Chapters', self.chapter_policy)
         self.video_width, self.video_height = QSpinBox(), QSpinBox()
         for widget in (self.video_width, self.video_height):
             widget.setRange(0, 16384)
@@ -198,6 +208,9 @@ class EncodingView(QScrollArea):
         self.audio_mode.setCurrentText('quality' if request.audio_quality is not None else 'bitrate')
         self.audio_quality.setValue(request.audio_quality or 2)
         self.target_size.setValue((request.target_size_bytes or 104857600) // 1048576)
+        self.track_order.setText(','.join(str(i) for i in request.track_order))
+        self.metadata_policy.setCurrentText(request.metadata_policy.value)
+        self.chapter_policy.setCurrentText(request.chapter_policy.value)
         self.hardware_mode.setCurrentText(request.hardware_mode)
         self.gpu_encoder.setCurrentText(request.gpu_encoder)
         choices = dict(request.tracks)
@@ -225,6 +238,7 @@ class EncodingView(QScrollArea):
         if media is self._media:
             return
         self._media = media
+        self.track_order.clear()
         self.preview.clear()
         self.source.setText(f'{self.title}: {media.path}' if media else 'Inspect a source first.')
         self.tracks.setRowCount(len(media.streams) if media else 0)
@@ -263,4 +277,6 @@ class EncodingView(QScrollArea):
                                  self.preset.currentText(), self.audio_quality.value() if self.audio_mode.currentText() == 'quality' else None,
                                  MediaOperation.COMPRESS if self.title == 'Compress' else MediaOperation.CONVERT,
                                  self.target_size.value() * 1024 * 1024 if self.mode.currentText() == 'target' else None,
-                                 self.hardware_mode.currentText(), self.gpu_encoder.currentText())
+                                 self.hardware_mode.currentText(), self.gpu_encoder.currentText(),
+                                 tuple(int(i.strip()) for i in self.track_order.text().split(',')) if self.track_order.text().strip() else (),
+                                 PreservationPolicy(self.metadata_policy.currentText()), PreservationPolicy(self.chapter_policy.currentText()))

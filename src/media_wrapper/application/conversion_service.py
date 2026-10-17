@@ -47,9 +47,15 @@ def conversion_plan(media: MediaFile, request: ConversionRequest, report: Capabi
         elif kind == 'video' and any(v is not None for v in (request.width, request.height, fps)):
             raise ValueError('Choose a video encoder to change resolution or FPS')
         streams.append(StreamSelection(index, profile))
+    if request.track_order:
+        by_index = {s.index: s for s in streams}
+        if len(request.track_order) != len(streams) or set(request.track_order) != set(by_index):
+            raise ValueError('Track order must list every selected stream index exactly once')
+        streams = [by_index[i] for i in request.track_order]
     plan = OperationPlan(request.operation, media, tuple(streams),
                          OutputTarget(request.destination.expanduser().absolute(), request.container),
-                         request.target_size_bytes if request.mode == 'target' else None)
+                         request.target_size_bytes if request.mode == 'target' else None,
+                         metadata_policy=request.metadata_policy, chapter_policy=request.chapter_policy)
     return select_hardware(plan, report, request.hardware_mode, request.gpu_encoder)
 
 

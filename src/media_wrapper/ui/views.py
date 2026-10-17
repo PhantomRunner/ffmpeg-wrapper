@@ -134,6 +134,13 @@ class RemuxView(QWidget):
         self.browse_button = QPushButton('Choose output…')
         self.validation = QLabel('Inspect a file first.')
         self.validation.setWordWrap(True)
+        self.metadata_policy, self.chapter_policy = QComboBox(), QComboBox()
+        for combo in (self.metadata_policy, self.chapter_policy):
+            combo.addItems(['preserve', 'strip'])
+        form.addWidget(QLabel('Metadata (global and selected tracks)'))
+        form.addWidget(self.metadata_policy)
+        form.addWidget(QLabel('Chapters'))
+        form.addWidget(self.chapter_policy)
         self.run_button = QPushButton('Run remux')
         self.cancel_button = QPushButton('Cancel remux')
         self.enqueue_button = QPushButton('Add to queue')

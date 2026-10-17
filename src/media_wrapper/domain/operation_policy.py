@@ -5,6 +5,7 @@ from media_wrapper.domain.codec_policy import ALLOWED
 from media_wrapper.domain.operations import (
     MediaOperation,
     OperationPlan,
+    PreservationPolicy,
     PlanValidationError,
     ValidationCode,
 )
@@ -24,6 +25,8 @@ def fail(code: ValidationCode, message: str) -> None:
 
 def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = frozenset()) -> None:
     """Pure validation; availability must come from the selected FFmpeg build."""
+    if not isinstance(plan.metadata_policy, PreservationPolicy) or not isinstance(plan.chapter_policy, PreservationPolicy):
+        fail(ValidationCode.OPTION, 'Unsupported metadata/chapter policy')
     if not isinstance(plan.operation, MediaOperation) or not isinstance(plan.output.container, Container):
         fail(ValidationCode.OPTION, 'Unsupported operation or container')
     if not plan.media.path.is_absolute() or not plan.output.path.is_absolute():
@@ -50,6 +53,8 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
                 fail(ValidationCode.OPTION, 'Remux must copy every selected stream')
             if profile.encoder not in ENCODERS or profile.encoder not in available_encoders:
                 fail(ValidationCode.OPTION, f'Encoder unavailable or unsupported: {profile.encoder}')
+            if stream.kind == 'subtitle' and stream.codec not in {'subrip', 'ass', 'ssa', 'webvtt', 'mov_text', 'text'}:
+                fail(ValidationCode.OPTION, 'Bitmap subtitle conversion is unsupported; copy to a compatible container or omit')
             kind, codec = ENCODERS[profile.encoder]
             if kind != stream.kind:
                 fail(ValidationCode.OPTION, 'Encoder does not match stream type')

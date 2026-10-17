@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from media_wrapper.domain.operations import MediaOperation
+from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
 
 
@@ -24,4 +24,7 @@ class ConversionRequest:
     target_size_bytes: int | None = None
     hardware_mode: str = 'CPU'
     gpu_encoder: str = 'auto'
+    track_order: tuple[int, ...] = ()
+    metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
+    chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE
 

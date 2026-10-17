@@ -6,7 +6,7 @@ from typing import Any
 from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.domain.operation_policy import ENCODERS
-from media_wrapper.domain.operations import MediaOperation
+from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
 
 
@@ -14,6 +14,7 @@ def profile_payload(request: ConversionRequest) -> dict[str, Any]:
     settings = asdict(request)
     settings.pop('destination')
     settings['tracks'] = [list(track) for track in request.tracks]
+    settings['track_order'] = list(request.track_order)
     settings['container'] = request.container.value
     settings['operation'] = request.operation.value
     return {'kind': 'media-wrapper-profile', 'version': 1, 'settings': settings}
@@ -49,6 +50,12 @@ def parse_profile(payload: Any, destination: Path) -> ConversionRequest:
             raise ValueError('Invalid track index or encoder')
     if len({t[0] for t in tracks}) != len(tracks):
         raise ValueError('Duplicate profile track index')
+    order = data['track_order']
+    if not isinstance(order, list) or any(type(i) is not int or i < 0 for i in order) or len(set(order)) != len(order):
+        raise ValueError('Invalid track order')
+    data['track_order'] = tuple(order)
+    data['metadata_policy'] = PreservationPolicy(data['metadata_policy'])
+    data['chapter_policy'] = PreservationPolicy(data['chapter_policy'])
     data['tracks'] = tuple(tuple(t) for t in tracks)
     data['container'] = Container(data['container'])
     data['operation'] = MediaOperation(data['operation'])

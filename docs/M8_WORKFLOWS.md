@@ -16,3 +16,12 @@ paths/expressions, existing output, source collisions, case-insensitive name
 collisions and queued output reservations are rejected. Real track indices apply
 per source; missing/incompatible tracks reject the entire batch. No jobs start
 until the user starts Queue. Tests deferred to milestone end.
+
+## M8.3 implementation
+Convert/Compress accept explicit output order of selected real indices and
+per-track copy/omit/text-subtitle encoding. Bitmap-to-text conversion is rejected.
+Remux/Convert/Compress explicitly preserve or strip global/track metadata and
+chapters. FFprobe now returns typed chapters and container tags; publication
+checks the requested chapter count/removal. Metadata preservation is limited by
+the destination container; encoder/muxer-generated tags may remain when stripping.
+Tests deferred to milestone end.

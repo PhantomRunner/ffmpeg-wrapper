@@ -4,7 +4,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from media_wrapper.domain.media import MediaFile, MediaStream
+from media_wrapper.domain.media import MediaChapter, MediaFile, MediaStream
 
 
 def _text(value: Any) -> str | None:
@@ -53,8 +53,19 @@ def parse_probe(path: Path, payload: Any) -> MediaFile:
     indices = [stream.index for stream in parsed if stream.index is not None]
     if len(indices) != len(set(indices)):
         raise ValueError('FFprobe returned duplicate stream indices')
+    tags = fmt.get('tags') or {}
+    chapters = payload.get('chapters') or []
+    if not isinstance(tags, dict) or not isinstance(chapters, list) or any(not isinstance(c, dict) for c in chapters):
+        raise ValueError('Invalid container tags or chapters')
+    parsed_chapters = []
+    for chapter in chapters:
+        chapter_tags = chapter.get('tags') or {}
+        if not isinstance(chapter_tags, dict):
+            raise ValueError('Invalid chapter tags')
+        parsed_chapters.append(MediaChapter(_duration(chapter.get('start_time')), _duration(chapter.get('end_time')), _text(chapter_tags.get('title'))))
     return MediaFile(path, _text(fmt.get('format_name')) or 'unknown', _duration(fmt.get('duration')),
-                     _integer(fmt.get('size')), parsed, _integer(fmt.get('bit_rate')))
+                     _integer(fmt.get('size')), parsed, _integer(fmt.get('bit_rate')),
+                     tuple((str(k), v) for k, v in tags.items() if isinstance(v, str)), tuple(parsed_chapters))
 
 
 def _stream(payload: Any) -> MediaStream:

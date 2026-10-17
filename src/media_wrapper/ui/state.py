@@ -4,6 +4,7 @@ from pathlib import Path
 
 from media_wrapper.domain.inspection import InspectionRecord
 from media_wrapper.domain.media import MediaFile
+from media_wrapper.domain.operations import PreservationPolicy
 from media_wrapper.domain.remux import Container
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 
@@ -30,3 +31,5 @@ class DesktopState:
     cancel_requested: bool = False
     inspection_summary: str = ''
     remux_progress: str = ''
+    metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
+    chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE

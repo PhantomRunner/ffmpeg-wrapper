@@ -27,6 +27,13 @@ class MediaStream:
 
 
 @dataclass(frozen=True)
+class MediaChapter:
+    start: float | None
+    end: float | None
+    title: str | None = None
+
+
+@dataclass(frozen=True)
 class MediaFile:
     path: Path
     format_name: str = 'unknown'
@@ -34,3 +41,5 @@ class MediaFile:
     size_bytes: int | None = None
     streams: tuple[MediaStream, ...] = ()
     bit_rate: int | None = None
+    tags: tuple[tuple[str, str], ...] = ()
+    chapters: tuple[MediaChapter, ...] = ()
