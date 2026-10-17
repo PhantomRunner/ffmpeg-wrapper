@@ -8,3 +8,9 @@ for supported encoder candidates are queried on workers. Immutable inventory is
 cached in memory by resolved executable path, size, modification time and version;
 refresh bypasses cache. No GPU runtime availability is inferred from these lists.
 Milestone-wide tests pending.
+
+## M7.2 implementation
+Reports distinguish listed/untested, runtime-tested, unavailable and unknown.
+Hardware API/encoder listing alone never grants runnable GPU status. Reports are
+immutable snapshots; rescanning resets runtime evidence rather than reusing stale
+device results. Milestone-wide tests pending.

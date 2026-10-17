@@ -28,3 +28,16 @@ def test_build_cache_and_binary_identity(tmp_path, monkeypatch):
 
 def test_hwaccel_parser():
     assert parse_hwaccels('Hardware acceleration methods:\ncuda\nvaapi\n\n') == ('cuda', 'vaapi')
+
+
+def test_listed_is_never_runtime_proof(monkeypatch):
+    from pathlib import Path
+
+    from media_wrapper.application.capability_service import scan_capabilities
+    from media_wrapper.domain.capabilities import BuildCapabilities, EncoderStatus
+    build = BuildCapabilities(('test', 1, 1, 'version'), 'version', '', frozenset({'h264_nvenc'}), ('cuda',), ())
+    monkeypatch.setattr('media_wrapper.application.capability_service.discover_build', lambda *a, **k: build)
+    report = scan_capabilities(Path('ffmpeg'), Event())
+    assert not report.working()
+    assert report.gpu[0].status == EncoderStatus.LISTED
+    assert any(c.status == EncoderStatus.UNAVAILABLE for c in report.gpu)

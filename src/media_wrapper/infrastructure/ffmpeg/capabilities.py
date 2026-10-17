@@ -3,17 +3,11 @@ import re
 from pathlib import Path
 from threading import Event, Lock
 
-from media_wrapper.domain.capabilities import BuildCapabilities
+from media_wrapper.domain.capabilities import GPU_ENCODERS, BuildCapabilities
 from media_wrapper.domain.operation_policy import ENCODERS
 from media_wrapper.infrastructure.ffmpeg.encoders import parse_encoders
 from media_wrapper.infrastructure.ffmpeg.probe_service import run_cancellable_probe
 
-GPU_ENCODERS = {
-    'h264_nvenc': 'h264', 'hevc_nvenc': 'hevc',
-    'h264_qsv': 'h264', 'hevc_qsv': 'hevc',
-    'h264_amf': 'h264', 'hevc_amf': 'hevc',
-    'h264_vaapi': 'h264', 'hevc_vaapi': 'hevc',
-}
 _CACHE: dict[tuple, BuildCapabilities] = {}
 _LOCK = Lock()
 
