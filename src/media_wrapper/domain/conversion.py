@@ -27,4 +27,4 @@ class ConversionRequest:
     track_order: tuple[int, ...] = ()
     metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
     chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE
-
+    custom_arguments: str = ''

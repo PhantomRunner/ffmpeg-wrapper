@@ -66,6 +66,8 @@ class CommandBuilder:
                      '-map_chapters', '0' if plan.chapter_policy == PreservationPolicy.PRESERVE else '-1'])
         for position, selection in enumerate(plan.streams):
             args.extend([f'-map_metadata:s:{position}', f'0:s:{selection.index}' if plan.metadata_policy == PreservationPolicy.PRESERVE else '-1'])
+        for flag, value in plan.custom_options:
+            args.extend([flag, value])
         args.extend(['-f', plan.output.container.value, str(plan.output.execution_path)])
         return args
 

@@ -32,3 +32,11 @@ Diagnostics export defaults to an allowlisted task summary without paths,
 metadata, raw errors or arguments. A clearly labeled opt-in adds private task
 paths, arguments and retained logs. Exports refuse overwrite and run on a worker.
 Tests deferred to milestone end.
+
+## M8.5 implementation
+Convert/Compress profiles and previews support only -threads (1–64) and
+-max_muxing_queue_size (1–65536), once each. The pure domain parser rejects
+all other options, duplicates and nonnumeric values. The command builder
+validates again and emits separate argument-array entries before the fixed
+container/output. No shell, input, mapping, filter, protocol or overwrite flags
+can be supplied. Tests deferred to milestone end.

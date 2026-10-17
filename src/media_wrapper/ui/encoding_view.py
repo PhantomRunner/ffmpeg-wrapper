@@ -130,6 +130,11 @@ class EncodingView(QScrollArea):
         for widget in (self.crf, self.video_bitrate, self.audio_quality):
             widget.valueChanged.connect(self.clear_preview)
         self.preset.currentIndexChanged.connect(self.clear_preview)
+        self.custom_arguments = QLineEdit()
+        self.custom_arguments.setPlaceholderText('-threads 2 -max_muxing_queue_size 1024')
+        self.custom_arguments.setToolTip('Optional: only -threads 1–64 and -max_muxing_queue_size 1–65536. Preview validates these options.')
+        self.custom_arguments.textChanged.connect(self.clear_preview)
+        form.addRow('Restricted advanced arguments', self.custom_arguments)
         self.batch_folder = QLineEdit()
         self.batch_folder.setPlaceholderText('Output folder (empty = current destination folder)')
         self.batch_template = QLineEdit('{stem}_{index}_encoded{ext}')
@@ -208,6 +213,7 @@ class EncodingView(QScrollArea):
         self.audio_mode.setCurrentText('quality' if request.audio_quality is not None else 'bitrate')
         self.audio_quality.setValue(request.audio_quality or 2)
         self.target_size.setValue((request.target_size_bytes or 104857600) // 1048576)
+        self.custom_arguments.setText(request.custom_arguments)
         self.track_order.setText(','.join(str(i) for i in request.track_order))
         self.metadata_policy.setCurrentText(request.metadata_policy.value)
         self.chapter_policy.setCurrentText(request.chapter_policy.value)
@@ -279,4 +285,4 @@ class EncodingView(QScrollArea):
                                  self.target_size.value() * 1024 * 1024 if self.mode.currentText() == 'target' else None,
                                  self.hardware_mode.currentText(), self.gpu_encoder.currentText(),
                                  tuple(int(i.strip()) for i in self.track_order.text().split(',')) if self.track_order.text().strip() else (),
-                                 PreservationPolicy(self.metadata_policy.currentText()), PreservationPolicy(self.chapter_policy.currentText()))
+                                 PreservationPolicy(self.metadata_policy.currentText()), PreservationPolicy(self.chapter_policy.currentText()), self.custom_arguments.text())

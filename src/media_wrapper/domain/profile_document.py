@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from media_wrapper.domain.capabilities import GPU_ENCODERS
+from media_wrapper.domain.custom_options import parse_custom_options
 from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.domain.operation_policy import ENCODERS
 from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
@@ -42,6 +43,7 @@ def parse_profile(payload: Any, destination: Path) -> ConversionRequest:
         raise ValueError('Invalid profile mode')
     if data['gpu_encoder'] not in {'auto', *GPU_ENCODERS}:
         raise ValueError('Unsupported GPU preference')
+    parse_custom_options(data['custom_arguments'])
     tracks = data['tracks']
     if not isinstance(tracks, list) or len(tracks) > 256:
         raise ValueError('Invalid profile tracks')

@@ -13,6 +13,7 @@ from media_wrapper.domain.operations import (
     OutputTarget,
     StreamSelection,
 )
+from media_wrapper.domain.custom_options import parse_custom_options
 from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
@@ -55,7 +56,8 @@ def conversion_plan(media: MediaFile, request: ConversionRequest, report: Capabi
     plan = OperationPlan(request.operation, media, tuple(streams),
                          OutputTarget(request.destination.expanduser().absolute(), request.container),
                          request.target_size_bytes if request.mode == 'target' else None,
-                         metadata_policy=request.metadata_policy, chapter_policy=request.chapter_policy)
+                         metadata_policy=request.metadata_policy, chapter_policy=request.chapter_policy,
+                         custom_options=parse_custom_options(request.custom_arguments))
     return select_hardware(plan, report, request.hardware_mode, request.gpu_encoder)
 
 

@@ -1,5 +1,6 @@
 """Pure operation policy validation."""
 
+from media_wrapper.domain.custom_options import validate_custom_options
 from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.codec_policy import ALLOWED
 from media_wrapper.domain.operations import (
@@ -25,6 +26,10 @@ def fail(code: ValidationCode, message: str) -> None:
 
 def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = frozenset()) -> None:
     """Pure validation; availability must come from the selected FFmpeg build."""
+    try:
+        validate_custom_options(plan.custom_options)
+    except ValueError as error:
+        fail(ValidationCode.OPTION, str(error))
     if not isinstance(plan.metadata_policy, PreservationPolicy) or not isinstance(plan.chapter_policy, PreservationPolicy):
         fail(ValidationCode.OPTION, 'Unsupported metadata/chapter policy')
     if not isinstance(plan.operation, MediaOperation) or not isinstance(plan.output.container, Container):

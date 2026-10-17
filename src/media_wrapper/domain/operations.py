@@ -74,3 +74,4 @@ class OperationPlan:
     hardware_note: str = ''
     metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
     chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE
+    custom_options: tuple[tuple[str, str], ...] = ()
