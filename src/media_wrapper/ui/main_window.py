@@ -253,7 +253,9 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def select_sidecar(self) -> None:
-        from media_wrapper.infrastructure.ffmpeg.binary_resolver import sidecar_directory
+        from media_wrapper.infrastructure.ffmpeg.binary_resolver import (
+            sidecar_directory,
+        )
         self.mode.setCurrentText('bundled')
         self.folder.setText(str(sidecar_directory()))
         self.detect()

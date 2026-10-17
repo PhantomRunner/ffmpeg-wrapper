@@ -5,7 +5,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
 from media_wrapper.infrastructure.process_environment import external_environment
 
 

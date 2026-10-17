@@ -19,8 +19,8 @@ def verify(bundle: Path) -> None:
         install = root / 'portable app'
         shutil.copytree(bundle, install, symlinks=True)
         executable = install / ('MediaWrapper.exe' if os.name == 'nt' else 'MediaWrapper')
-        source_directory = root / 'read only source'
-        source_directory.mkdir()
+        source_directory = root / 'read only source' / ('long-path-' + 'x' * 180)
+        source_directory.mkdir(parents=True)
         source = source_directory / 'clip ü with spaces.mkv'
         subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=96x64:r=12:d=0.5',
                         '-f', 'lavfi', '-i', 'sine=duration=0.5', '-c:v', 'ffv1', '-c:a', 'pcm_s16le', '-n', str(source)],
@@ -36,7 +36,7 @@ def verify(bundle: Path) -> None:
                 source.chmod(0o444)
                 source_directory.chmod(0o555)
             result = subprocess.run([str(executable), '--verify-install', str(source), str(output)],
-                                    env=environment, cwd=root, capture_output=True, text=True, timeout=120)
+                                    env=environment, cwd=root, capture_output=True, text=True, timeout=120, check=False)
             if result.returncode:
                 raise RuntimeError(f'Packaged check failed ({result.returncode}): {result.stdout}\n{result.stderr}\n'
                                    + ((output / 'verification.json').read_text() if (output / 'verification.json').exists() else 'No report'))

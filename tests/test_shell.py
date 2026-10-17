@@ -465,3 +465,17 @@ def test_profile_buttons_batch_and_diagnostics(shell, sample, tmp_path, monkeypa
     shell.settings_view.log_level.setCurrentText('ERROR')
     assert shell.preferences().log_level == 'ERROR'
     shell.settings_view.log_level.setCurrentText('INFO')
+
+
+def test_active_binary_paths_and_explicit_sidecar_control(shell, tmp_path, monkeypatch):
+    from test_operation_task import wait
+
+    from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
+    selected = tmp_path / 'sidecar ü' / 'bin'
+    monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.binary_resolver.sidecar_directory', lambda: selected)
+    shell.model._detected(Binaries(tmp_path / 'ffmpeg', tmp_path / 'ffprobe', 'FFmpeg version A | FFprobe version B'))
+    assert str(tmp_path / 'ffmpeg') in shell.settings_view.status.text()
+    assert str(tmp_path / 'ffprobe') in shell.settings_view.status.text()
+    shell.settings_view.sidecar_button.click()
+    wait(QApplication.instance(), lambda: not shell.model.state.busy)
+    assert shell.mode.currentText() == 'bundled' and shell.folder.text() == str(selected)

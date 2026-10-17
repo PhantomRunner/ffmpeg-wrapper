@@ -1,8 +1,8 @@
 """Nonblocking, single-use Qt process adapter with bounded diagnostics."""
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
-from media_wrapper.infrastructure.process_environment import external_environment
 from media_wrapper.infrastructure.ffmpeg.progress_parser import ProgressParser
+from media_wrapper.infrastructure.process_environment import external_environment
 
 
 class ProcessRunner(QObject):

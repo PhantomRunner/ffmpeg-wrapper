@@ -2,10 +2,16 @@
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from media_wrapper.domain.conversion import ConversionRequest
-from media_wrapper.domain.operations import MediaOperation, OperationPlan, OutputTarget, StreamSelection
+from media_wrapper.domain.operations import (
+    MediaOperation,
+    OperationPlan,
+    OutputTarget,
+    StreamSelection,
+)
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.infrastructure.app_paths import AppPaths
@@ -22,7 +28,13 @@ def verify_installation(source: Path, directory: Path) -> int:
         raise ValueError('Verification needs an existing fixture and an empty output directory')
     app = QApplication.instance() or QApplication([])
     app.setApplicationName('MediaWrapperVerification')
-    from media_wrapper.infrastructure.process_environment import initialize_external_processes
+    icon = QIcon(str(Path(__file__).parents[1] / 'resources/icon.svg'))
+    if icon.pixmap(32, 32).isNull():
+        raise RuntimeError('Packaged application icon could not be loaded')
+    app.setWindowIcon(icon)
+    from media_wrapper.infrastructure.process_environment import (
+        initialize_external_processes,
+    )
     initialize_external_processes()
     paths = AppPaths(directory / 'config', directory / 'data')
     diagnostics = configure_logging(paths)

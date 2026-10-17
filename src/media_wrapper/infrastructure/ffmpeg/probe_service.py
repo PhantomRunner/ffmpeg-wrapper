@@ -3,13 +3,12 @@ import json
 import subprocess
 import time
 from pathlib import Path
-
-from media_wrapper.infrastructure.process_environment import external_environment
 from threading import Event
 
 from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.infrastructure.ffmpeg.probe_parser import parse_probe
+from media_wrapper.infrastructure.process_environment import external_environment
 
 
 def inspect_media(ffprobe: Path, source: Path, cancel_event: Event | None = None) -> MediaFile:

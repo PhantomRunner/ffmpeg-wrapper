@@ -44,3 +44,10 @@ Use `packaging/ffmpeg-review.template.json` as the per-build evidence record.
 An empty template is not approval. The current build manifest always records
 `ffmpeg_bundled: false`; adding binaries to a candidate by hand requires a fresh
 inventory, checksum generation, review and installation verification.
+
+Local audit: the installed PySide6 6.12.0 / Shiboken6 wheels list the above license
+choices in METADATA but contain no license text files. The candidate records
+this gap in `missing_wheel_license_files` and retains package metadata. Required
+Qt/binding license texts, third-party notices and source/relinking materials must
+be assembled and reviewed before redistribution. The local build is not cleared
+for public distribution.

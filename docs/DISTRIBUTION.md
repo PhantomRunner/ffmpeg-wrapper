@@ -18,7 +18,8 @@ python scripts/verify_distribution.py dist/MediaWrapper
 ```
 
 The pinned inputs, native runner, build-info.json and SHA256SUMS.json make the
-build traceable and repeatable. Byte-for-byte reproducibility across machines is
+build traceable and repeatable. Builds enforce the pinned package versions and record source hashes and dirty-tree
+status. Byte-for-byte reproducibility across machines is
 not claimed. Use a clean build environment; the manifest records actual versions.
 The builder refuses an existing output folder. Move a previous build aside before
 rebuilding. No build script downloads or includes FFmpeg/FFprobe binaries.
@@ -27,7 +28,8 @@ The folder includes Qt runtime/plugins discovered by PyInstaller, the applicatio
 icon, documentation, wheel-provided license files and checksums. Keep the entire
 folder together. Start MediaWrapper on Linux or MediaWrapper.exe on Windows.
 Linux additionally needs the platform's graphics/system libraries; offscreen CI
-does not replace testing a real desktop. See the release checklist before sharing.
+does not replace testing a real desktop. See the release checklist before sharing. The build inventory explicitly lists wheels missing license files;
+package METADATA is retained but is not a substitute for required license texts.
 
 In Settings, choose external PATH, a custom folder containing both binaries, or
 explicitly select a sidecar at `ffmpeg/bin` beside the executable. An incomplete
@@ -45,7 +47,8 @@ only deliberately, using the locations displayed by the application (README).
 The automated portable check copies the built folder to a fresh path containing
 spaces/Unicode, creates a tiny video/audio fixture, runs the packaged GUI through
 Inspect/Remux/Convert/Compress, verifies source preservation, and removes only its
-own temporary installation. Linux also makes the source directory read-only.
+own temporary installation. The fixture uses a long path (over 260 characters); Linux also makes the source
+directory read-only.
 Windows ACL, real desktop, long-path policy and GPU checks require the native
 manual matrix; a Windows read-only file attribute is not an ACL write restriction.
 
