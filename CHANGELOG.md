@@ -16,3 +16,8 @@ estimate; no parallel queue or mid-encode resume; metadata support varies by
 container. Native Windows, physical GPU success, real-desktop distribution checks
 and dependency/license release approval remain pending. No FFmpeg binary ships
 with the candidate. No public release tag has been created.
+
+Release status: candidate only. The package metadata remains 0.1.0 for continuity;
+a version tag is deliberately deferred until the release checklist is satisfied.
+Portable installation/removal and recovery guidance: docs/DISTRIBUTION.md.
+Exact native/hardware verification status: docs/RELEASE_CHECKLIST.md.
