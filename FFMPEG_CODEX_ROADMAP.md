@@ -141,14 +141,18 @@ remain unverified. M5.6 is still deferred pending physical contention tests.
 
 ## Milestone 8 — Advanced user workflows (P2)
 
-- [ ] **M8.1** Save/import/export versioned profiles; profiles must validate against the current FFmpeg build.
-- [ ] **M8.2** Batch add and per-file output naming templates with collision detection.
-- [ ] **M8.3** Explicit advanced stream mapping, subtitle handling, metadata and chapter preservation policies.
-- [ ] **M8.4** Configurable logging / diagnostics export with safe handling of file paths and privacy-sensitive metadata.
-- [ ] **M8.5** Optional custom arguments as a tightly scoped advanced feature: preview and validate; never allow overriding output safety or shell execution protections.
-- [ ] **M8.6** Optional resumable queue definitions (not mid-encode FFmpeg checkpointing); revalidate files/settings after restart.
+- [x] **M8.1** Save/import/export versioned profiles; profiles must validate against the current FFmpeg build.
+- [x] **M8.2** Batch add and per-file output naming templates with collision detection.
+- [x] **M8.3** Explicit advanced stream mapping, subtitle handling, metadata and chapter preservation policies.
+- [x] **M8.4** Configurable logging / diagnostics export with safe handling of file paths and privacy-sensitive metadata.
+- [x] **M8.5** Optional custom arguments as a tightly scoped advanced feature: preview and validate; never allow overriding output safety or shell execution protections.
+- [x] **M8.6** Optional resumable queue definitions (not mid-encode FFmpeg checkpointing); revalidate files/settings after restart.
 
 **Acceptance:** advanced workflows are reproducible and do not bypass validation or output safety.
+
+Verified on Linux at milestone end: 320 tests passed, Ruff/dependency checks
+passed, and offscreen startup/layout review passed. See [M8 evidence](docs/M8_WORKFLOWS.md).
+Native Windows and successful physical GPU verification remain pending.
 
 ## Milestone 9 — Cross-platform distribution, verification and release (P1 before public release)
 

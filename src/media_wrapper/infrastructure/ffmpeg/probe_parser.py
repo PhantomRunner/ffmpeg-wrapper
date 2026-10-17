@@ -53,15 +53,18 @@ def parse_probe(path: Path, payload: Any) -> MediaFile:
     indices = [stream.index for stream in parsed if stream.index is not None]
     if len(indices) != len(set(indices)):
         raise ValueError('FFprobe returned duplicate stream indices')
-    tags = fmt.get('tags') or {}
-    chapters = payload.get('chapters') or []
+    tags = fmt.get('tags')
+    tags = {} if tags is None else tags
+    chapters = payload.get('chapters')
+    chapters = [] if chapters is None else chapters
     if not isinstance(tags, dict) or not isinstance(chapters, list) or any(not isinstance(c, dict) for c in chapters):
         raise ValueError('Invalid container tags or chapters')
     parsed_chapters = []
     for chapter in chapters:
-        chapter_tags = chapter.get('tags') or {}
+        chapter_tags = chapter.get('tags')
+        chapter_tags = {} if chapter_tags is None else chapter_tags
         if not isinstance(chapter_tags, dict):
-            raise ValueError('Invalid chapter tags')
+            raise ValueError('Invalid chapter tags')  # noqa: TRY004 - invalid serialized value
         parsed_chapters.append(MediaChapter(_duration(chapter.get('start_time')), _duration(chapter.get('end_time')), _text(chapter_tags.get('title'))))
     return MediaFile(path, _text(fmt.get('format_name')) or 'unknown', _duration(fmt.get('duration')),
                      _integer(fmt.get('size')), parsed, _integer(fmt.get('bit_rate')),
@@ -85,5 +88,5 @@ def _stream(payload: Any) -> MediaStream:
         width=_integer(payload.get('width'), 1), height=_integer(payload.get('height'), 1),
         average_frame_rate=_rate(payload.get('avg_frame_rate')), nominal_frame_rate=_rate(payload.get('r_frame_rate')),
         sample_rate=_integer(payload.get('sample_rate'), 1), channels=_integer(payload.get('channels'), 1),
-        channel_layout=_text(payload.get('channel_layout')),
+        channel_layout=_text(payload.get('channel_layout')), codec_tag=_text(payload.get('codec_tag_string')),
     )

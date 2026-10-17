@@ -163,9 +163,16 @@ class OperationTask(QObject):
         info = MediaService(self.binaries).inspect(output.execution_path, self.cancel_event)
         sources = {s.index: s for s in self.prepared.media.streams}
         expected = [(sources[s.index].kind, sources[s.index].codec if s.profile.encoder == 'copy' else ENCODERS[s.profile.encoder][1]) for s in self.prepared.streams]
-        if [(s.kind, s.codec) for s in info.streams] != expected or not info.size_bytes:
+        verified_streams = info.streams
+        # MP4 muxers may append one QuickTime chapter text track. It is not a
+        # user-mapped media stream; accept only this known generated structure.
+        if (output.container.value == 'mp4' and self.prepared.chapter_policy == PreservationPolicy.PRESERVE
+                and self.prepared.media.chapters and info.chapters and len(info.streams) == len(expected) + 1
+                and (info.streams[-1].kind, info.streams[-1].codec, info.streams[-1].codec_tag) == ('data', 'bin_data', 'text')):
+            verified_streams = info.streams[:-1]
+        if [(s.kind, s.codec) for s in verified_streams] != expected or not info.size_bytes:
             raise ValueError('Output verification failed: selected stream codecs/count or file size differ')
-        for output_stream, selected in zip(info.streams, self.prepared.streams, strict=True):
+        for output_stream, selected in zip(verified_streams, self.prepared.streams, strict=True):
             profile = selected.profile
             if profile.width is not None and (output_stream.width, output_stream.height) != (profile.width, profile.height):
                 raise ValueError('Output resolution verification failed')

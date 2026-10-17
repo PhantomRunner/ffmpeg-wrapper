@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from media_wrapper.domain.capabilities import GPU_ENCODERS
-from media_wrapper.domain.custom_options import parse_custom_options
 from media_wrapper.domain.conversion import ConversionRequest
+from media_wrapper.domain.custom_options import parse_custom_options
 from media_wrapper.domain.operation_policy import ENCODERS
 from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
@@ -44,11 +44,20 @@ def parse_profile(payload: Any, destination: Path) -> ConversionRequest:
     if data['gpu_encoder'] not in {'auto', *GPU_ENCODERS}:
         raise ValueError('Unsupported GPU preference')
     parse_custom_options(data['custom_arguments'])
+    for key, low, high, step in (('width', 2, 16384, 2), ('height', 2, 16384, 2),
+                                 ('audio_bitrate', 8000, 512000, 1000), ('video_bitrate', 32000, 200000000, 1000),
+                                 ('crf', 0, 51, 1), ('audio_quality', 1, 5, 1),
+                                 ('target_size_bytes', 1048576, 1048576000000, 1048576)):
+        value = data[key]
+        if value is not None and (not low <= value <= high or value % step):
+            raise ValueError(f'Profile {key} cannot be represented by the form')
+    if data['preset'] not in {'ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'}:
+        raise ValueError('Unsupported profile preset')
     tracks = data['tracks']
     if not isinstance(tracks, list) or len(tracks) > 256:
         raise ValueError('Invalid profile tracks')
     for track in tracks:
-        if not isinstance(track, list) or len(track) != 2 or type(track[0]) is not int or track[0] < 0 or not isinstance(track[1], str) or track[1] not in {'copy', 'omit', *ENCODERS}:
+        if not isinstance(track, list) or len(track) != 2 or type(track[0]) is not int or track[0] < 0 or not isinstance(track[1], str) or track[1] not in {'copy', 'omit', *(set(ENCODERS) - set(GPU_ENCODERS))}:
             raise ValueError('Invalid track index or encoder')
     if len({t[0] for t in tracks}) != len(tracks):
         raise ValueError('Duplicate profile track index')
@@ -61,4 +70,6 @@ def parse_profile(payload: Any, destination: Path) -> ConversionRequest:
     data['tracks'] = tuple(tuple(t) for t in tracks)
     data['container'] = Container(data['container'])
     data['operation'] = MediaOperation(data['operation'])
+    if data['operation'] == MediaOperation.REMUX:
+        raise ValueError('Encoding profiles require Convert or Compress')
     return ConversionRequest(destination=destination, **data)

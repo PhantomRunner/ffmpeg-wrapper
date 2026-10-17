@@ -7,7 +7,11 @@ from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_service import prepare_operation
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import OperationPlan
-from media_wrapper.domain.queue_document import parse_definition, plan_payload, queue_entries
+from media_wrapper.domain.queue_document import (
+    parse_definition,
+    plan_payload,
+    queue_entries,
+)
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
 from media_wrapper.infrastructure.json_documents import read_document, write_document
@@ -33,10 +37,13 @@ def load_queue(path: Path, binaries: Binaries, reserved: tuple[Path, ...] = ()) 
     for entry in entries:
         source = entry.get('source')
         if not isinstance(source, str):
-            raise ValueError('Missing queue source')
-        placeholder = MediaFile(Path(source), None, None, None, ())
+            raise ValueError('Missing queue source')  # noqa: TRY004 - invalid serialized value
+        placeholder = MediaFile(Path(source))
         definitions.append(parse_definition(entry, placeholder))
     keys = {path_key(p) for p in (*reserved, *(plan.media.path for plan in definitions))}
+    for directory in {plan.output.path.parent for plan in definitions}:
+        if directory.is_dir():
+            keys.update(path_key(p) for p in directory.iterdir())
     available = list_encoders(binaries.ffmpeg, Event())
     plans = []
     for entry, definition in zip(entries, definitions, strict=True):

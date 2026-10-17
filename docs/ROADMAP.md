@@ -15,7 +15,8 @@ M4.1–M4.5 and M5.1–M5.5 are complete on Linux: [execution verification](M4_M
 M5.6 remains deferred until GPU contention tests are possible after M7.
 M6.1–M6.5 complete on Linux: [encoding verification](M6_ENCODING.md).
 M7.1–M7.6 complete with recorded local coverage: [capability verification](M7_CAPABILITIES.md).
-Next independent task: M8.1 versioned profiles. Successful physical GPU encoding
+M8.1–M8.6 complete with recorded local coverage: [advanced workflow verification](M8_WORKFLOWS.md).
+Next independent task: M9.1 binary-mode distribution readiness. Successful physical GPU encoding
 and contention tests remain pending; M5.6 stays open. M0.4 hosted CI remains pending.
 
 1. Bootstrap: PySide6 app, external/bundled binary resolver, FFprobe Inspect [initial scaffold implemented].

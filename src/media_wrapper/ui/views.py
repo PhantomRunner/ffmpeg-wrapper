@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -110,11 +111,14 @@ class FilesView(QWidget):
             event.acceptProposedAction()
 
 
-class RemuxView(QWidget):
+class RemuxView(QScrollArea):
     streams_selected = Signal(object)
     def __init__(self) -> None:
         super().__init__()
-        layout = QVBoxLayout(self)
+        self.setWidgetResizable(True)
+        body = QWidget()
+        self.setWidget(body)
+        layout = QVBoxLayout(body)
         layout.addWidget(QLabel('Remux'))
         self.source_label = QLabel('Inspect a file first. Streams are copied without re-encoding.')
         self.source_label.setWordWrap(True)

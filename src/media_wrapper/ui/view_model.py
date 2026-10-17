@@ -24,8 +24,8 @@ from media_wrapper.domain.operations import (
     MediaOperation,
     OperationPlan,
     OutputTarget,
-    PreservationPolicy,
     PlanValidationError,
+    PreservationPolicy,
     StreamSelection,
 )
 from media_wrapper.domain.remux import Container
@@ -35,11 +35,11 @@ from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.state import DesktopState
 from media_wrapper.ui.workers import (
     CapabilityWorker,
-    ServiceWorker,
     DetectionWorker,
     EncodingPreviewWorker,
     InspectionWorker,
     RemuxPreparationWorker,
+    ServiceWorker,
 )
 
 Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingPreviewWorker | CapabilityWorker | ServiceWorker
@@ -337,7 +337,10 @@ class DesktopViewModel(QObject):
     def exchange_queue(self, path: Path, importing: bool) -> None:
         if self.state.busy or self.state.binaries is None:
             return
-        from media_wrapper.application.queue_document_service import load_queue, save_queue
+        from media_wrapper.application.queue_document_service import (
+            load_queue,
+            save_queue,
+        )
         from media_wrapper.domain.tasks import TaskStatus
         binaries = self.state.binaries
         if importing:
@@ -350,14 +353,20 @@ class DesktopViewModel(QObject):
     def export_diagnostics(self, path: Path, include_private: bool) -> None:
         if self.state.busy:
             return
-        from media_wrapper.application.diagnostic_service import diagnostic_snapshot, export_diagnostics
+        from media_wrapper.application.diagnostic_service import (
+            diagnostic_snapshot,
+            export_diagnostics,
+        )
         snapshot = diagnostic_snapshot(self.queue.records, include_private)
         self._start(ServiceWorker(lambda: export_diagnostics(path, snapshot), 'Diagnostics export'), self._document_saved)
 
     def exchange_profile(self, path: Path, request: ConversionRequest, importing: bool) -> None:
         if self.state.busy or self.state.media is None or self.state.binaries is None:
             return
-        from media_wrapper.application.profile_service import export_profile, import_profile
+        from media_wrapper.application.profile_service import (
+            export_profile,
+            import_profile,
+        )
         media, binaries, report = self.state.media, self.state.binaries, self.capabilities
         if importing:
             self._start(ServiceWorker(lambda: import_profile(path, request.destination, media, binaries, report), 'Profile import'), self.profile_loaded.emit)

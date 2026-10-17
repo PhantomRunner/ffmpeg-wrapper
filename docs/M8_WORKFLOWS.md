@@ -51,3 +51,48 @@ sources and existing/conflicting outputs reject the import. Start is explicit;
 GPU runtime checks still run before execution. Files are local to the operating
 system whose absolute paths they contain; no checkpoint or automatic persistence.
 Tests deferred to milestone end.
+
+## Milestone-end verification (2026-10-17)
+
+All six implementation slices were committed separately before running tests,
+as requested. End-of-milestone review added regression tests and corrected:
+
+- Exact command expectations for explicit metadata/chapter maps.
+- MP4 publication verification: a single appended QuickTime chapter text data
+  track is allowed only with preserved source/output chapters and its expected
+  type/codec/tag. Other selected stream checks remain strict.
+- Imported profile values that would otherwise be clamped or silently changed by
+  form controls; imports now open the matching Convert/Compress form.
+- Case-insensitive collisions against existing directory entries as well as
+  sources and reserved queue outputs, even when planning on Linux.
+- Strict malformed tag/chapter JSON handling, and a scrollable Remux page so all
+  controls remain reachable at the default window size.
+
+Final commands and results:
+
+- `.venv/bin/pytest -q`: **320 passed in 19.23s**, no skips. Covers all prior
+  milestones plus profile/build validation, schema failures, portable batch
+  collisions, restricted arguments, privacy exports, queue restart/revalidation,
+  source changes, explicit pending startup, UI buttons and busy guards.
+- Real FFmpeg tests preserve/strip chapters and metadata, reorder tracks, convert
+  SRT to ASS, preserve chapters in Matroska/MP4, and execute a reloaded queue with
+  restricted options through staged verification and no-overwrite publication.
+- `.venv/bin/ruff check src tests`: passed after import-order cleanup.
+- `.venv/bin/python -m pip check`: no broken requirements.
+- `git diff --check`: passed.
+- Real application startup/shutdown passes via the existing isolated entry-point
+  tests. Offscreen screenshots of Remux, Convert, Queue and Settings were reviewed
+  at 900×650; forms scroll and new settings/queue controls fit without clipping.
+- Architecture review: Qt remains outside domain; services handle workflow logic,
+  infrastructure constructs argv/handles subprocesses and document I/O, and UI
+  uses workers for probing, validation and exports. No additional UI framework.
+
+M8.1–M8.6 acceptance is satisfied in this Linux environment. Windows portability
+is covered by naming/schema logic and the existing tests, but native Windows,
+hosted CI, and successful physical GPU execution remain unverified. Saved queues
+use local absolute paths; they are definitions, not cross-OS path translators or
+mid-encode checkpoints. Metadata support remains container-dependent. Local logs
+and opt-in detailed exports can contain private data; default exports omit it.
+
+Next: M9.1 — binary modes, active paths/versions and distribution readiness.
+M0.4 hosted CI and M5.6 parallel GPU contention remain open.

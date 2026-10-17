@@ -5,7 +5,12 @@ from pathlib import Path
 
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import (
-    EncodingProfile, MediaOperation, OperationPlan, OutputTarget, PreservationPolicy, StreamSelection,
+    EncodingProfile,
+    MediaOperation,
+    OperationPlan,
+    OutputTarget,
+    PreservationPolicy,
+    StreamSelection,
 )
 from media_wrapper.domain.remux import Container
 

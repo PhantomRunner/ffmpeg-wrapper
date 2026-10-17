@@ -46,13 +46,45 @@ python -m pytest -q
 3. In **Remux**, check the video/audio/subtitle tracks to copy, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
 4. Click **Run remux**, or **Add to queue** and start it on the **Queue** page. Execution probes and validates again. Progress includes estimated speed/ETA; cancellation waits for process cleanup. Successful output is verified before publication.
 
-In Convert or Compress, choose per-track copy/omit/encoding, a new destination, and optional resolution/FPS. Presets remain editable. Preview validates the selected build; Run executes through Queue with cancellation and verified output. Quality modes trade size against quality; target-size mode estimates a size and never guarantees it. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux; batch conversion is not implemented.
+In Convert or Compress, choose per-track copy/omit/encoding, a new destination, and optional resolution/FPS. Presets remain editable. Preview validates the selected build; Run executes through Queue with cancellation and verified output. Quality modes trade size against quality; target-size mode estimates a size and never guarantees it. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux. Convert/Compress can plan batches from the selected Files rows.
 
 Remux copies the selected streams without re-encoding. This initial slice uses a conservative codec/container allowlist; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. Output is written to an adjacent hidden temporary file, verified, then published without replacing an existing destination. Publication requires hard-link support on that filesystem; failure retains the temporary file. Failed or cancelled partial files are retained and reported; inspect or remove them yourself. Cancel or wait for active work to finish before closing.
 
-The sequential Queue shows status, output paths, progress, arguments, verified results and diagnostic tails. Failed/cancelled jobs do not stop later jobs. Retry creates a fresh attempt and temporary path, preserving history; resolve destination collisions before retrying. Queue history lasts for the current session only. After an application/OS crash, partial files may remain beside the destination. Parallel execution awaits GPU contention testing.
+The sequential Queue shows status, output paths, progress, arguments, verified results and diagnostic tails. Failed/cancelled jobs do not stop later jobs. Retry creates a fresh attempt and temporary path, preserving history; resolve destination collisions before retrying. Queue history lasts for the current session; unfinished definitions can be saved and reloaded explicitly. After an application/OS crash, partial files may remain beside the destination. Parallel execution awaits GPU contention testing.
 
 Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip locally when the binaries are unavailable. The CI workflow requires FFmpeg before running the Linux/Windows test matrix. Hosted CI execution is still pending because no Git remote is configured.
+
+## Advanced workflows
+
+- **Profiles:** Save/export editable Convert/Compress choices as versioned JSON.
+  Import checks track indices and the selected build, then opens the matching
+  form for review. Profiles exclude source/destination paths. Numeric values must
+  fit the form's supported ranges and units; GPU preferences require a current
+  successful runtime scan. Unsupported versions/settings are rejected.
+- **Batch:** Select Files rows, inspect a representative source and configure
+  Convert/Compress. Set an existing output folder and a filename template using
+  `{stem}`, `{index}` and `{ext}`. Add the batch, review Queue, then start it.
+  Every source is probed; incompatible tracks or colliding outputs reject the
+  entire batch. Track indices must have the intended meaning in every source.
+- **Streams:** Enter all selected real indices to control output order. Text
+  subtitles can be copied or converted to supported container formats. Bitmap
+  subtitles require compatible copying or explicit omission. Preserve/strip
+  controls apply to global/track metadata and chapters; metadata support depends
+  on the container, and muxers may generate their own tags. MP4 chapter output
+  may contain a generated data track; omit that data track when processing the
+  output again, while preserving chapters through the chapter control.
+- **Custom options:** Only `-threads 1–64` and
+  `-max_muxing_queue_size 1–65536` are accepted, once each. Preview validates and
+  displays them. Input/output/mapping/filter/overwrite options are rejected.
+- **Queue definitions:** Save unfinished jobs to a new JSON file before closing.
+  This file contains local paths. Load re-probes unchanged sources, validates
+  against the current binaries and rejects existing/conflicting outputs. It
+  creates fresh pending attempts; press Start explicitly. Changed sources need
+  fresh inspection/planning. There are no mid-encode checkpoints or automatic
+  queue backups, and absolute paths must be valid on the current OS.
+- **Diagnostics:** Settings controls the local logging level and exports a
+  privacy-safe task summary. Private paths, arguments and raw logs are included
+  only when the labeled checkbox is enabled. All exports refuse existing files.
 
 ## CPU and GPU selection
 In Settings, **Scan build / refresh capabilities** reads the selected FFmpeg build.
@@ -90,7 +122,7 @@ Locations come from Qt's native per-user directory APIs with application name
   `AppLocalDataLocation/logs`, normally under `%LOCALAPPDATA%/MediaWrapper`.
 - The log filename is `media-wrapper.log`. `settings.json` under the config
   directory stores version-1 preferences on normal close: binary mode/folder,
-  recent destination, container, advanced details, current page and window size.
+  recent destination, container, advanced details, current page, window size and log level.
   Selected media files and running operations are not persisted.
 
 Preferences are saved atomically. Invalid, unknown-version, or externally changed

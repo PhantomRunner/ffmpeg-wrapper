@@ -70,7 +70,8 @@ def test_deterministic_copy_command(plan, monkeypatch):
     from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
     monkeypatch.setattr(Path, 'resolve', lambda *a, **k: pytest.fail('Builder accessed filesystem'))
     expected = ['ffmpeg', '-hide_banner', '-nostdin', '-n', '-i', str(plan.media.path),
-                '-map', '0:2', '-c', 'copy', '-f', 'mp4', str(plan.output.path)]
+                '-map', '0:2', '-c', 'copy', '-map_metadata', '0', '-map_chapters', '0',
+                '-map_metadata:s:0', '0:s:2', '-f', 'mp4', str(plan.output.path)]
     assert CommandBuilder().build(Path('ffmpeg'), plan) == expected
     assert CommandBuilder().build(Path('ffmpeg'), plan) == expected
 
@@ -84,7 +85,8 @@ def test_convert_command_requires_availability(plan):
     with pytest.raises(PlanValidationError, match='unavailable'):
         CommandBuilder().build(Path('ffmpeg'), converted)
     command = CommandBuilder().build(Path('ffmpeg'), converted, frozenset({'aac'}))
-    assert command[-7:] == ['-c:0', 'aac', '-b:0', '128000', '-f', 'mp4', str(plan.output.path)]
+    assert command[8:12] == ['-c:0', 'aac', '-b:0', '128000']
+    assert command[-3:] == ['-f', 'mp4', str(plan.output.path)]
 
 
 def test_staging_keeps_final_separate_and_refuses_collisions(plan):

@@ -20,6 +20,7 @@ class MediaStream:
     sample_rate: int | None = None
     channels: int | None = None
     channel_layout: str | None = None
+    codec_tag: str | None = None
 
     @property
     def frame_rate(self) -> Fraction | None:

@@ -42,7 +42,7 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   scaling/FPS, CRF/bitrate controls and editable presets. Target-size mode estimates
   bitrate for two-pass H.264. Both passes share cancellation and output safety.
 - Qt-independent task states and application sequential queue with cancellation,
-  fresh-attempt retry and per-task logs/results. Queue state is session-only.
+  fresh-attempt retry and per-task logs/results. Task history is session-only; explicit versioned queue definitions recreate validated pending attempts.
 - Desktop navigation with independent Files/Inspect, Remux and Settings pages;
   Queue, Convert and Compress pages.
 - DesktopState and DesktopViewModel own selection, validation and asynchronous
@@ -51,6 +51,24 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   asynchronous generated-command preview. Execution always validates again.
 - Versioned preferences: domain schema, application preservation policy and an
   infrastructure repository that writes atomically in the native config folder.
+
+## Advanced workflows (M8)
+
+- Domain owns versioned profile/queue schemas, preservation policies and a strict
+  two-option custom-argument grammar. No Qt or filesystem calls enter domain.
+- Application services validate profiles against the selected build, plan entire
+  batches, snapshot allowlisted diagnostics, and revalidate imported queue files.
+  Definitions contain intent and source size/mtime, never executables or process
+  state. Queue import preserves explicit hardware choices; execution repeats GPU
+  runtime checks. Imported jobs do not auto-start.
+- Infrastructure reads bounded strict JSON and creates exports exclusively,
+  preserving existing files. UI invokes document/batch services on Qt workers.
+- FFprobe parses global tags, chapters and stream codec tags. CommandBuilder
+  emits explicit metadata/chapter maps and validated custom options. Publication
+  verifies chapter count/removal and media streams; MP4's specific generated
+  QuickTime chapter track is recognized without ignoring other extra streams.
+- Settings stores a log level; diagnostics exports omit paths, raw logs/errors,
+  arguments and metadata unless the user explicitly enables private details.
 
 ## Error and diagnostic policy (M0.3)
 
@@ -75,4 +93,4 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   dynamic FFprobe payloads are parsed into Qt-independent typed entities.
 
 ## Not implemented yet
-Parallel queue execution, versioned encoding profile import/export and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Parallel queue execution and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.

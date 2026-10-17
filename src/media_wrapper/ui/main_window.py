@@ -21,10 +21,10 @@ from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.application.settings_service import SettingsService
 from media_wrapper.domain.capabilities import GPU_ENCODERS
+from media_wrapper.domain.operations import PreservationPolicy
 from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
-from media_wrapper.domain.operations import PreservationPolicy
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
@@ -310,7 +310,10 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def apply_imported_profile(self, request: object) -> None:
+        from media_wrapper.domain.operations import MediaOperation
+        self._preview_view = self.compress_view if request.operation == MediaOperation.COMPRESS else self.convert_view
         self._preview_view.apply_request(request)
+        self.navigation.setCurrentRow(3 if request.operation == MediaOperation.COMPRESS else 2)
         self.model.state.output = 'Profile validated against the selected build and applied. Review choices before running.'
         self.render()
 

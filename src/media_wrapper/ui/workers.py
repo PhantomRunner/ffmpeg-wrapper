@@ -1,8 +1,8 @@
 """Background adapters for application services."""
-from pathlib import Path
 from collections.abc import Callable
-from typing import Any
+from pathlib import Path
 from threading import Event
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal, Slot
 

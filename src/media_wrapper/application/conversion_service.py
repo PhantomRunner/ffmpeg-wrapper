@@ -6,6 +6,8 @@ from media_wrapper.application.hardware_selection import select_hardware
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_service import prepare_operation
 from media_wrapper.domain.capabilities import CapabilityReport
+from media_wrapper.domain.conversion import ConversionRequest
+from media_wrapper.domain.custom_options import parse_custom_options
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import (
     EncodingProfile,
@@ -13,13 +15,9 @@ from media_wrapper.domain.operations import (
     OutputTarget,
     StreamSelection,
 )
-from media_wrapper.domain.custom_options import parse_custom_options
-from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
-
-
 
 
 def conversion_plan(media: MediaFile, request: ConversionRequest, report: CapabilityReport | None = None) -> OperationPlan:

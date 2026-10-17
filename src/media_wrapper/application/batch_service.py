@@ -38,7 +38,7 @@ def plan_batch(paths: tuple[Path, ...], request: ConversionRequest, directory: P
     directory = directory.expanduser().absolute()
     if not directory.is_dir():
         raise ValueError('Choose an existing output folder')
-    keys = {path_key(p) for p in (*paths, *reserved)}
+    keys = {path_key(p) for p in (*paths, *reserved, *directory.iterdir())}
     available = list_encoders(binaries.ffmpeg, Event())
     plans = []
     suffix = '.mkv' if request.container.value == 'matroska' else '.mp4'
@@ -46,7 +46,7 @@ def plan_batch(paths: tuple[Path, ...], request: ConversionRequest, directory: P
         destination = directory / output_name(template, path, index, suffix)
         key = path_key(destination)
         if key in keys:
-            raise ValueError(f'Batch output collision: {destination}')
+            raise ValueError(f'Batch output collision (source, reserved or existing name): {destination}')
         keys.add(key)
         media = MediaService(binaries).inspect(path)
         plan = conversion_plan(media, replace(request, destination=destination), report)

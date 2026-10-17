@@ -418,3 +418,50 @@ def test_capability_scan_can_cancel_without_ui_freeze(shell, monkeypatch):
     assert shell.model.capabilities is None
     assert 'cancelled' in shell.output.toPlainText()
     assert shell.settings_view.scan_button.isEnabled()
+
+
+def test_profile_buttons_batch_and_diagnostics(shell, sample, tmp_path, monkeypatch):
+    import json
+
+    from test_operation_task import wait
+
+    from media_wrapper.domain.tasks import TaskStatus
+    binaries, plan = sample
+    shell.model.state.binaries = binaries
+    shell.model.add_files([plan.media.path])
+    shell.model._inspected(plan.media)
+    app = QApplication.instance()
+    profile = tmp_path / 'profile.json'
+    monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getSaveFileName', lambda *a: (str(profile), ''))
+    view = shell.compress_view
+    view.custom_arguments.setText('-threads 2')
+    view.export_profile_button.click()
+    wait(app, lambda: not shell.model.state.busy)
+    assert profile.is_file(), shell.output.toPlainText()
+    view.custom_arguments.clear()
+    monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getOpenFileName', lambda *a: (str(profile), ''))
+    shell.convert_view.import_profile_button.click()
+    wait(app, lambda: not shell.model.state.busy)
+    assert shell.pages.currentIndex() == 3
+    assert view.custom_arguments.text() == '-threads 2'
+    shell.files_view.file_list.selectAll()
+    view.batch_template.setText('{stem}_{index}_batch{ext}')
+    view.batch_button.click()
+    wait(app, lambda: not shell.model.state.busy)
+    assert len(shell.model.queue.records) == 1, shell.output.toPlainText()
+    assert shell.model.queue.records[0].status == TaskStatus.PENDING
+    queue_path = tmp_path / 'queue.json'
+    monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getSaveFileName', lambda *a: (str(queue_path), ''))
+    shell.queue_view.save_definitions.click()
+    wait(app, lambda: not shell.model.state.busy)
+    assert queue_path.is_file(), shell.output.toPlainText()
+    diagnostics = tmp_path / 'diagnostics.json'
+    monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getSaveFileName', lambda *a: (str(diagnostics), ''))
+    assert not shell.settings_view.private_diagnostics.isChecked()
+    shell.settings_view.export_diagnostics.click()
+    wait(app, lambda: not shell.model.state.busy)
+    assert not json.loads(diagnostics.read_text())['includes_private_details']
+    assert str(plan.media.path) not in diagnostics.read_text()
+    shell.settings_view.log_level.setCurrentText('ERROR')
+    assert shell.preferences().log_level == 'ERROR'
+    shell.settings_view.log_level.setCurrentText('INFO')

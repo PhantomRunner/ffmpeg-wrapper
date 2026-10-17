@@ -16,6 +16,8 @@ from media_wrapper.infrastructure.json_documents import read_document, write_doc
 
 def validate_profile(request: ConversionRequest, media: MediaFile, binaries: Binaries,
                      report: CapabilityReport | None) -> None:
+    if request.gpu_encoder != 'auto' and (report is None or request.gpu_encoder not in report.working()):
+        raise ValueError('Profile GPU preference requires a successful current runtime scan')
     plan = apply_target_size(conversion_plan(media, request, report))
     validate_plan(plan, list_encoders(binaries.ffmpeg, Event()))
 
