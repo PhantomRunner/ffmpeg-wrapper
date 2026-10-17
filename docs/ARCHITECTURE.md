@@ -93,4 +93,17 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   dynamic FFprobe payloads are parsed into Qt-independent typed entities.
 
 ## Not implemented yet
-Parallel queue execution and packaging. CI workflow is configured; hosted execution is pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Parallel queue execution and release-approved distribution. Native PyInstaller portable build recipes and installation verification are implemented; hosted and Windows execution are pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+
+## Distribution (M9 candidate)
+
+- Native one-folder PyInstaller builds retain the Qt Widgets architecture and
+  include resources/docs, dependency metadata, license inventory and file hashes.
+  FFmpeg remains external or explicitly selected from a user-supplied sidecar.
+- Infrastructure restores external subprocess library-search environments in
+  frozen builds; Windows DLL-search initialization occurs after Qt loads.
+- The explicit installation-verification entry point is UI automation composed
+  over the existing asynchronous model/services, with isolated preferences and
+  generated fixtures; production workflows are not replaced.
+- CI has separate source-test and native distribution jobs. Public distribution
+  stays gated on native results, application license choice and dependency review.

@@ -5,13 +5,13 @@ that a binary was tested on another operating system.
 
 | Check | Linux local | Windows native | Hosted CI |
 | --- | --- | --- | --- |
-| Unit/integration/lint | Pending M9 end | Pending | Pending |
-| Portable build, checksums, icon and Qt plugins | Pending | Pending | Pending |
-| Fresh path with spaces/Unicode, inspect/remux/convert/compress | Pending | Pending | Pending |
-| Remove installation; preserve media/preferences | Pending | Pending | Pending |
-| Read-only source, separate writable destination | Pending | ACL test pending | Pending |
+| Unit/integration/lint | 329 passed; lint passed | Pending | Pending |
+| Portable build, checksums, icon and Qt plugins | Passed on local Arch/glibc 2.44 | Pending | Pending |
+| Fresh path with spaces/Unicode, inspect/remux/convert/compress | Passed (temporary install) | Pending | Pending |
+| Remove installation; preserve media/preferences | Passed (temporary install) | Pending | Pending |
+| Read-only source, separate writable destination | Passed | ACL test pending | Pending |
 | Denied destination, existing output, partial retained | Test suite | Pending | Pending |
-| Long paths under target OS policy | Pending | Pending | Pending |
+| Long paths under target OS policy | Passed (over 260 chars) | Pending | Pending |
 | Real desktop launch and cancellation | Offscreen only | Pending | Offscreen only |
 | NVENC / QSV / AMF / VAAPI success and failure | No usable GPU | Pending | Hardware unavailable |
 
@@ -38,6 +38,7 @@ No public release or release tag is created while these gates remain unresolved.
 CI definitions: `.github/workflows/tests.yml` runs unit/integration/lint on Linux
 and Windows with Python 3.11/3.14. `distribution.yml` builds native candidates on
 Ubuntu 24.04 and Windows 2022/Python 3.14, runs the packaged installation verifier,
-and retains candidate archives for seven days. Linux uses tar.gz to preserve
+and retains build/checksum inventories for seven days. Binary archives stay on the
+runner pending dependency/license review; they are not uploaded automatically. Linux uses tar.gz to preserve
 symlinks; Windows uses ZIP. These workflows do not create tags or releases.
 Record their actual run URLs and results here before checking hosted verification.

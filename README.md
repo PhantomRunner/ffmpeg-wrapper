@@ -52,7 +52,7 @@ Remux copies the selected streams without re-encoding. This initial slice uses a
 
 The sequential Queue shows status, output paths, progress, arguments, verified results and diagnostic tails. Failed/cancelled jobs do not stop later jobs. Retry creates a fresh attempt and temporary path, preserving history; resolve destination collisions before retrying. Queue history lasts for the current session; unfinished definitions can be saved and reloaded explicitly. After an application/OS crash, partial files may remain beside the destination. Parallel execution awaits GPU contention testing.
 
-Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip locally when the binaries are unavailable. The CI workflow requires FFmpeg before running the Linux/Windows test matrix. Hosted CI execution is still pending because no Git remote is configured.
+Tests include offscreen Qt lifecycle checks and tiny real-media integration checks. FFmpeg integration tests skip locally when the binaries are unavailable. The CI workflow requires FFmpeg before running the Linux/Windows test matrix. A Git remote is configured; hosted execution of the current workflows remains pending.
 
 ## Advanced workflows
 
@@ -134,3 +134,12 @@ Windows runtime verification remains pending.
 
 ## Important
 Bundled mode is prepared but no FFmpeg binaries are shipped in this repository. Distribution must account for FFmpeg licensing and build configuration.
+
+## Distribution candidates
+
+Native portable build and verification instructions are in
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md). The Linux candidate passed local
+installation/removal and packaged Inspect/Remux/Convert/Compress checks. Windows
+verification and public release approval remain pending. No FFmpeg binaries are
+bundled. See [release gates](docs/RELEASE_CHECKLIST.md),
+[third-party notices](THIRD_PARTY_NOTICES.md), and [candidate notes](CHANGELOG.md).

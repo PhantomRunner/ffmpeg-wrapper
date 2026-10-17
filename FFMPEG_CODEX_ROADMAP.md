@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Codex Implementation Roadmap
 
-Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5, M4.1–M4.5 and M5.1–M5.5, M6.1–M6.5 and M7.1–M7.6 complete with recorded local coverage; M5.6 deferred pending GPU contention tests**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
+Status: **M0.1–M0.3 verified on Linux; M0.4 implemented, hosted CI verification pending; M1.1–M1.5, M2.1–M2.4 and M3.1–M3.5, M4.1–M4.5 and M5.1–M5.5, M6.1–M6.5 and M7.1–M7.6, M8.1–M8.6 complete with recorded local coverage; M9 implemented locally with release gates open; M5.6 deferred pending GPU contention tests**. Target: **Python 3.11+, PySide6 / Qt Widgets**, Linux and Windows. FFmpeg and FFprobe run as external processes. Audience: advanced users. Support **bundled and external binary modes**, and **CPU/GPU encoding when available**.
 
 > **Instructions for Codex:** First inspect the repository, `AGENTS.md`, and `docs/ARCHITECTURE.md`. Determine actual implemented behavior by reading code/tests; do not assume a checklist item is complete. Work on **one small task or vertical slice at a time**. Keep the app runnable. Mark `[x]` only after acceptance criteria have been met, tests have run, and limitations have been recorded. If a platform/hardware test is unavailable, report it explicitly instead of claiming success. After finishing a task, commit its progress
 
@@ -27,8 +27,8 @@ Scaffold already contains: `main.py`, a PySide6 window, basic FFmpeg/FFprobe dis
 
 **M0.4 implementation:** 75 local tests pass, including resolver/probe/path errors.
 `.github/workflows/tests.yml` adds Linux/Windows and Python 3.11/3.14 checks.
-No Git remote or Windows runner is available: the checkbox remains open until
-CI has actually passed on both platforms. Proceeding to M1 is user-authorized.
+A Git remote is now configured; current hosted Linux/Windows results remain
+pending. The checkbox stays open until CI has actually passed on both platforms. Proceeding to M1 is user-authorized.
 
 **Audit evidence:** see [docs/BASELINE_AUDIT.md](docs/BASELINE_AUDIT.md) for
 verified features, commands, gaps, and platform limitations. M0 as a whole remains
@@ -104,7 +104,7 @@ Windows runtime verification remains pending.
 
 **M5 evidence:** [execution verification](docs/M4_M5_EXECUTION.md); sequential
 queue, cancellation, progress, retries and UI are verified locally. M5.6 stays
-open: GPU operations are not implemented and contention tests are unavailable.
+open: physical GPU contention tests are unavailable.
 Queue history is session-only; partial outputs are retained.
 
 **Acceptance:** a long operation does not freeze the UI; it can be cancelled safely; no failed or partial output is presented as complete; other queued jobs continue according to policy.
@@ -156,14 +156,23 @@ Native Windows and successful physical GPU verification remain pending.
 
 ## Milestone 9 — Cross-platform distribution, verification and release (P1 before public release)
 
-- [ ] **M9.1** Support both binary modes: bundled sidecar binaries and user-selectable external paths/PATH. Show active FFmpeg/FFprobe paths and versions.
+- [x] **M9.1** Support both binary modes: bundled sidecar binaries and user-selectable external paths/PATH. Show active FFmpeg/FFprobe paths and versions.
 - [ ] **M9.2** Produce reproducible Windows and Linux distribution builds, including Qt runtime dependencies, icons, and documentation.
 - [ ] **M9.3** Test clean installs and removals on Windows and Linux; verify spaces/Unicode paths, permissions, long paths where relevant, and media files in read-only directories.
-- [ ] **M9.4** Document bundled binary origins, licenses, build configuration, redistribution obligations, and third-party notices. Do not bundle binaries until compliance is reviewed.
+- [x] **M9.4** Document bundled binary origins, licenses, build configuration, redistribution obligations, and third-party notices. Do not bundle binaries until compliance is reviewed.
 - [ ] **M9.5** CI: unit tests + lint on Linux/Windows; integration tests using small fixtures; manual GPU test matrix by available hardware.
 - [ ] **M9.6** Release notes, known limitations, troubleshooting, and tagged version.
 
 **Acceptance:** user can install, inspect and run remux/transcode/compress on both supported OSes; installer/bundle and limitations documented.
+
+**M9 status:** M9.1 and M9.4 documentation/no-bundling policy verified. M9.2–M9.3
+native build/install tooling is implemented and passes locally on Linux; Windows
+and clean-OS verification remain pending. M9.5 workflows are committed, hosted
+runs pending. M9.6 notes/troubleshooting are ready; no release tag is created until
+native checks, application license selection and dependency licensing review pass.
+329 tests and lint pass; Linux packaged Inspect/Remux/Convert/Compress, Unicode,
+long paths, read-only source and portable removal pass. See [M9 evidence](docs/M9_DISTRIBUTION.md).
+**M9 remains open.** The roadmap has no M10 definition; its scope needs user input.
 
 ## Dependency/order guidance
 
