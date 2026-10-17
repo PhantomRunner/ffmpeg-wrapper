@@ -334,6 +334,19 @@ class DesktopViewModel(QObject):
         self.state.output = f'Added {len(plans)} validated jobs. Review Queue, then start.'
         self.changed.emit()
 
+    def exchange_queue(self, path: Path, importing: bool) -> None:
+        if self.state.busy or self.state.binaries is None:
+            return
+        from media_wrapper.application.queue_document_service import load_queue, save_queue
+        from media_wrapper.domain.tasks import TaskStatus
+        binaries = self.state.binaries
+        if importing:
+            reserved = tuple(r.plan.output.path for r in self.queue.records if r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
+            self._start(ServiceWorker(lambda: load_queue(path, binaries, reserved), 'Queue import'), self._batch_ready)
+        else:
+            plans = tuple(r.plan for r in self.queue.records if r.status != TaskStatus.COMPLETED)
+            self._start(ServiceWorker(lambda: save_queue(path, plans), 'Queue export'), self._document_saved)
+
     def export_diagnostics(self, path: Path, include_private: bool) -> None:
         if self.state.busy:
             return

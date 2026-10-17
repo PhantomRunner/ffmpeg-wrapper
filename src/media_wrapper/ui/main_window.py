@@ -102,6 +102,8 @@ class MainWindow(QMainWindow):
         self.remux_button.clicked.connect(self.run_form)
         self.remux_view.cancel_button.clicked.connect(self.model.cancel_remux)
         self.remux_view.enqueue_button.clicked.connect(self.model.enqueue_remux)
+        self.queue_view.save_definitions.clicked.connect(self.save_queue_definitions)
+        self.queue_view.load_definitions.clicked.connect(self.load_queue_definitions)
         self.queue_view.start_button.clicked.connect(self.model.start_queue)
         self.queue_view.cancel_button.clicked.connect(self.cancel_queue_selected)
         self.queue_view.cancel_all_button.clicked.connect(self.model.queue.cancel_all)
@@ -349,6 +351,8 @@ class MainWindow(QMainWindow):
                     table.setItem(index, column, item)
             if queue.records:
                 table.selectRow(max(0, min(row, len(queue.records) - 1)))
+        self.queue_view.save_definitions.setEnabled(not self.model.state.busy and any(r.status != TaskStatus.COMPLETED for r in queue.records))
+        self.queue_view.load_definitions.setEnabled(not self.model.state.busy and self.binaries is not None)
         self.queue_view.start_button.setEnabled(not self.model.state.busy and any(r.status == TaskStatus.PENDING for r in queue.records))
         self.queue_view.cancel_all_button.setEnabled(any(r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING) for r in queue.records))
         self.render_queue_details()
@@ -452,6 +456,18 @@ class MainWindow(QMainWindow):
 
     def start_remux(self, command: list[str]) -> None:
         self.model.start_remux(command)
+
+    def save_queue_definitions(self) -> None:
+        self.exchange_queue_definitions(False)
+
+    def load_queue_definitions(self) -> None:
+        self.exchange_queue_definitions(True)
+
+    def exchange_queue_definitions(self, importing: bool) -> None:
+        name, _ = (QFileDialog.getOpenFileName(self, 'Load queue definitions', '', 'JSON (*.json)') if importing else
+                   QFileDialog.getSaveFileName(self, 'Save queue definitions (contains local paths)', '', 'JSON (*.json)'))
+        if name:
+            self.model.exchange_queue(Path(name), importing)
 
     def export_diagnostics(self) -> None:
         name, _ = QFileDialog.getSaveFileName(self, 'Export diagnostics to a new file', '', 'JSON (*.json)')

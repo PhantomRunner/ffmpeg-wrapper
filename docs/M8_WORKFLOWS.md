@@ -40,3 +40,14 @@ all other options, duplicates and nonnumeric values. The command builder
 validates again and emits separate argument-array entries before the fixed
 container/output. No shell, input, mapping, filter, protocol or overwrite flags
 can be supplied. Tests deferred to milestone end.
+
+## M8.6 implementation
+Queue explicitly saves unfinished definitions to a new version-1 JSON file.
+Files contain local paths, source size/mtime and typed operation settings, never
+executable paths, process IDs, temporary outputs or previous task statuses.
+Load uses the currently selected FFmpeg, re-probes sources, validates all plans
+and output reservations before adding fresh pending attempts. Changed/missing
+sources and existing/conflicting outputs reject the import. Start is explicit;
+GPU runtime checks still run before execution. Files are local to the operating
+system whose absolute paths they contain; no checkpoint or automatic persistence.
+Tests deferred to milestone end.
