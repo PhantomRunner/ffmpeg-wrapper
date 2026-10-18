@@ -331,7 +331,7 @@ def test_queue_view_real_failure_and_completion(shell, sample):
     other = plan.output.path.with_name('queued second.mkv')
     shell.model.set_output(str(other), plan.output.container)
     shell.remux_view.enqueue_button.click()
-    assert shell.queue_view.table.rowCount() == 2
+    assert shell.queue_view.task_model.rowCount() == 2
     plan.output.path.write_bytes(b'collision')
     shell.navigation.setCurrentRow(4)
     shell.queue_view.start_button.click()

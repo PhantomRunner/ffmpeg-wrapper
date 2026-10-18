@@ -8,16 +8,16 @@ from PySide6.QtCore import (
     QSignalBlocker,
     Qt,
     QThread,
+    QUrl,
     Slot,
 )
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import (
     QFileDialog,
     QListWidget,
     QMainWindow,
     QMessageBox,
     QStackedWidget,
-    QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -120,12 +120,13 @@ class MainWindow(QMainWindow):
         self.remux_view.enqueue_button.clicked.connect(self.model.enqueue_remux)
         self.queue_view.save_definitions.clicked.connect(self.save_queue_definitions)
         self.queue_view.load_definitions.clicked.connect(self.load_queue_definitions)
+        self.queue_view.open_output.clicked.connect(self.open_queue_output)
         self.queue_view.start_button.clicked.connect(self.model.start_queue)
         self.queue_view.cancel_button.clicked.connect(self.cancel_queue_selected)
         self.queue_view.cancel_all_button.clicked.connect(self.model.queue.cancel_all)
         self.queue_view.retry_button.clicked.connect(self.retry_queue_selected)
         self.queue_view.cpu_retry_button.clicked.connect(self.retry_queue_cpu)
-        self.queue_view.table.itemSelectionChanged.connect(self.render_queue_details)
+        self.queue_view.table.selectionModel().selectionChanged.connect(self.render_queue_details)
         self.remux_view.metadata_policy.currentIndexChanged.connect(self.preservation_changed)
         self.remux_view.chapter_policy.currentIndexChanged.connect(self.preservation_changed)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
@@ -224,6 +225,7 @@ class MainWindow(QMainWindow):
                     capability_text += f'\n\n{name} help:\n{help_text}'
             if settings.capabilities.toPlainText() != capability_text:
                 settings.capabilities.setPlainText(capability_text)
+        self.workspace.media_timeline.set_media(state.media)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
@@ -378,17 +380,11 @@ class MainWindow(QMainWindow):
         table = self.queue_view.table
         self.queue_view.empty_state.setVisible(not queue.records)
         table.setVisible(bool(queue.records))
-        self.queue_view.details.setVisible(bool(queue.records))
-        row = table.currentRow()
-        with QSignalBlocker(table):
-            table.setRowCount(len(queue.records))
-            for index, record in enumerate(queue.records):
-                percent = f'{record.progress.percent:.1f}%' if record.progress.percent is not None else 'Unknown'
-                for column, value in enumerate((str(record.plan.media.path), str(record.plan.output.path), record.status.value, percent)):
-                    item = QTableWidgetItem(value)
-                    item.setToolTip(value)
-                    table.setItem(index, column, item)
-            if queue.records:
+        self.queue_view.details.setVisible(bool(queue.records) and self.queue_view.details_toggle.isChecked())
+        row = table.currentIndex().row()
+        with QSignalBlocker(table.selectionModel()):
+            self.queue_view.task_model.update(queue.records)
+            if queue.records and not table.currentIndex().isValid():
                 table.selectRow(max(0, min(row, len(queue.records) - 1)))
         self.queue_view.save_definitions.setEnabled(not self.model.state.busy and any(r.status != TaskStatus.COMPLETED for r in queue.records))
         self.queue_view.load_definitions.setEnabled(not self.model.state.busy and self.binaries is not None)
@@ -397,12 +393,13 @@ class MainWindow(QMainWindow):
         self.render_queue_details()
 
     def render_queue_details(self) -> None:
-        row = self.queue_view.table.currentRow()
+        row = self.queue_view.table.currentIndex().row()
         records = self.model.queue.records
         record = records[row] if 0 <= row < len(records) else None
         self.queue_view.cancel_button.setEnabled(record is not None and record.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
         self.queue_view.retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED))
         self.queue_view.cpu_retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) and any(s.profile.encoder in GPU_ENCODERS for s in record.plan.streams))
+        self.queue_view.open_output.setEnabled(record is not None and record.status == TaskStatus.COMPLETED and record.result is not None)
         if record is None:
             self.queue_view.details.clear()
             return
@@ -415,20 +412,26 @@ class MainWindow(QMainWindow):
             text += 'Verified output:\n' + format_inspection(record.result)
         self.queue_view.details.setPlainText(text + '\nDiagnostics (last 16000 characters):\n' + record.log)
 
+    def open_queue_output(self) -> None:
+        row = self.queue_view.table.currentIndex().row()
+        records = self.model.queue.records
+        if 0 <= row < len(records) and records[row].status == TaskStatus.COMPLETED and records[row].result is not None:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(records[row].plan.output.path.parent)))
+
     def cancel_queue_selected(self) -> None:
-        row = self.queue_view.table.currentRow()
+        row = self.queue_view.table.currentIndex().row()
         if 0 <= row < len(self.model.queue.records):
             self.model.queue.cancel(self.model.queue.records[row].id)
 
     def retry_queue_selected(self) -> None:
-        row = self.queue_view.table.currentRow()
+        row = self.queue_view.table.currentIndex().row()
         if 0 <= row < len(self.model.queue.records):
             record = self.model.queue.records[row]
             if record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED):
                 self.model.queue.retry(record.id)
 
     def retry_queue_cpu(self) -> None:
-        row = self.queue_view.table.currentRow()
+        row = self.queue_view.table.currentIndex().row()
         if 0 <= row < len(self.model.queue.records):
             record = self.model.queue.records[row]
             if record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) and any(s.profile.encoder in GPU_ENCODERS for s in record.plan.streams):

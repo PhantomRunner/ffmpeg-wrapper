@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from media_wrapper.ui.panels.media_timeline import MediaTimeline
 from media_wrapper.ui.widgets.controls import ActionButton, EmptyState, PanelHeader
 
 
@@ -72,12 +73,19 @@ class Workspace(QWidget):
         self.vertical.addWidget(self.horizontal)
         self.timelines = QTabWidget()
         self.timelines.addTab(scroll_panel(window.queue_view), 'Processing Timeline')
-        self.media_placeholder = EmptyState('Media Timeline', 'Read-only source stream lanes will be available in the timeline phase.')
-        self.timelines.addTab(self.media_placeholder, 'Media Timeline')
+        self.media_timeline = MediaTimeline()
+        self.timelines.addTab(self.media_timeline, 'Media Timeline')
+        self.media_timeline.stream_selected.connect(self.show_stream)
         self.vertical.addWidget(self.timelines)
         layout.addWidget(self.vertical)
         self.reset_layout()
         self.restore_layout()
+
+    def show_stream(self, stream) -> None:
+        from media_wrapper.ui.inspection_presenter import stream_values
+        self.window.navigation.setCurrentRow(0)
+        self.window.output.setPlainText('Selected source stream (selection does not change export choices):\n' +
+                                       ' | '.join(stream_values(stream)))
 
     def reset_layout(self) -> None:
         self.horizontal.setSizes([230, 470, 300])

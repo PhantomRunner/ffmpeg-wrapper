@@ -7,7 +7,8 @@ Follow [UI overhaul](UI_OVERHAUL_CODEX.md) and [UI/UX specification](UI_UX_SPEC.
 R1 is complete: [UI migration map](UI_MIGRATION_MAP.md). R2 is complete: [theme and controls](R2_THEME.md).
 R3 implementation is verified locally: [workspace evidence](R3_WORKSPACE.md); native Windows acceptance remains pending.
 R4 is complete: [Inspector and Library evidence](R4_INSPECTOR.md).
-Next phase: R5 dual timelines.
+R5 is complete: [dual timeline evidence](R5_TIMELINES.md).
+Next phase: R6 polish, regression and rollout.
 The notes below retain historical functional/release evidence; they do not extend
 the scope of this UI redesign.
 

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QScrollArea,
+    QTableView,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.ui.inspection_presenter import stream_values
 from media_wrapper.ui.models.media_files import MediaFileModel
+from media_wrapper.ui.models.tasks import ProgressDelegate, TaskModel
 from media_wrapper.ui.widgets.controls import (
     ActionButton,
     EmptyState,
@@ -253,37 +255,58 @@ class QueueView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.addWidget(PanelHeader('Processing Queue', 'Review attempts and verified outputs. Start pending tasks when ready.'))
-        self.empty_state = EmptyState('No tasks queued', 'Configure Remux, Convert or Compress, then choose Add to queue. Saved definitions can also be loaded here.')
-        layout.addWidget(self.empty_state)
-        note = QLabel('Sequential queue for this session. Failures and cancellations leave later jobs running. Partial files are retained; retry creates a new attempt.')
-        note.setWordWrap(True)
-        layout.addWidget(note)
-        self.save_definitions = ActionButton('Save unfinished definitions…')
-        self.load_definitions = ActionButton('Load definitions…')
-        self.save_definitions.setToolTip('Stores source/output paths and settings. Loading revalidates sources and creates new pending attempts; no mid-encode checkpoints.')
-        definitions = QHBoxLayout()
-        definitions.addWidget(self.save_definitions)
-        definitions.addWidget(self.load_definitions)
-        layout.addLayout(definitions)
-        self.table = QTableWidget(0, 4)
-        self.table.setAccessibleName('Queued processing tasks')
-        self.table.setHorizontalHeaderLabels(['Source', 'Output', 'Status', 'Progress'])
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self.table)
+        layout.setContentsMargins(8, 6, 8, 6)
+        self.setToolTip('Sequential processing queue. Retry creates a new attempt; partial outputs and diagnostics are retained.')
         buttons = QHBoxLayout()
         self.start_button = ActionButton('Start queue', primary=True)
         self.cancel_button = ActionButton('Cancel selected')
         self.cancel_all_button = ActionButton('Cancel all')
-        self.retry_button = ActionButton('Retry selected')
+        self.retry_button = ActionButton('Retry')
         self.cpu_retry_button = ActionButton('Retry on CPU')
-        self.cpu_retry_button.setToolTip('Explicitly create a new CPU attempt. Previous diagnostics and partial output are retained.')
-        for button in (self.start_button, self.cancel_button, self.cancel_all_button, self.retry_button, self.cpu_retry_button):
+        self.open_output = ActionButton('Open output folder')
+        self.save_definitions = ActionButton('Save queue…')
+        self.load_definitions = ActionButton('Load queue…')
+        self.save_definitions.setToolTip('Save unfinished intent with local paths; loading revalidates and never starts tasks.')
+        for button in (self.start_button, self.cancel_button, self.cancel_all_button,
+                       self.retry_button, self.cpu_retry_button, self.open_output,
+                       self.save_definitions, self.load_definitions):
             buttons.addWidget(button)
         layout.addLayout(buttons)
+        self.empty_state = EmptyState('No tasks queued', 'Configure an operation in the Inspector, then Add to queue.')
+        layout.addWidget(self.empty_state)
+        self.table = QTableView()
+        self.task_model = TaskModel(self.table)
+        self.table.setModel(self.task_model)
+        self.table.setItemDelegateForColumn(3, ProgressDelegate(self.table))
+        self.table.setAccessibleName('Processing tracks with accessible text percentages')
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.verticalHeader().setDefaultSectionSize(38)
+        self.table.horizontalHeader().setFixedHeight(26)
+        self.table.setWordWrap(False)
+        self.table.setMinimumHeight(70)
+        layout.addWidget(self.table, 1)
+        self.details_toggle = QCheckBox('Task details and diagnostics')
+        layout.addWidget(self.details_toggle)
         self.details = QTextEdit()
         self.details.setReadOnly(True)
+        self.details.setMaximumHeight(130)
+        self.details_toggle.toggled.connect(self.details.setVisible)
+        self.details.hide()
         layout.addWidget(self.details)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.context_menu)
+
+    def context_menu(self, point) -> None:
+        from PySide6.QtWidgets import QMenu
+        index = self.table.indexAt(point)
+        if index.isValid():
+            self.table.selectRow(index.row())
+        menu = QMenu(self.table)
+        for button in (self.cancel_button, self.retry_button, self.cpu_retry_button, self.open_output):
+            action = menu.addAction(button.text())
+            action.setEnabled(button.isEnabled())
+            action.triggered.connect(button.click)
+        menu.exec(self.table.viewport().mapToGlobal(point))

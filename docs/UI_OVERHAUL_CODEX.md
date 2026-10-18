@@ -88,11 +88,13 @@ R3 implementation evidence: [workspace verification](R3_WORKSPACE.md). Native Wi
 R4 evidence: [Inspector and Library verification](R4_INSPECTOR.md), 344 tests passed.
 
 ### R5 — Dual timelines
-- [ ] Implement Processing Timeline with real queue events and actions.
-- [ ] Implement read-only Media Timeline using actual FFprobe stream/duration data.
-- [ ] Add accessible switch between timelines; persist selection.
-- [ ] Connect selection, seek and preview only where supported.
+- [x] Implement Processing Timeline with real queue events and actions.
+- [x] Implement read-only Media Timeline using actual FFprobe stream/duration data.
+- [x] Add accessible switch between timelines; persist selection.
+- [x] Connect selection, seek and preview only where supported.
 **Done when:** task progress is accurate and media tracks match probed streams.
+
+R5 evidence: [dual timeline verification](R5_TIMELINES.md). Seeking remains unavailable with the explicit preview fallback.
 
 ### R6 — Preview, polish, regression and rollout
 - [ ] Integrate existing preview or show an explicit unsupported-media fallback.

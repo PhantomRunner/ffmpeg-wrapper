@@ -83,3 +83,6 @@ QTabBar::tab:selected { background: $panel; color: $text; border-bottom: 2px sol
 QTabBar::tab:hover { background: $hover; color: $text; }
 QSplitter::handle { background: $background; }
 QSplitter::handle:hover { background: $accent; }
+QGraphicsView { background: $background; border: 1px solid $border; }
+QTableView { background: $panel; color: $text; gridline-color: $border; }
+QTableView::item:selected { background: $control; color: $text; }
