@@ -77,3 +77,9 @@ QLabel[role="statusChip"][state="error"] { border-color: $error; }
 QLabel[role="statusChip"][state="loading"] { border-color: $processing; }
 
 QToolTip { background: $control; color: $text; border: 1px solid $border; padding: 6px; }
+QTabWidget::pane { border: 1px solid $border; background: $panel; }
+QTabBar::tab { background: $control; color: $secondary; padding: 8px 12px; border: 1px solid $border; }
+QTabBar::tab:selected { background: $panel; color: $text; border-bottom: 2px solid $accent; }
+QTabBar::tab:hover { background: $hover; color: $text; }
+QSplitter::handle { background: $background; }
+QSplitter::handle:hover { background: $accent; }

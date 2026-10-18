@@ -2,11 +2,17 @@
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QItemSelectionModel, QSignalBlocker, Qt, QThread, Slot
+from PySide6.QtCore import (
+    QItemSelectionModel,
+    QSettings,
+    QSignalBlocker,
+    Qt,
+    QThread,
+    Slot,
+)
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QFileDialog,
-    QHBoxLayout,
     QListWidget,
     QMainWindow,
     QMessageBox,
@@ -36,18 +42,19 @@ from media_wrapper.ui.views import (
     RemuxView,
     SettingsView,
 )
-from media_wrapper.ui.widgets.controls import StatusChip
+from media_wrapper.ui.widgets.controls import EmptyState, StatusChip
+from media_wrapper.ui.workspace import Workspace, scroll_panel
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, diagnostic_status: str = '', settings_service: SettingsService | None = None) -> None:
+    def __init__(self, diagnostic_status: str = '', settings_service: SettingsService | None = None, layout_settings: QSettings | None = None) -> None:
         super().__init__()
         apply_theme(self)
         self.setWindowTitle('Media Wrapper — FFmpeg UI')
         self.settings_service = settings_service
         preferences = settings_service.load() if settings_service else Preferences()
-        self.resize(preferences.width, preferences.height)
-        self.setMinimumSize(640, 480)
+        self.resize(max(1280, preferences.width), max(720, preferences.height))
+        self.setMinimumSize(960, 640)
         if settings_service and settings_service.warning:
             diagnostic_status += ' | ' + settings_service.warning
         self.statusBar().showMessage(diagnostic_status)
@@ -62,7 +69,6 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(root)
         layout.setContentsMargins(12, 12, 12, 8)
         layout.setSpacing(8)
-        pages = QHBoxLayout()
         self.navigation = QListWidget()
         self.navigation.setObjectName('modeNavigation')
         self.navigation.setAccessibleName('Workspace modes')
@@ -80,17 +86,16 @@ class MainWindow(QMainWindow):
         self.queue_view = QueueView()
         self.convert_view = EncodingView()
         self.compress_view = EncodingView('Compress')
-        for page in (self.files_view, self.remux_view,
-                     self.convert_view,
-                     self.compress_view,
-                     self.queue_view,
-                     self.settings_view):
+        metadata = QWidget()
+        metadata_layout = QVBoxLayout(metadata)
+        metadata_layout.addWidget(self.files_view.summary)
+        metadata_layout.addWidget(self.files_view.stream_table)
+        for page in (metadata, self.remux_view, self.convert_view, self.compress_view,
+                     EmptyState('Queue controls', 'Use the Processing Timeline below to start, cancel, retry and inspect jobs.'),
+                     scroll_panel(self.settings_view)):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.navigation.setCurrentRow(preferences.page)
-        pages.addWidget(self.navigation)
-        pages.addWidget(self.pages, 1)
-        layout.addLayout(pages)
         self.mode = self.settings_view.mode
         self.folder = self.settings_view.folder
         self.status = self.settings_view.status
@@ -140,7 +145,11 @@ class MainWindow(QMainWindow):
         self.output.setReadOnly(True)
         self.output.setAccessibleName('Operation feedback and technical details')
         self.output.setPlaceholderText('Operation results and details will appear here.')
-        layout.addWidget(self.output, 1)
+        self.workspace = Workspace(self, layout_settings)
+        layout.addWidget(self.workspace)
+        self.navigation.currentRowChanged.connect(
+            lambda index: self.workspace.timelines.setCurrentIndex(0) if index == 4 else None)
+
         self._preview_view = self.convert_view
         self.convert_view.preview_button.clicked.connect(self.preview_convert)
         self.convert_view.run_button.clicked.connect(self.run_convert)
@@ -182,6 +191,8 @@ class MainWindow(QMainWindow):
     def render(self) -> None:
         state = self.model.state
         self.status.setText(state.status)
+        self.workspace.import_button.setEnabled(not state.busy and state.binaries is not None)
+        self.workspace.source.setText(str(state.current_file) if state.current_file else 'No source selected')
         self.activity.set_status('Working' if state.busy else 'Ready', 'loading' if state.busy else 'neutral')
         self.files_view.empty_state.setVisible(not state.files)
         self.files_view.file_list.setVisible(bool(state.files))
@@ -527,6 +538,7 @@ class MainWindow(QMainWindow):
                                     'Cancel the operation or allow it to finish before closing.')
             event.ignore()
             return
+        self.workspace.save_layout()
         if self.settings_service:
             warning = self.settings_service.save(self.preferences())
             if warning:

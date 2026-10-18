@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -29,7 +29,8 @@ def main() -> int:
         diagnostics = configure_logging(None, str(error))
     try:
         window = MainWindow(diagnostic_status=diagnostics.status,
-                            settings_service=SettingsService(SettingsRepository(paths.settings_file)) if paths else None)
+                            settings_service=SettingsService(SettingsRepository(paths.settings_file)) if paths else None,
+                            layout_settings=QSettings('MediaWrapper', 'Workspace'))
         app.aboutToQuit.connect(window.deleteLater)
         window.show()
         if '--smoke-test' in sys.argv:

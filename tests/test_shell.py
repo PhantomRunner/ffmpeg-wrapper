@@ -34,9 +34,10 @@ def test_navigation_preserves_inspection_and_enabled_state(shell):
         assert shell.pages.currentIndex() == index
         assert shell.output.toPlainText() == 'Existing inspection'
         assert shell.choose_file_button.isEnabled()
-    assert shell.pages.widget(0) is shell.files_view
+    assert shell.files_view.parentWidget() is not None
+    assert shell.pages.widget(0).isAncestorOf(shell.files_view.stream_table)
     assert shell.pages.widget(1) is shell.remux_view
-    assert shell.pages.widget(5) is shell.settings_view
+    assert shell.pages.widget(5).widget() is shell.settings_view
 
 
 def test_busy_model_rejects_overlapping_operations(shell, monkeypatch, tmp_path):

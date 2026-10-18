@@ -69,11 +69,13 @@ R1 evidence: [UI migration map](UI_MIGRATION_MAP.md), 329 tests passed on 2026-1
 R2 evidence: [theme and controls verification](R2_THEME.md), 339 tests passed on 2026-10-18. Native Windows visual verification remains for R6.
 
 ### R3 — New workspace shell
-- [ ] Build MainWindow toolbar, mode navigation, nested splitters, bottom tab switcher and status bar.
-- [ ] Move or wrap existing Media Library, Preview and Inspector without changing backend behavior.
-- [ ] Save and restore splitter state and active mode; handle missing/corrupt settings.
-- [ ] Support sensible minimum window size and high-DPI displays.
+- [x] Build MainWindow toolbar, mode navigation, nested splitters, bottom tab switcher and status bar.
+- [x] Move or wrap existing Media Library, Preview and Inspector without changing backend behavior.
+- [x] Save and restore splitter state and active mode; handle missing/corrupt settings.
+- [x] Support sensible minimum window size and high-DPI displays.
 **Done when:** navigation and layout work across restarts on Linux and Windows; existing workflows remain accessible.
+
+R3 implementation evidence: [workspace verification](R3_WORKSPACE.md). Native Windows acceptance remains pending.
 
 ### R4 — Contextual Inspector and library
 - [ ] Bind selection to one shared state/controller.
