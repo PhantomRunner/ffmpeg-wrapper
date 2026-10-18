@@ -156,8 +156,6 @@ class MainWindow(QMainWindow):
         self.output.setPlaceholderText('Operation results and details will appear here.')
         self.workspace = Workspace(self, layout_settings)
         layout.addWidget(self.workspace)
-        self.navigation.currentRowChanged.connect(
-            lambda index: self.workspace.timelines.setCurrentIndex(0) if index == 4 else None)
 
         self._preview_view = self.convert_view
         self.convert_view.preview_button.clicked.connect(self.preview_convert)

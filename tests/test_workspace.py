@@ -35,7 +35,9 @@ def test_workspace_roundtrip_and_reset(app, monkeypatch, tmp_path):
     for index in range(6):
         restored.navigation.setCurrentRow(index)
         assert restored.pages.currentIndex() == index
-        assert restored.files_view.isVisible()
+        assert restored.files_view.isVisible() == (index < 4)
+        assert restored.workspace.preview.isVisible() == (index in (0, 2, 3))
+        assert restored.workspace.timelines.isVisible() == (index != 5)
     restored.close()
 
 
@@ -50,4 +52,30 @@ def test_corrupt_layout_falls_back(app, monkeypatch, tmp_path):
     app.processEvents()
     assert window.navigation.currentRow() == 0
     assert all(size > 0 for size in window.workspace.horizontal.sizes())
+    window.close()
+
+
+def test_navigation_preserves_edits_selection_and_per_mode_geometry(app, monkeypatch, tmp_path):
+    from media_wrapper.domain.media import MediaFile, MediaStream
+    monkeypatch.setattr(MainWindow, 'detect', lambda self: None)
+    window = MainWindow()
+    window.show()
+    source = tmp_path / 'source.mkv'
+    source.touch()
+    window.model.add_files([source])
+    window.model._inspected(MediaFile(source, streams=(MediaStream(0, 'video', 'h264'),)))
+    window.navigation.setCurrentRow(2)
+    window.convert_view.destination.setText(str(tmp_path / 'custom.mkv'))
+    window.convert_view.video_width.setValue(640)
+    window.workspace.horizontal.setSizes([250, 350, 450])
+    app.processEvents()
+    sizes = window.workspace.horizontal.sizes()
+    selected = window.model.state.selected_streams
+    for index in [3, 4, 5, 1, 0, 2]:
+        window.navigation.setCurrentRow(index)
+        app.processEvents()
+    assert window.workspace.horizontal.sizes() == sizes
+    assert window.convert_view.destination.text() == str(tmp_path / 'custom.mkv')
+    assert window.convert_view.video_width.value() == 640
+    assert window.model.state.selected_streams == selected
     window.close()

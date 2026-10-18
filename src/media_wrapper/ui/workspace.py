@@ -27,6 +27,8 @@ class Workspace(QWidget):
         super().__init__()
         self.window = window
         self.settings = settings
+        self.mode = -1
+        self._layouts: dict[int, tuple[QByteArray, QByteArray, int]] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         toolbar = QHBoxLayout()
@@ -55,7 +57,8 @@ class Workspace(QWidget):
         for splitter in (self.vertical, self.horizontal):
             splitter.setChildrenCollapsible(False)
             splitter.setHandleWidth(6)
-        self.horizontal.addWidget(scroll_panel(window.files_view))
+        self.library = scroll_panel(window.files_view)
+        self.horizontal.addWidget(self.library)
         self.preview = QWidget()
         preview_layout = QVBoxLayout(self.preview)
         preview_layout.addWidget(PanelHeader('Source Preview', 'Selected source and operation feedback'))
@@ -79,7 +82,8 @@ class Workspace(QWidget):
         self.media_timeline.stream_selected.connect(self.show_stream)
         self.vertical.addWidget(self.timelines)
         layout.addWidget(self.vertical)
-        self.reset_layout()
+        window.navigation.currentRowChanged.connect(self.set_mode)
+        self.set_mode(window.navigation.currentRow())
         self.restore_layout()
 
     def show_stream(self, stream) -> None:
@@ -88,34 +92,78 @@ class Workspace(QWidget):
         self.window.output.setPlainText('Selected source stream (selection does not change export choices):\n' +
                                        ' | '.join(stream_values(stream)))
 
+    def remember_layout(self) -> None:
+        if self.mode >= 0:
+            self._layouts[self.mode] = (self.horizontal.saveState(), self.vertical.saveState(),
+                                        self.timelines.currentIndex())
+
+    def set_mode(self, mode: int) -> None:
+        if not 0 <= mode < 6 or mode == self.mode:
+            return
+        self.remember_layout()
+        self.mode = mode
+        self.horizontal.setVisible(mode != 4)
+        self.library.setVisible(mode < 4)
+        self.preview.setVisible(mode in (0, 2, 3))
+        self.window.pages.setVisible(mode != 4)
+        self.timelines.setVisible(mode != 5)
+        self.timelines.setTabVisible(1, mode != 4)
+        self.default_layout()
+        if mode in self._layouts:
+            horizontal, vertical, timeline = self._layouts[mode]
+            self.horizontal.restoreState(horizontal)
+            self.vertical.restoreState(vertical)
+            self.timelines.setCurrentIndex(0 if mode == 4 else timeline)
+
+    def default_layout(self) -> None:
+        proportions = {0: [230, 500, 320], 1: [280, 0, 720],
+                       2: [220, 330, 500], 3: [220, 300, 530],
+                       4: [230, 470, 300], 5: [0, 0, 1000]}
+        self.horizontal.setSizes(proportions[self.mode])
+        self.vertical.setSizes([650, 350] if self.mode == 0 else [760, 240])
+        self.timelines.setCurrentIndex(1 if self.mode == 0 else 0)
+
     def reset_layout(self) -> None:
-        self.horizontal.setSizes([230, 470, 300])
-        self.vertical.setSizes([680, 320])
-        self.timelines.setCurrentIndex(0)
+        self._layouts.pop(self.mode, None)
+        self.default_layout()
 
     def restore_layout(self) -> None:
-        if self.settings is None or self.settings.value('workspace/version') != '1':
+        if self.settings is None:
             return
-        for key, splitter in (('horizontal', self.horizontal), ('vertical', self.vertical)):
-            value = self.settings.value('workspace/' + key)
-            if isinstance(value, QByteArray) and (not splitter.restoreState(value) or any(size <= 0 for size in splitter.sizes())):
-                splitter.setSizes([230, 470, 300] if key == 'horizontal' else [680, 320])
+        version = str(self.settings.value('workspace/version', ''))
+        if version not in ('1', '2'):
+            return
         try:
             mode = int(self.settings.value('workspace/mode', 0))
-            timeline = int(self.settings.value('workspace/timeline', 0))
         except (ValueError, TypeError):
-            mode, timeline = 0, 0
-        self.window.navigation.setCurrentRow(mode if 0 <= mode < 6 else 0)
-        self.timelines.setCurrentIndex(timeline if timeline in (0, 1) else 0)
+            mode = 0
+        mode = mode if 0 <= mode < 6 else 0
+        for index in (range(6) if version == '2' else [mode]):
+            prefix = f'workspace/modes/{index}/' if version == '2' else 'workspace/'
+            horizontal = self.settings.value(prefix + 'horizontal')
+            vertical = self.settings.value(prefix + 'vertical')
+            try:
+                timeline = int(self.settings.value(prefix + 'timeline', 0))
+            except (ValueError, TypeError):
+                timeline = 0
+            if isinstance(horizontal, QByteArray) and isinstance(vertical, QByteArray):
+                self._layouts[index] = (horizontal, vertical, timeline if timeline in (0, 1) else 0)
+        # Do not overwrite the restored initial mode with the startup geometry.
+        self.mode = -1
+        self.window.navigation.setCurrentRow(mode)
+        self.set_mode(mode)
 
     def save_layout(self) -> None:
         if self.settings is None:
             return
-        self.settings.setValue('workspace/version', '1')
-        self.settings.setValue('workspace/horizontal', self.horizontal.saveState())
-        self.settings.setValue('workspace/vertical', self.vertical.saveState())
-        self.settings.setValue('workspace/mode', self.window.navigation.currentRow())
-        self.settings.setValue('workspace/timeline', self.timelines.currentIndex())
+        self.remember_layout()
+        self.settings.setValue('workspace/version', '2')
+        for mode, (horizontal, vertical, timeline) in self._layouts.items():
+            prefix = f'workspace/modes/{mode}/'
+            self.settings.setValue(prefix + 'horizontal', horizontal)
+            self.settings.setValue(prefix + 'vertical', vertical)
+            self.settings.setValue(prefix + 'timeline', timeline)
+        self.settings.setValue('workspace/mode', self.mode)
         self.settings.sync()
 
 

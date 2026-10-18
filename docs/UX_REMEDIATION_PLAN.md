@@ -119,3 +119,14 @@ planned, not implemented. Physical-display and Windows acceptance are pending.
   with state-preservation tests before changing navigation. U3–U7 remain unimplemented.
 - Final complete regression suite after all additions: **364 passed** in 26.87 s,
   including existing real FFmpeg integration tests.
+
+### U3 — operation workspace composition
+
+Implemented operation-level visibility/proportions and timeline defaults. Queue
+occupies the main area; Settings hides media panels; Remux uses Library + controls;
+Inspect defaults to Media Timeline. Existing instances retain edits and selection.
+Layout version 2 stores each mode separately and reads version 1 without changing
+JSON preferences. Reset affects the current mode. Local verification: 364 existing
+tests passed; the added navigation test initially compared tuple to set, corrected
+without production changes; all 3 workspace tests then passed. Native display and
+Windows acceptance remain pending.
