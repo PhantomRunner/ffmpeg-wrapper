@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.application.conversion_service import ConversionRequest
 from media_wrapper.domain.capabilities import CapabilityReport
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.encoding_presets import PRESETS
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
@@ -62,7 +63,8 @@ class EncodingView(QScrollArea):
         self.export_profile_button = ActionButton('Save / export profile…')
         form.addRow(self.import_profile_button, self.export_profile_button)
         self.container = ReadableComboBox()
-        self.container.addItems(['Matroska', 'MP4'])
+        for container, spec in CONTAINERS.items():
+            self.container.addItem(f'{spec.label} ({spec.extension})', container.value)
         self.destination = QLineEdit()
         self.browse = ActionButton('Choose output…')
         form.addRow('Container', self.container)
@@ -220,7 +222,7 @@ class EncodingView(QScrollArea):
 
     def container_changed(self) -> None:
         from media_wrapper.ui.output_paths import suggest_output_path
-        container = Container.MATROSKA if self.container.currentIndex() == 0 else Container.MP4
+        container = Container(self.container.currentData())
         self.destination.setText(suggest_output_path(self.destination.text(), container))
         self.clear_preview()
 
@@ -239,7 +241,7 @@ class EncodingView(QScrollArea):
         if self._media is None:
             return
         preset = PRESETS[self.presets.currentIndex()]
-        self.container.setCurrentIndex(0 if preset.container == Container.MATROSKA else 1)
+        self.container.setCurrentIndex(self.container.findData(preset.container))
         self.container_changed()
         self.mode.setCurrentText('quality' if preset.video_encoder else 'default')
         self.crf.setValue(preset.crf)
@@ -257,7 +259,7 @@ class EncodingView(QScrollArea):
         self.clear_preview()
 
     def apply_request(self, request: ConversionRequest) -> None:
-        self.container.setCurrentIndex(0 if request.container == Container.MATROSKA else 1)
+        self.container.setCurrentIndex(self.container.findData(request.container))
         self.destination.setText(str(request.destination))
         self.video_width.setValue(request.width or 0)
         self.video_height.setValue(request.height or 0)
@@ -310,7 +312,7 @@ class EncodingView(QScrollArea):
         if media is None:
             self.destination.clear()
             return
-        suffix = '.mkv' if self.container.currentIndex() == 0 else '.mp4'
+        suffix = CONTAINERS[Container(self.container.currentData())].extension
         self.destination.setText(str(media.path.with_name(media.path.stem + '_' + self.title.lower() + suffix)))
         for row, stream in enumerate(media.streams):
             self.tracks.setItem(row, 0, QTableWidgetItem(f'{stream.index}: {stream.kind} / {stream.codec}'))
@@ -335,7 +337,7 @@ class EncodingView(QScrollArea):
             else:
                 tracks.append((stream.index, combo.currentText()))
         return ConversionRequest(Path(self.destination.text()),
-                                 Container.MATROSKA if self.container.currentIndex() == 0 else Container.MP4,
+                                 Container(self.container.currentData()),
                                  tuple(tracks), self.video_width.value() or None, self.video_height.value() or None,
                                  self.fps.text(), self.audio_bitrate.value() * 1000,
                                  self.mode.currentText(), self.crf.value(), self.video_bitrate.value() * 1000,

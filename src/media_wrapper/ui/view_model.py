@@ -18,6 +18,7 @@ from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.application.task_queue import TaskQueue
 from media_wrapper.domain.capabilities import CapabilityReport
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operation_policy import validate_plan
@@ -228,7 +229,7 @@ class DesktopViewModel(QObject):
         self.state.selected_streams = self.state.stream_selections.setdefault(
             info.path, tuple(s.index for s in info.streams if s.index is not None))
         self.state.output = format_inspection(info)
-        suffix = '.mkv' if self.state.container == Container.MATROSKA else '.mp4'
+        suffix = CONTAINERS[self.state.container].extension
         if self.state.source is not None:
             self.state.destination = str((self.state.recent_destination or self.state.source.parent) /
                                          (self.state.source.stem + '_remux' + suffix))

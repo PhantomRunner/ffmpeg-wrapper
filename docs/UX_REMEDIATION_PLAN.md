@@ -158,3 +158,21 @@ run with approved local IPC access. No production backend fallback is hidden.
 Native Windows and packaged playback/physical audio-video verification remain open.
 Full regression suite after U5: **373 passed**; changed files pass Ruff after import
 ordering fixes. Physical-display and Windows acceptance are not marked complete.
+
+### U6 — validated container registry
+
+Added MOV (H.264/HEVC/MPEG-4, AAC/ALAC/PCM, mov_text), WebM (VP8/VP9/AV1,
+Opus/Vorbis), single-track PCM WAV and single-track FLAC alongside unchanged MKV/MP4
+policies. Unsupported codecs/counts and preservation of chapters in WebM/WAV/FLAC
+are rejected explicitly. Registry supplies labels, suffixes, muxer names and policy
+through forms, naming, preferences and command generation. Version-1 profile/queue
+schemas retain compatible enum-string serialization; all container profile UI
+roundtrips are tested. Qt returns string item data, explicitly converted to domain
+enums at request boundaries (caught by existing regressions).
+
+Worker-side muxer discovery checks selected FFmpeg during previews, queue validation,
+batch/import and every task execution. Ten new tests cover parsing/unavailable muxers,
+codec/chapter/count/extension rules, preferences/profiles and actual copy/remux,
+probe/verified publication plus existing-output refusal for all four new formats.
+Full suite: **383 passed**; Ruff and diff whitespace checks pass. Broader codec and
+container support stays conservative; native Windows verification remains pending.

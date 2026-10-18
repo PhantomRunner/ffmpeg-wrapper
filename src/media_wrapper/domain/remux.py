@@ -9,6 +9,10 @@ from typing import Any
 class Container(str, Enum):
     MATROSKA = 'matroska'
     MP4 = 'mp4'
+    MOV = 'mov'
+    WEBM = 'webm'
+    WAV = 'wav'
+    FLAC = 'flac'
 
 
 @dataclass(frozen=True)

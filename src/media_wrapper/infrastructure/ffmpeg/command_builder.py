@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from media_wrapper.domain.capabilities import GPU_ENCODERS
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.operation_policy import validate_plan
 from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.remux import Container, RemuxRequest
@@ -20,7 +21,7 @@ def build_remux_command(ffmpeg: Path, request: RemuxRequest) -> list[str]:
     args = [str(ffmpeg), '-hide_banner', '-nostdin', '-n', '-i', str(request.source.absolute())]
     for stream in request.streams:
         args.extend(['-map', f'0:{stream.index}'])
-    args.extend(['-c', 'copy', '-f', request.container.value, str(request.destination.absolute())])
+    args.extend(['-c', 'copy', '-f', CONTAINERS[request.container].muxer, str(request.destination.absolute())])
     return args
 
 
@@ -68,7 +69,7 @@ class CommandBuilder:
             args.extend([f'-map_metadata:s:{position}', f'0:s:{selection.index}' if plan.metadata_policy == PreservationPolicy.PRESERVE else '-1'])
         for flag, value in plan.custom_options:
             args.extend([flag, value])
-        args.extend(['-f', plan.output.container.value, str(plan.output.execution_path)])
+        args.extend(['-f', CONTAINERS[plan.output.container].muxer, str(plan.output.execution_path)])
         return args
 
     def build_passes(self, ffmpeg: Path, plan: OperationPlan, available_encoders: frozenset[str],

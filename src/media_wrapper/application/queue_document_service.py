@@ -14,6 +14,7 @@ from media_wrapper.domain.queue_document import (
 )
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
+from media_wrapper.infrastructure.ffmpeg.muxers import require_muxer
 from media_wrapper.infrastructure.json_documents import read_document, write_document
 
 
@@ -58,6 +59,7 @@ def load_queue(path: Path, binaries: Binaries, reserved: tuple[Path, ...] = ()) 
         if list(fingerprint(source)) != entry['fingerprint']:
             raise ValueError(f'Source changed during queue import: {source}')
         plan = parse_definition(entry, media)
+        require_muxer(binaries.ffmpeg, plan.output.container, Event())
         prepared = prepare_operation(plan, staged=False, available_encoders=available)
         plans.append(prepared)
     return tuple(plans)

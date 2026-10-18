@@ -28,6 +28,7 @@ from media_wrapper.application.operation_task import OperationTask
 from media_wrapper.application.remux_task import RemuxTask
 from media_wrapper.application.settings_service import SettingsService
 from media_wrapper.domain.capabilities import GPU_ENCODERS
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.operations import PreservationPolicy
 from media_wrapper.domain.preferences import Preferences
 from media_wrapper.domain.remux import Container
@@ -297,7 +298,7 @@ class MainWindow(QMainWindow):
         with QSignalBlocker(self.remux_view.destination):
             self.remux_view.destination.setText(state.destination)
         with QSignalBlocker(self.container):
-            self.container.setCurrentIndex(0 if state.container == Container.MATROSKA else 1)
+            self.container.setCurrentIndex(self.container.findData(state.container))
         self.remux_view.preview.setPlainText(json.dumps(state.command, ensure_ascii=False, indent=2) if state.command else '')
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
@@ -398,7 +399,7 @@ class MainWindow(QMainWindow):
         self.render()
 
     def choose_encoding_destination(self, view: EncodingView) -> None:
-        suffix = '.mkv' if view.container.currentIndex() == 0 else '.mp4'
+        suffix = CONTAINERS[Container(view.container.currentData())].extension
         name, _ = QFileDialog.getSaveFileName(self, 'Choose new output', view.destination.text(), f'Media (*{suffix})')
         if name:
             view.destination.setText(name)
@@ -512,8 +513,8 @@ class MainWindow(QMainWindow):
     def choose_remux_destination(self) -> None:
         if self.source is None or self.model.state.busy:
             return
-        container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
-        suffix = '.mkv' if container == Container.MATROSKA else '.mp4'
+        container = Container(self.container.currentData())
+        suffix = CONTAINERS[container].extension
         name, _ = QFileDialog.getSaveFileName(self, 'Save remux as a new file',
                                              str((self.model.state.recent_destination or self.source.parent) / (self.source.stem + '_remux' + suffix)),
                                              f'Media (*{suffix})')
@@ -527,12 +528,12 @@ class MainWindow(QMainWindow):
 
     def container_changed(self) -> None:
         from media_wrapper.ui.output_paths import suggest_output_path
-        container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
+        container = Container(self.container.currentData())
         destination = suggest_output_path(self.remux_view.destination.text(), container)
         self.model.set_output(destination, container)
 
     def output_changed(self) -> None:
-        container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
+        container = Container(self.container.currentData())
         self.model.set_output(self.remux_view.destination.text(), container)
 
     def run_form(self) -> None:

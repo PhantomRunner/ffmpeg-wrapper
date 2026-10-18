@@ -8,10 +8,12 @@ from media_wrapper.application.conversion_service import conversion_plan
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_service import prepare_operation
 from media_wrapper.domain.capabilities import CapabilityReport
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
+from media_wrapper.infrastructure.ffmpeg.muxers import require_muxer
 
 
 def path_key(path: Path) -> str:
@@ -39,9 +41,10 @@ def plan_batch(paths: tuple[Path, ...], request: ConversionRequest, directory: P
     if not directory.is_dir():
         raise ValueError('Choose an existing output folder')
     keys = {path_key(p) for p in (*paths, *reserved, *directory.iterdir())}
+    require_muxer(binaries.ffmpeg, request.container, Event())
     available = list_encoders(binaries.ffmpeg, Event())
     plans = []
-    suffix = '.mkv' if request.container.value == 'matroska' else '.mp4'
+    suffix = CONTAINERS[request.container].extension
     for index, path in enumerate(paths, 1):
         destination = directory / output_name(template, path, index, suffix)
         key = path_key(destination)

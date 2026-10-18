@@ -23,6 +23,7 @@ from media_wrapper.domain.tasks import TaskRecord, TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
 from media_wrapper.infrastructure.ffmpeg.gpu_probe import test_gpu_encoder
+from media_wrapper.infrastructure.ffmpeg.muxers import require_muxer
 from media_wrapper.infrastructure.ffmpeg.output_publication import publish_output
 from media_wrapper.infrastructure.ffmpeg.process_runner import ProcessRunner
 
@@ -73,6 +74,7 @@ class OperationTask(QObject):
     def _prepare(self) -> tuple[OperationPlan, list[str]]:
         media = MediaService(self.binaries).inspect(self.record.plan.media.path, self.cancel_event)
         plan = replace(self.record.plan, media=media)
+        require_muxer(self.binaries.ffmpeg, plan.output.container, self.cancel_event)
         available = list_encoders(self.binaries.ffmpeg, self.cancel_event) if any(s.profile.encoder != 'copy' for s in plan.streams) else frozenset()
         for encoder in {s.profile.encoder for s in plan.streams} & set(GPU_ENCODERS):
             if encoder not in available:
@@ -166,7 +168,7 @@ class OperationTask(QObject):
         verified_streams = info.streams
         # MP4 muxers may append one QuickTime chapter text track. It is not a
         # user-mapped media stream; accept only this known generated structure.
-        if (output.container.value == 'mp4' and self.prepared.chapter_policy == PreservationPolicy.PRESERVE
+        if (output.container.value in ('mp4', 'mov') and self.prepared.chapter_policy == PreservationPolicy.PRESERVE
                 and self.prepared.media.chapters and info.chapters and len(info.streams) == len(expected) + 1
                 and (info.streams[-1].kind, info.streams[-1].codec, info.streams[-1].codec_tag) == ('data', 'bin_data', 'text')):
             verified_streams = info.streams[:-1]

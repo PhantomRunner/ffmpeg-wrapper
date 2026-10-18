@@ -1,6 +1,7 @@
 """Output field suggestions only; application services retain final validation."""
 from pathlib import Path
 
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.remux import Container
 
 
@@ -9,7 +10,7 @@ def suggest_output_path(value: str, container: Container) -> str:
     if not value.strip():
         return value
     path = Path(value)
-    suffix = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[container]
+    suffix = CONTAINERS[container].extension
     if path.suffix.lower() == suffix:
         return value
     try:

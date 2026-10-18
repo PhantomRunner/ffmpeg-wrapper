@@ -2,6 +2,7 @@
 
 from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.codec_policy import ALLOWED
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.custom_options import validate_custom_options
 from media_wrapper.domain.operations import (
     MediaOperation,
@@ -38,6 +39,11 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
         fail(ValidationCode.OUTPUT, 'Operation paths must be absolute')
     if not plan.streams:
         fail(ValidationCode.STREAM, 'Select at least one stream')
+    spec = CONTAINERS[plan.output.container]
+    if spec.max_streams is not None and len(plan.streams) > spec.max_streams:
+        fail(ValidationCode.COMPATIBILITY, f'{spec.label} supports at most {spec.max_streams} selected stream')
+    if not spec.chapters and plan.media.chapters and plan.chapter_policy == PreservationPolicy.PRESERVE:
+        fail(ValidationCode.COMPATIBILITY, f'{spec.label} cannot preserve chapters; choose Strip chapters')
     indices = [s.index for s in plan.streams]
     if any(type(i) is not int or i < 0 for i in indices) or len(set(indices)) != len(indices):
         fail(ValidationCode.STREAM, 'Invalid or duplicate stream selection')
@@ -85,7 +91,7 @@ def validate_plan(plan: OperationPlan, available_encoders: frozenset[str] = froz
         video = [s for s in plan.streams if source[s.index].kind == 'video']
         if len(video) != 1 or video[0].profile.encoder != 'libx264' or video[0].profile.bitrate is None or video[0].profile.crf is not None:
             fail(ValidationCode.OPTION, 'Two-pass encoding requires one bitrate-controlled libx264 video')
-    suffix = {Container.MATROSKA: '.mkv', Container.MP4: '.mp4'}[plan.output.container]
+    suffix = CONTAINERS[plan.output.container].extension
     if plan.output.path.suffix.lower() != suffix:
         fail(ValidationCode.OUTPUT, f'Destination must use {suffix}')
     for target in (plan.output.path, plan.output.temporary_path):

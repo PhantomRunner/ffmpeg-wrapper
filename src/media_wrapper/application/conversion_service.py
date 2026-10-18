@@ -18,6 +18,7 @@ from media_wrapper.domain.operations import (
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
 from media_wrapper.infrastructure.ffmpeg.encoders import list_encoders
+from media_wrapper.infrastructure.ffmpeg.muxers import require_muxer
 
 
 def conversion_plan(media: MediaFile, request: ConversionRequest, report: CapabilityReport | None = None) -> OperationPlan:
@@ -61,6 +62,7 @@ def conversion_plan(media: MediaFile, request: ConversionRequest, report: Capabi
 
 def preview_conversion(binaries: Binaries, plan: OperationPlan) -> list[list[str]]:
     event = Event()
+    require_muxer(binaries.ffmpeg, plan.output.container, event)
     media = MediaService(binaries).inspect(plan.media.path, event)
     from dataclasses import replace
     plan = replace(plan, media=media)
@@ -74,6 +76,7 @@ def validate_queue_snapshot(binaries: Binaries, plan: OperationPlan) -> Operatio
     """Refresh and validate immutable intent without reserving or creating output."""
     from dataclasses import replace
     event = Event()
+    require_muxer(binaries.ffmpeg, plan.output.container, event)
     media = MediaService(binaries).inspect(plan.media.path, event)
     available = list_encoders(binaries.ffmpeg, event)
     return prepare_operation(replace(plan, media=media), staged=False, available_encoders=available)

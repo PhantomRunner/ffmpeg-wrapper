@@ -2,6 +2,8 @@
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from media_wrapper.domain.remux import Container
+
 
 @dataclass(frozen=True)
 class Preferences:
@@ -30,7 +32,7 @@ class Preferences:
             raise ValueError('Invalid diagnostic log level')
         if values['binary_mode'] not in ('external', 'bundled'):
             raise ValueError('Invalid binary mode')
-        if values['container'] not in ('matroska', 'mp4'):
+        if values['container'] not in {container.value for container in Container}:
             raise ValueError('Invalid output container')
         for key in ('binary_directory', 'recent_destination'):
             value = values[key]

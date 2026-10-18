@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.ui.inspection_presenter import stream_values
 from media_wrapper.ui.models.media_files import MediaFileModel
@@ -147,11 +148,12 @@ class RemuxView(QScrollArea):
         simple = QGroupBox('Output')
         form = QVBoxLayout(simple)
         self.container = ReadableComboBox()
-        self.container.addItems(['Matroska (.mkv)', 'MP4 (.mp4)'])
+        for container, spec in CONTAINERS.items():
+            self.container.addItem(f'{spec.label} ({spec.extension})', container.value)
         self.container.setToolTip('Copy supported streams into this container. No re-encoding is performed.')
         self.destination = QLineEdit()
         self.destination.setPlaceholderText('Choose a new destination filename')
-        self.destination.setToolTip('Existing files and source replacement are refused. Use .mkv or .mp4 for the chosen container.')
+        self.destination.setToolTip('Existing files and source replacement are refused. Use the extension shown for the chosen container.')
         self.browse_button = ActionButton('Choose output…')
         self.validation = QLabel('Inspect a file first.')
         self.validation.setWordWrap(True)

@@ -30,7 +30,7 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
 - Application validates filesystem safety and prepares optional staged output paths.
   Pure CommandBuilder generates deterministic maps and copy/encoding arguments.
   Remux executes typed plans through a shared asynchronous process runner.
-- Conservative Matroska/MP4 compatibility validation, user-selected stream copy and explicit mapping.
+- Registry-based conservative Matroska/MP4/MOV/WebM/WAV/FLAC compatibility validation, user-selected stream copy and explicit mapping.
 - Asynchronous QProcess execution, separate stdout/stderr, incremental progress,
   terminate/kill cancellation and bounded diagnostics. Workers prepare and verify
   output before no-overwrite hard-link publication; partial files are retained.
@@ -43,7 +43,7 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   bitrate for two-pass H.264. Both passes share cancellation and output safety.
 - Qt-independent task states and application sequential queue with cancellation,
   fresh-attempt retry and per-task logs/results. Task history is session-only; explicit versioned queue definitions recreate validated pending attempts.
-- Desktop workstation with a persistent Library, explicit Preview fallback, contextual
+- Desktop workstation with a persistent Library, asynchronous Qt Multimedia preview, contextual
   metadata/Remux/Convert/Compress/Settings Inspector and dual timelines. Existing
   forms and service bindings are reused within the splitter composition.
 - DesktopState and DesktopViewModel own selection, validation and asynchronous
@@ -94,7 +94,7 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   dynamic FFprobe payloads are parsed into Qt-independent typed entities.
 
 ## Not implemented yet
-Parallel queue execution and release-approved distribution. Native PyInstaller portable build recipes and installation verification are implemented; hosted and Windows execution are pending. Codec compatibility beyond the initial conservative remux allowlist remains unsupported. Windows runtime verification is still required.
+Parallel queue execution and release-approved distribution. Native PyInstaller portable build recipes and installation verification are implemented; hosted and Windows execution are pending. Codec compatibility beyond the conservative container registry remains unsupported. Windows runtime verification is still required.
 
 ## Distribution (M9 candidate)
 
@@ -120,7 +120,21 @@ Parallel queue execution and release-approved distribution. Native PyInstaller p
   using existing application validation before insertion.
 - Processing delegates draw actual task percentages with accessible text. The
   media scene draws read-only container-duration lanes and exposes a keyboard lane
-  list; unknown duration has no invented time axis. No media decoding is added.
+  list; unknown duration has no invented time axis. Qt Multimedia now decodes preview separately from processing; playback position drives a read-only playhead and timeline clicks seek.
 - Operation actions are outside scrolling forms. Direct Remux remains an
   independent task with its own cancellation and live processing-panel summary.
 - See [rollout and platform verification gates](R6_ROLLOUT.md).
+
+## UX remediation architecture
+
+- Version-2 workspace layout storage persists separate mode geometries and reads
+  version-1 layouts. Shared widgets survive navigation; Queue/Settings change the
+  entire workspace composition. JSON preferences remain separate.
+- Convert and Compress promote different controls but generate the same validated
+  typed requests. Application size estimates share the execution target-size policy.
+- Infrastructure owns Qt media/audio objects; PlaybackService owns playback lifecycle;
+  UI binds transport/video surface and errors. Preview codec support belongs to Qt's
+  backend, independent of the configured processing FFmpeg build.
+- Container registry owns muxers/extensions/codecs/count/chapter restrictions.
+  Cancellable worker discovery checks muxer availability before preparation and
+  execution. Existing output staging, verification and no-overwrite publication remain.
