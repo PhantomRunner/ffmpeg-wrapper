@@ -60,3 +60,19 @@ No processing FFmpeg/FFprobe executable is included.
 Native Windows, actual hosted workflow runs, physical audio/display/GPU acceptance,
 oldest supported Linux baseline and existing license/dependency release gates remain
 pending. No public release approval is implied. See UX_REMEDIATION_PLAN.md for scope.
+
+## Release preparation — 2026-10-18, source abf63d1
+
+Production-mode Linux portable build (debug disabled, no console) completed from a
+clean source tree: 429 inventoried files. Host remains Arch Linux x86_64/glibc 2.44;
+this does not establish Ubuntu 24.04 compatibility. Native packaged verification
+passed Inspect/Remux/Convert/Compress, three completed tasks, decoded preview
+playback (116 ms), checksum validation, unchanged source and temporary uninstall.
+Source suite: 395 passed in 29.08 s; Ruff and dependency consistency checks passed.
+
+Version/OS/architecture/commit-named archives now have external SHA-256 checksums.
+The native workflow has an explicit candidate_archives input for retaining binary
+candidates for 14 days; default runs still upload inventories only. This supersedes
+the earlier statement that binary workflow artifacts are never uploaded. No tag or
+public release is created. Windows and Ubuntu baseline builds require dispatch on
+their native runners; neither has been executed for this commit.
