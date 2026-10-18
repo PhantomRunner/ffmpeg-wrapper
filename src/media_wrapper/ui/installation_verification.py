@@ -42,10 +42,16 @@ def verify_installation(source: Path, directory: Path) -> int:
     app.aboutToQuit.connect(window.deleteLater)
     window.show()
     stage = 'detect'
+    preview_frames = []
+    playback = window.workspace.playback
+    if playback.service:
+        playback.video.videoSink().videoFrameChanged.connect(lambda frame: preview_frames.append(frame.isValid()))
 
     def finish(code: int, detail: str) -> None:
         write_document(directory / 'verification.json', {'success': code == 0, 'detail': detail,
-                       'tasks': [r.status.value for r in window.model.queue.records]})
+                       'tasks': [r.status.value for r in window.model.queue.records],
+                       'playback': {'decoded_video': any(preview_frames),
+                                    'position_ms': playback.service.position if playback.service else 0}})
         window.close()
         app.exit(code)
 
@@ -70,16 +76,44 @@ def verify_installation(source: Path, directory: Path) -> int:
                             tuple(StreamSelection(s.index) for s in media.streams),
                             OutputTarget(directory / 'remux.mkv', Container.MATROSKA)), window.binaries)
             tracks = tuple((s.index, 'libx264' if s.kind == 'video' else 'aac') for s in media.streams)
-            for operation in (MediaOperation.CONVERT, MediaOperation.COMPRESS):
-                model.encode(ConversionRequest(directory / f'{operation.value}.mp4', Container.MP4, tracks,
-                             operation=operation, mode='quality', preset='ultrafast', crf=28), 'enqueue')
+            model.encode(ConversionRequest(directory / 'convert.mp4', Container.MP4, tracks,
+                         operation=MediaOperation.CONVERT, mode='quality', preset='ultrafast', crf=28), 'enqueue')
+            stage = 'enqueue-compress'
+        elif stage == 'enqueue-compress':
+            if len(model.queue.records) != 2:
+                finish(4, 'Convert queue validation failed: ' + model.state.output)
+                return
+            tracks = tuple((s.index, 'libx264' if s.kind == 'video' else 'aac') for s in model.state.media.streams)
+            model.encode(ConversionRequest(directory / 'compress.mp4', Container.MP4, tracks,
+                         operation=MediaOperation.COMPRESS, mode='quality', preset='ultrafast', crf=28), 'enqueue')
+            stage = 'start-queue'
+        elif stage == 'start-queue':
+            if len(model.queue.records) != 3:
+                finish(4, 'Compress queue validation failed: ' + model.state.output)
+                return
             stage = 'execute'
             model.start_queue()
-        else:
+        elif stage == 'execute':
             records = model.queue.records
             successful = len(records) == 3 and all(r.status == TaskStatus.COMPLETED for r in records)
-            finish(0 if successful else 4, 'Verified inspect/remux/convert/compress' if successful else '\n'.join(r.error for r in records))
-            return
+            if not successful:
+                finish(4, '\n'.join(r.error for r in records))
+                return
+            stage = 'preview-loading'
+        elif stage == 'preview-loading':
+            if not playback.service or playback.service.error:
+                finish(5, playback.status.text())
+                return
+            if playback.service.ready:
+                playback.service.toggle()
+                stage = 'preview-playing'
+        elif stage == 'preview-playing':
+            if playback.service.error:
+                finish(5, playback.service.error)
+                return
+            if playback.service.position >= 100 and any(preview_frames):
+                finish(0, 'Verified inspect/remux/convert/compress and decoded preview playback')
+                return
         QTimer.singleShot(25, advance)
 
     QTimer.singleShot(25, advance)

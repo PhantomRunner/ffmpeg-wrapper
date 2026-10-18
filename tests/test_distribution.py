@@ -81,3 +81,21 @@ def test_bundle_recipe_has_no_ffmpeg_collection():
     assert 'COLLECT' in text and 'resources' in text
     assert 'ffmpeg' not in text.lower()
     assert 'shell=True' not in (root / 'scripts/build_distribution.py').read_text()
+
+
+def test_installation_verifier_waits_for_enqueue_and_checks_playback(video_sample, tmp_path):
+    import json
+    import subprocess
+    import sys
+    _, plan = video_sample
+    destination = tmp_path / 'fresh installation check'
+    destination.mkdir()
+    launcher = Path(__file__).resolve().parents[1] / 'packaging/launcher.py'
+    result = subprocess.run([sys.executable, str(launcher), '--verify-install',
+                             str(plan.media.path), str(destination)],
+                            capture_output=True, text=True, timeout=45, check=False,
+                            env=dict(os.environ, QT_QPA_PLATFORM='offscreen'))
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((destination / 'verification.json').read_text())
+    assert report['tasks'] == ['Completed'] * 3
+    assert report['playback']['decoded_video'] and report['playback']['position_ms'] >= 100

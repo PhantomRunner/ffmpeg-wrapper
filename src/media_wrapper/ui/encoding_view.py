@@ -131,8 +131,8 @@ class EncodingView(QScrollArea):
         self.target_size.setValue(100)
         self.target_size.valueChanged.connect(self.clear_preview)
         form.addRow('Video rate control', self.mode)
-        form.addRow('Approximate target (MiB, H.264 two-pass)', self.target_size)
-        form.addRow('H.264/H.265 CRF (lower = higher quality)', self.crf)
+        form.addRow('Target size (MiB)', self.target_size)
+        form.addRow('Quality (CRF; lower is better)', self.crf)
         form.addRow('Video bitrate (kb/s)', self.video_bitrate)
         form.addRow('Encoder speed preset', self.preset)
         form.addRow('AAC rate control', self.audio_mode)
@@ -205,6 +205,18 @@ class EncodingView(QScrollArea):
         row, _ = main.getWidgetPosition(self.advanced_toggle)
         main.insertRow(row, self.estimate)
         self.estimate.setVisible(self.title == 'Compress')
+        for widget in (self.hardware_mode, self.gpu_encoder, self.hardware_status,
+                       self.import_profile_button):
+            move(widget, main, advanced, advanced.rowCount())
+        if self.title == 'Convert':
+            for widget in (self.presets, self.apply_preset_button):
+                move(widget, main, advanced, advanced.rowCount())
+        else:
+            for row, widget in enumerate((self.mode, self.crf, self.video_bitrate,
+                                          self.target_size, self.preset, self.estimate)):
+                move(widget, main, main, row)
+        advanced.addRow(self.note)
+        advanced.addRow('Validated command', self.preview)
         for widget in (self.mode, self.audio_mode):
             widget.currentIndexChanged.connect(self.update_estimate)
         for widget in (self.video_bitrate, self.audio_bitrate, self.target_size):
@@ -295,6 +307,10 @@ class EncodingView(QScrollArea):
         self.preset.setEnabled(self.mode.currentText() != 'default')
         self.audio_bitrate.setEnabled(self.audio_mode.currentText() == 'bitrate')
         self.audio_quality.setEnabled(self.audio_mode.currentText() == 'quality')
+        if self.title == 'Compress':
+            for widget, mode in ((self.crf, 'quality'), (self.video_bitrate, 'bitrate'),
+                                 (self.target_size, 'target')):
+                self.form.layout().setRowVisible(widget, self.mode.currentText() == mode)
         self.clear_preview()
 
     def set_media(self, media: MediaFile | None, busy: bool) -> None:

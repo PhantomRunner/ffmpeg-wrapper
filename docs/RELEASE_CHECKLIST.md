@@ -42,3 +42,21 @@ and retains build/checksum inventories for seven days. Binary archives stay on t
 runner pending dependency/license review; they are not uploaded automatically. Linux uses tar.gz to preserve
 symlinks; Windows uses ZIP. These workflows do not create tags or releases.
 Record their actual run URLs and results here before checking hosted verification.
+
+## UX remediation candidate — 2026-10-18
+
+This supplements the historical matrix above. Local source verification: 384 passing
+tests, full Ruff and whitespace checks. At 200% scale: 44 passing workspace, theme,
+extension/dropdown, encoding and playback tests. Native Linux candidate built on
+Arch/glibc 2.44 with Python 3.14.8, Qt/PySide6 6.12.0, PyInstaller 6.22.0; pinned
+build inputs passed. The candidate manifest records the development tree as dirty.
+
+Portable installation/removal/checksum verification passed in a fresh path with
+spaces/Unicode and read-only long-path source: Inspect, Remux, Convert, Compress,
+three Completed tasks, decoded preview video and position 116 ms; source unchanged.
+Qt Multimedia preview dependencies are inventoried in `preview_media_libraries`.
+No processing FFmpeg/FFprobe executable is included.
+
+Native Windows, actual hosted workflow runs, physical audio/display/GPU acceptance,
+oldest supported Linux baseline and existing license/dependency release gates remain
+pending. No public release approval is implied. See UX_REMEDIATION_PLAN.md for scope.

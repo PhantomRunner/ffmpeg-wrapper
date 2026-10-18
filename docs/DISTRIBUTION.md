@@ -54,7 +54,7 @@ manual matrix; a Windows read-only file attribute is not an ACL write restrictio
 
 `MediaWrapper --verify-install SOURCE EMPTY_DIRECTORY` is an explicit diagnostic
 mode. It uses an isolated config/log directory inside EMPTY_DIRECTORY and produces
-three outputs plus verification.json; it requires a short video/audio fixture and
+three outputs plus verification.json (including decoded video and playback position); it requires a short video/audio fixture and
 external PATH FFmpeg with FFV1, PCM, libx264 and AAC. It never replaces existing
 outputs. The verifier supplies a subprocess timeout. `--smoke-test` starts the
 ordinary desktop and exits after binary detection with status 0 or 2.
@@ -74,3 +74,13 @@ ordinary desktop and exits after binary detection with status 0 or 2.
   and fresh filenames. No mid-encode checkpoints are supported.
 
 Build-system reference: https://pyinstaller.org/en/stable/operating-mode.html
+
+## UX remediation candidate
+
+The installation verifier now waits for each asynchronous queue validation before
+starting the queue, then checks an actual decoded preview frame and advancing
+playback position. Qt Multimedia needs the platform multimedia/audio libraries even
+in offscreen tests. On restricted execution sandboxes, denied local audio IPC can
+prevent backend initialization; run native verification with local IPC access.
+The inventory now separately lists preview media libraries. Processing executables
+remain external or explicitly selected sidecars; public release gates are unchanged.

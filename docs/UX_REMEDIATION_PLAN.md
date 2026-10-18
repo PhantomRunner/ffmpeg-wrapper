@@ -89,8 +89,9 @@ packaged builds. Existing release/GPU/license gates remain open until evidenced.
 
 ## Verification log
 
-Implementation and local checks for U0–U2 are recorded here as they run. U3–U7 are
-planned, not implemented. Physical-display and Windows acceptance are pending.
+U0–U6 are implemented and locally verified. U7 implementation and local release
+checks are recorded below; physical-display, Windows, hosted CI and hardware/release
+acceptance remain pending. Earlier entries describe the state at each stage.
 
 ### U0/U1/U2 local implementation evidence — 2026-10-18
 
@@ -176,3 +177,35 @@ codec/chapter/count/extension rules, preferences/profiles and actual copy/remux,
 probe/verified publication plus existing-output refusal for all four new formats.
 Full suite: **383 passed**; Ruff and diff whitespace checks pass. Broader codec and
 container support stays conservative; native Windows verification remains pending.
+
+### U7 — polish and local release verification
+
+Primary Compress controls now precede presets/output; inactive rate-control fields
+are hidden. GPU/profile controls and technical command output are expandable.
+Convert keeps format/streams/resolution/FPS primary. Inspect is named explicitly.
+Existing design tokens and persistent resizable panels remain consistent. Six mode
+screenshots were rendered offscreen at 1280×900; Compress hierarchy was visually
+reviewed and corrected. Existing action-visibility tests cover 960×640, 1280×720 and
+1920×1080. The expanded 200% suite passes **44 tests** (including actual playback).
+
+Portable verification found a stale installation scenario that enqueued two async
+validations simultaneously. It now waits for each validation, verifies all three
+completed tasks, then requires a decoded video frame and advancing preview position.
+A source-launcher regression covers this sequence. Qt's shipped preview libraries
+are inventoried separately from external processing FFmpeg/FFprobe executables.
+
+Public-release gates remain open: native Windows, hosted CI run evidence, physical
+audio/display and GPU checks, oldest supported Linux baseline, application license
+choice and dependency review. No tag/release/push is performed. These checks cannot
+be honestly marked complete from this Linux offscreen environment.
+
+Final local U7 evidence: **384 tests passed** in 30.81 s; full-repository Ruff and
+`git diff --check` pass. Native Linux portable candidate built with Python 3.14.8,
+PySide6 6.12.0 and PyInstaller 6.22.0 on Arch/glibc 2.44. The copied Unicode/long-path
+installation completed all three tasks, decoded preview video and advanced to 116 ms;
+source preservation, checksums and removal of only the temporary installation passed.
+Current executable: `dist/MediaWrapper/MediaWrapper`. Original pre-UX build retained
+at `dist/MediaWrapper-before-ux-20261018`; first verification candidate retained at
+`dist/MediaWrapper-ux-first-check`. Build manifest records this development tree as
+dirty and inventories preview media dependencies; this is a locally tested candidate,
+not a release-approved build. ROADMAP.md remains unchanged as historical evidence.

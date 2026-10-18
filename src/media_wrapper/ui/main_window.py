@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         self.navigation = QListWidget()
         self.navigation.setObjectName('modeNavigation')
         self.navigation.setAccessibleName('Workspace modes')
-        self.navigation.addItems(['Workspace', 'Remux', 'Convert', 'Compress', 'Queue', 'Settings'])
+        self.navigation.addItems(['Inspect', 'Remux', 'Convert', 'Compress', 'Queue', 'Settings'])
         self.navigation.setMaximumWidth(170)
         self.pages = QStackedWidget()
         self.files_view = FilesView()
@@ -394,6 +394,7 @@ class MainWindow(QMainWindow):
             self.navigation.setCurrentRow(4)
 
     def show_encoding_preview(self, command: list[list[str]]) -> None:
+        self._preview_view.advanced_toggle.setChecked(True)
         self._preview_view.preview.setPlainText(json.dumps(command, ensure_ascii=False, indent=2))
         self.model.state.output = 'Validated preview. Run creates a fresh temporary path; executed arguments are shown in Queue.'
         self.render()

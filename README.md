@@ -1,12 +1,13 @@
 # FFmpeg UI Wrapper
 
-Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. Convert and Compress support CPU encoding, quality/bitrate controls and H.264 two-pass size estimates.
+Cross-platform desktop frontend for FFmpeg with advanced media workflows. Detects FFmpeg/FFprobe, inspects media metadata, and remuxes compatible selected streams into Matroska, MP4, MOV, WebM, WAV or FLAC. Convert and Compress support CPU encoding, quality/bitrate controls and H.264 two-pass size estimates.
 
 The default interface is a dark, resizable media workstation with a persistent
 Library, contextual operation Inspector and Processing/Media timelines.
-[Verification, screenshots and remaining platform checks](docs/R6_ROLLOUT.md).
-Source playback uses an explicit unavailable fallback; FFmpeg command preview and
-all processing workflows remain available.
+[Current UX plan and verification evidence](docs/UX_REMEDIATION_PLAN.md).
+Source preview supports Play/Pause, position/duration and seeking, synchronized with
+the Media Timeline. Preview uses Qt Multimedia codecs independently of the selected
+processing FFmpeg build; unsupported media/backend errors are shown explicitly.
 
 ## Requirements
 - Python 3.11 or later
@@ -48,13 +49,13 @@ python -m pytest -q
 
 ## Current user flow
 1. In **Settings**, select external (PATH or custom folder) or bundled (explicit folder) and detect FFmpeg. Startup also detects the saved installation.
-2. In **Workspace / Media Library**, add multiple files or drop local files. Select a current file and click **Inspect current file**, or select several and click **Inspect selected files**. **Cancel inspection** stops the active probe and cancels pending files while retaining completed results. Select a row to review its metadata and stream table. **Clear files** clears the selection and inspected source.
-3. In **Remux**, check the video/audio/subtitle tracks to copy, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
+2. In **Inspect / Media Library**, add multiple files or drop local files. Select a current file and click **Inspect current file**, or select several and click **Inspect selected files**. **Cancel inspection** stops the active probe and cancels pending files while retaining completed results. Select a row to review its metadata and stream table. **Clear files** clears the selection and inspected source.
+3. In **Remux**, check the video/audio/subtitle tracks to copy, choose a compatible container and a new destination (the filename extension follows container changes). Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
 4. Click **Run remux**, or **Add to queue** and start it on the **Queue** page. Execution probes and validates again. Progress includes estimated speed/ETA; cancellation waits for process cleanup. Successful output is verified before publication.
 
-In Convert or Compress, choose per-track copy/omit/encoding, a new destination, and optional resolution/FPS. Presets remain editable. Preview validates the selected build; Run executes through Queue with cancellation and verified output. Quality modes trade size against quality; target-size mode estimates a size and never guarantees it. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux. Convert/Compress can plan batches from the selected Files rows.
+Convert prioritizes container, per-track copy/omit/encoding, resolution and FPS. Compress prioritizes quality, bitrate or target size, speed presets and output-size estimates; stream choices and detailed controls are expandable. Presets remain editable. Preview validates the selected build; Run executes through Queue with cancellation and verified output. Quality modes trade size against quality; target-size mode estimates a size and never guarantees it. Inspection supports sequential batches with per-file results. Stream checkbox selections are used by Remux. Convert/Compress can plan batches from the selected Files rows.
 
-Remux copies the selected streams without re-encoding. This initial slice uses a conservative codec/container allowlist; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. Output is written to an adjacent hidden temporary file, verified, then published without replacing an existing destination. Publication requires hard-link support on that filesystem; failure retains the temporary file. Failed or cancelled partial files are retained and reported; inspect or remove them yourself. Cancel or wait for active work to finish before closing.
+Remux copies the selected streams without re-encoding. The container registry uses conservative codec/count/chapter rules; unsupported streams are reported rather than dropped. Both the application and FFmpeg refuse existing destinations. Output is written to an adjacent hidden temporary file, verified, then published without replacing an existing destination. Publication requires hard-link support on that filesystem; failure retains the temporary file. Failed or cancelled partial files are retained and reported; inspect or remove them yourself. Cancel or wait for active work to finish before closing.
 
 The sequential Queue shows status, output paths, progress, arguments, verified results and diagnostic tails. Failed/cancelled jobs do not stop later jobs. Retry creates a fresh attempt and temporary path, preserving history; resolve destination collisions before retrying. Queue history lasts for the current session; unfinished definitions can be saved and reloaded explicitly. After an application/OS crash, partial files may remain beside the destination. Parallel execution awaits GPU contention testing.
 
@@ -162,3 +163,18 @@ settings and batch** for detailed encoding controls and batch options. Switch
 between **Processing Timeline** (task progress) and **Media Timeline** (read-only
 source stream overview); unknown durations are shown without a fabricated ruler.
 Expand **Task details and diagnostics** for errors, executed arguments and logs.
+
+## Workspace and preview
+
+Each operation has its own resizable workspace layout, remembered separately. Queue
+uses the main processing area and Settings uses the configuration area. Reset layout
+resets the current mode. Remux/Convert/Compress retain edits while switching modes.
+Changing the container proposes a matching extension; manual incompatible extensions,
+existing outputs and source replacement still fail validation. Long dropdown items
+use screen-bounded popups, scrolling and full-text tooltips.
+
+Preview transport supports keyboard slider seeking and the Media Timeline supports
+click-to-seek. Stream lanes show container spans, not individually probed timestamps;
+export ranges are not edited. Qt Multimedia may use its own FFmpeg shared libraries;
+processing always uses the explicitly selected external/sidecar executables. Native
+Windows, physical audio/display/GPU and public release approval remain pending.

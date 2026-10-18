@@ -42,6 +42,7 @@ def verify(bundle: Path) -> None:
                                    + ((output / 'verification.json').read_text() if (output / 'verification.json').exists() else 'No report'))
             report = json.loads((output / 'verification.json').read_text())
             assert report['success'] and len(report['tasks']) == 3, report
+            assert report['playback']['decoded_video'] and report['playback']['position_ms'] >= 100, report
             assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
             assert (output / 'config/settings.json').is_file()
             shutil.rmtree(install)

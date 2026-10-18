@@ -32,4 +32,4 @@ jobs:
       - name: Workstation high-DPI regressions
         env:
           QT_SCALE_FACTOR: '2'
-        run: python -m pytest -q tests/test_workspace.py tests/test_library_inspector.py tests/test_timelines.py tests/test_workstation_polish.py tests/test_ui_theme.py
+        run: python -m pytest -q tests/test_workspace.py tests/test_library_inspector.py tests/test_timelines.py tests/test_workstation_polish.py tests/test_ui_theme.py tests/test_ux_remediation.py tests/test_encoding_workflows.py tests/test_playback.py

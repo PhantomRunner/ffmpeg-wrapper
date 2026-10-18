@@ -77,7 +77,9 @@ def main() -> None:
     manifest = {'source_dirty': dirty, 'source_sha256': source_hashes,
                 'license_audit_required': True, 'missing_wheel_license_files': missing_license_files,
                 'python': sys.version, 'platform': platform.platform(), 'machine': platform.machine(),
-                'commit': commit, 'packages': packages, 'ffmpeg_bundled': False}
+                'commit': commit, 'packages': packages, 'ffmpeg_bundled': False,
+                'preview_media_libraries': [str(path.relative_to(destination)) for path in sorted(destination.rglob('*'))
+                    if path.is_file() and any(name in path.name.lower() for name in ('avcodec', 'avformat', 'avutil', 'swresample', 'swscale', 'ffmpegmedia'))]}
     (destination / 'build-info.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     hashes = {str(path.relative_to(destination)).replace('\\', '/'): hashlib.sha256(path.read_bytes()).hexdigest()
               for path in sorted(destination.rglob('*')) if path.is_file()}
