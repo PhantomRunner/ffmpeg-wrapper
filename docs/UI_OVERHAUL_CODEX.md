@@ -97,13 +97,15 @@ R4 evidence: [Inspector and Library verification](R4_INSPECTOR.md), 344 tests pa
 R5 evidence: [dual timeline verification](R5_TIMELINES.md). Seeking remains unavailable with the explicit preview fallback.
 
 ### R6 — Preview, polish, regression and rollout
-- [ ] Integrate existing preview or show an explicit unsupported-media fallback.
-- [ ] Test empty states, huge libraries, long filenames, multiple streams, missing codecs, missing FFmpeg, failures, cancellations and retries.
-- [ ] Test keyboard controls, DPI, resizes, Linux/Windows styling and layout restoration.
-- [ ] Run existing automated tests and add smoke tests for navigation, task actions and persistence.
-- [ ] Remove obsolete screens only after parity is confirmed.
-- [ ] Update README/screenshots/docs and mark roadmap items completed with evidence.
+- [x] Integrate existing preview or show an explicit unsupported-media fallback.
+- [x] Test empty states, huge libraries, long filenames, multiple streams, missing codecs, missing FFmpeg, failures, cancellations and retries.
+- [ ] Test keyboard controls, DPI, resizes, Linux/Windows styling and layout restoration. Linux offscreen checks pass; native Windows/physical-display acceptance remains open.
+- [x] Run existing automated tests and add smoke tests for navigation, task actions and persistence.
+- [x] Remove obsolete screens only after parity is confirmed.
+- [x] Update README/screenshots/docs and mark roadmap items completed with evidence.
 **Done when:** feature parity is verified and the new UI is the default.
+
+R6 implementation and local parity evidence: [rollout verification](R6_ROLLOUT.md), 351 full-suite tests and 22 scale-2 tests passed. Final cross-platform acceptance remains open.
 
 ## Implementation rules for Codex
 1. Start with R1 only. Report findings before modifying architecture.

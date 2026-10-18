@@ -8,7 +8,9 @@ R1 is complete: [UI migration map](UI_MIGRATION_MAP.md). R2 is complete: [theme 
 R3 implementation is verified locally: [workspace evidence](R3_WORKSPACE.md); native Windows acceptance remains pending.
 R4 is complete: [Inspector and Library evidence](R4_INSPECTOR.md).
 R5 is complete: [dual timeline evidence](R5_TIMELINES.md).
-Next phase: R6 polish, regression and rollout.
+R6 implementation and local parity are verified: [rollout evidence](R6_ROLLOUT.md).
+The workstation is the default. Next acceptance task: native Windows and physical-display
+verification; R3/R6 cross-platform acceptance remains open, not marked complete.
 The notes below retain historical functional/release evidence; they do not extend
 the scope of this UI redesign.
 

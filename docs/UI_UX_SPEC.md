@@ -66,11 +66,11 @@ ui/
 `QSplitter` for panels, `QStackedWidget` for inspector modes, `QAbstractTableModel` / `QAbstractListModel` for data, `QStyledItemDelegate` for task rows. `QGraphicsView`/`QGraphicsScene` for time-based media streams. Keep Qt widgets separate from FFmpeg command builders and process execution.
 
 ## MVP implementation milestones
-- [ ] UI-01 Foundation: theme, main window, top bar, status bar, vertical/horizontal splitters, save/restore/reset workspace layout.
-- [ ] UI-02 Library: drag/drop, file list, selection signals, empty/loading/error states; connect existing FFprobe service.
-- [ ] UI-03 Inspector: stacked panels for metadata/remux/convert/compress; units and validation; advanced settings disclosure.
-- [ ] UI-04 Processing timeline: task list model, live states, progress, cancel/retry; mock data during isolated UI tests then real signals.
-- [ ] UI-05 Media timeline: read-only time ruler and lanes from real FFprobe streams; selection sync; no fake waveform.
+- [x] UI-01 Foundation: theme, main window, top bar, status bar, vertical/horizontal splitters, save/restore/reset workspace layout.
+- [x] UI-02 Library: drag/drop, file list, selection signals, empty/loading/error states; connect existing FFprobe service.
+- [x] UI-03 Inspector: stacked panels for metadata/remux/convert/compress; units and validation; advanced settings disclosure.
+- [x] UI-04 Processing timeline: task list model, live states, progress, cancel/retry; mock data during isolated UI tests then real signals.
+- [x] UI-05 Media timeline: read-only time ruler and lanes from real FFprobe streams; selection sync; no fake waveform.
 - [ ] UI-06 Preview: metadata placeholder first; add actual playback using Qt Multimedia where codecs/backends work; fallback to thumbnail/placeholder and retain processing capability.
 - [ ] UI-07 Polish: keyboard shortcuts, high-DPI, 1280x720, compact layout, accessibility, status notifications, UI tests on Windows/Linux.
 
@@ -82,3 +82,5 @@ ui/
 - UI never blocks while probing or processing; errors visible and nontechnical messages have detailed log toggle.
 - No UI module directly constructs shell command strings or executes FFmpeg.
 - Layout loads with a reasonable default if saved state is missing or corrupted.
+
+Implementation evidence: [R6 rollout](R6_ROLLOUT.md). UI-06 uses the explicit metadata/playback-unavailable fallback permitted by the R1–R6 plan; actual playback/seek is not implemented. The extended UI-06 playback item remains open; the R6 fallback is implemented. UI-07 remains open for native Windows and physical-display accessibility verification.

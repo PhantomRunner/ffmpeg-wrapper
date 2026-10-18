@@ -43,8 +43,9 @@ A desktop frontend for FFmpeg operations (Inspect, Remux, Transcode, Compress, b
   bitrate for two-pass H.264. Both passes share cancellation and output safety.
 - Qt-independent task states and application sequential queue with cancellation,
   fresh-attempt retry and per-task logs/results. Task history is session-only; explicit versioned queue definitions recreate validated pending attempts.
-- Desktop navigation with independent Files/Inspect, Remux and Settings pages;
-  Queue, Convert and Compress pages.
+- Desktop workstation with a persistent Library, explicit Preview fallback, contextual
+  metadata/Remux/Convert/Compress/Settings Inspector and dual timelines. Existing
+  forms and service bindings are reused within the splitter composition.
 - DesktopState and DesktopViewModel own selection, validation and asynchronous
   lifecycle state. Widgets bind state and actions; workers invoke services.
 - Local multi-file selection/drop, current-file inspection, safe output forms and
@@ -107,3 +108,19 @@ Parallel queue execution and release-approved distribution. Native PyInstaller p
   generated fixtures; production workflows are not replaced.
 - CI has separate source-test and native distribution jobs. Public distribution
   stays gated on native results, application license choice and dependency review.
+
+## Workstation migration (R1–R6)
+
+- `ui/workspace.py` composes nested splitters, toolbar, mode stack and timeline tabs.
+  Production startup injects a separate versioned QSettings layout store; existing
+  JSON preferences and their preservation policy remain intact.
+- Qt media/task models project application-owned records. DesktopState remains
+  the source of selection and inspection state. Queue attempts retain immutable
+  plans; single encoding enqueue validates a refreshed snapshot on ServiceWorker
+  using existing application validation before insertion.
+- Processing delegates draw actual task percentages with accessible text. The
+  media scene draws read-only container-duration lanes and exposes a keyboard lane
+  list; unknown duration has no invented time axis. No media decoding is added.
+- Operation actions are outside scrolling forms. Direct Remux remains an
+  independent task with its own cancellation and live processing-panel summary.
+- See [rollout and platform verification gates](R6_ROLLOUT.md).

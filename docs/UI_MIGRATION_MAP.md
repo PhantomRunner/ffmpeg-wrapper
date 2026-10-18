@@ -294,3 +294,7 @@ and action/signal mappings were checked against the implementation. No runtime
 files changed during R1. Native Windows/DPI/accessibility validation is reserved
 for the relevant later phase; this audit does not claim those checks passed.
 R1 acceptance is satisfied: every current workflow has a destination. Next: R2.
+
+## Post-migration parity
+
+R3–R6 implementation follows the destinations above. See the [R6 workflow parity review](R6_ROLLOUT.md) for current entry points, regression evidence, screenshots and remaining native-platform acceptance.

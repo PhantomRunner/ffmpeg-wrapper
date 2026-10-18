@@ -60,6 +60,7 @@ class Workspace(QWidget):
         preview_layout = QVBoxLayout(self.preview)
         preview_layout.addWidget(PanelHeader('Source Preview', 'Selected source and operation feedback'))
         self.source = QLabel('No source selected')
+        self.source.setTextFormat(Qt.TextFormat.PlainText)
         self.source.setWordWrap(True)
         preview_layout.addWidget(self.source)
         self.fallback = EmptyState('Playback unavailable', 'This workspace currently provides metadata inspection. Processing remains available; no decoded video or audio preview is shown.')
@@ -116,3 +117,22 @@ class Workspace(QWidget):
         self.settings.setValue('workspace/mode', self.window.navigation.currentRow())
         self.settings.setValue('workspace/timeline', self.timelines.currentIndex())
         self.settings.sync()
+
+
+def operation_panel(view: QWidget, *, remux: bool = False) -> QWidget:
+    """Keep operation actions reachable while long configuration forms scroll."""
+    panel = QWidget()
+    layout = QVBoxLayout(panel)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(view, 1)
+    view.enqueue_button.setProperty('variant', 'primary')
+    view.run_button.setProperty('variant', 'secondary')
+    layout.addWidget(view.enqueue_button)
+    actions = QHBoxLayout()
+    actions.addWidget(view.preview_button)
+    actions.addWidget(view.run_button)
+    layout.addLayout(actions)
+    if remux:
+        layout.addWidget(view.cancel_button)
+        layout.addWidget(view.progress_label)
+    return panel

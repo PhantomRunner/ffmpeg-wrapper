@@ -14,6 +14,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import (
     QFileDialog,
+    QLabel,
     QListWidget,
     QMainWindow,
     QMessageBox,
@@ -42,8 +43,8 @@ from media_wrapper.ui.views import (
     RemuxView,
     SettingsView,
 )
-from media_wrapper.ui.widgets.controls import EmptyState, StatusChip
-from media_wrapper.ui.workspace import Workspace, scroll_panel
+from media_wrapper.ui.widgets.controls import EmptyState, PanelHeader, StatusChip
+from media_wrapper.ui.workspace import Workspace, operation_panel, scroll_panel
 
 
 class MainWindow(QMainWindow):
@@ -53,13 +54,16 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('Media Wrapper — FFmpeg UI')
         self.settings_service = settings_service
         preferences = settings_service.load() if settings_service else Preferences()
-        self.resize(max(1280, preferences.width), max(720, preferences.height))
+        self.resize(preferences.width if preferences.width >= 960 else 1280,
+                    max(640, preferences.height) if preferences.width >= 960 else 720)
         self.setMinimumSize(960, 640)
         if settings_service and settings_service.warning:
             diagnostic_status += ' | ' + settings_service.warning
         self.statusBar().showMessage(diagnostic_status)
         self.activity = StatusChip()
         self.statusBar().addPermanentWidget(self.activity)
+        self.binary_summary = QLabel('FFmpeg unavailable')
+        self.statusBar().addWidget(self.binary_summary, 1)
         self.model = DesktopViewModel(self)
         self.model.state.container = Container(preferences.container)
         self.model.state.recent_destination = Path(preferences.recent_destination) if preferences.recent_destination else None
@@ -88,9 +92,12 @@ class MainWindow(QMainWindow):
         self.compress_view = EncodingView('Compress')
         metadata = QWidget()
         metadata_layout = QVBoxLayout(metadata)
+        metadata_layout.addWidget(PanelHeader('Media Inspector', 'Metadata and Remux stream selection'))
         metadata_layout.addWidget(self.files_view.summary)
         metadata_layout.addWidget(self.files_view.stream_table)
-        for page in (metadata, self.remux_view, self.convert_view, self.compress_view,
+        metadata_layout.addWidget(self.files_view.stream_note)
+        for page in (metadata, operation_panel(self.remux_view, remux=True),
+                     operation_panel(self.convert_view), operation_panel(self.compress_view),
                      EmptyState('Queue controls', 'Use the Processing Timeline below to start, cancel, retry and inspect jobs.'),
                      scroll_panel(self.settings_view)):
             self.pages.addWidget(page)
@@ -120,6 +127,7 @@ class MainWindow(QMainWindow):
         self.remux_view.enqueue_button.clicked.connect(self.model.enqueue_remux)
         self.queue_view.save_definitions.clicked.connect(self.save_queue_definitions)
         self.queue_view.load_definitions.clicked.connect(self.load_queue_definitions)
+        self.queue_view.cancel_direct.clicked.connect(self.model.cancel_remux)
         self.queue_view.open_output.clicked.connect(self.open_queue_output)
         self.queue_view.start_button.clicked.connect(self.model.start_queue)
         self.queue_view.cancel_button.clicked.connect(self.cancel_queue_selected)
@@ -168,8 +176,22 @@ class MainWindow(QMainWindow):
         self.model.encoding_preview_ready.connect(self.show_encoding_preview)
         self._capability_display_key = None
         self.model.changed.connect(self.render)
+        self.configure_shortcuts()
         self.render()
         self.detect()
+
+    def configure_shortcuts(self) -> None:
+        from PySide6.QtGui import QShortcut
+        shortcuts = {'Ctrl+O': self.choose_file, 'Ctrl+Shift+L': self.workspace.reset_layout,
+                     'Ctrl+Return': self.model.start_queue}
+        for key, callback in shortcuts.items():
+            QShortcut(key, self, activated=callback)
+        for index in range(6):
+            QShortcut(f'Alt+{index + 1}', self,
+                      activated=lambda index=index: self.navigation.setCurrentRow(index))
+        self.workspace.import_button.setToolTip('Import local media (Ctrl+O)')
+        self.queue_view.start_button.setToolTip('Start pending tasks (Ctrl+Enter)')
+        self.navigation.setToolTip('Modes: Alt+1 through Alt+6')
 
     # Read-only lifecycle access for the shell's shutdown policy and diagnostics.
     @property
@@ -195,6 +217,12 @@ class MainWindow(QMainWindow):
         self.workspace.import_button.setEnabled(not state.busy and state.binaries is not None)
         self.workspace.source.setText(str(state.current_file) if state.current_file else 'No source selected')
         self.activity.set_status('Working' if state.busy else 'Ready', 'loading' if state.busy else 'neutral')
+        active = [r for r in self.model.queue.records if r.status in (TaskStatus.PREPARING, TaskStatus.RUNNING)]
+        codecs = ', '.join(dict.fromkeys(s.profile.encoder for r in active for s in r.plan.streams))
+        self.binary_summary.setText(('FFmpeg ready' if state.binaries else 'FFmpeg unavailable — open Settings') +
+                                    f' · {len(active) + int(self.model.remux_task is not None)} active' +
+                                    (f' · {codecs}' if codecs else ''))
+        self.binary_summary.setToolTip(state.status)
         self.files_view.empty_state.setVisible(not state.files)
         self.files_view.file_list.setVisible(bool(state.files))
         self.convert_view.set_media(state.media, state.busy)
@@ -235,12 +263,13 @@ class MainWindow(QMainWindow):
         self.remux_view.progress_label.setText(state.remux_progress)
         self.files_view.stream_table.setEnabled(not state.busy)
         listing = self.files_view.file_list
+        had_current = listing.currentIndex().isValid()
         with QSignalBlocker(listing.selectionModel()):
             self.files_view.media_model.update(state.files, state.inspections)
             if state.current_file in state.files:
                 index = self.files_view.media_model.index(state.files.index(state.current_file))
                 if listing.currentIndex() != index:
-                    listing.selectionModel().setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
+                    listing.selectionModel().setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate if had_current else QItemSelectionModel.SelectionFlag.ClearAndSelect)
         self.file_selection_changed()
         self.files_view.cancel_button.setEnabled(state.inspection_active and not state.cancel_requested)
         self.files_view.batch_status.setText(state.inspection_summary)
@@ -377,6 +406,10 @@ class MainWindow(QMainWindow):
 
     def render_queue(self) -> None:
         queue = self.model.queue
+        direct = self.model.remux_task is not None
+        self.queue_view.direct_status.setVisible(direct)
+        self.queue_view.cancel_direct.setVisible(direct)
+        self.queue_view.direct_status.setText('Direct Remux · ' + (self.model.state.remux_progress or 'Preparing'))
         table = self.queue_view.table
         self.queue_view.empty_state.setVisible(not queue.records)
         table.setVisible(bool(queue.records))

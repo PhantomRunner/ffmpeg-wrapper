@@ -43,7 +43,7 @@ QTextEdit, QListView, QTableView, QListWidget, QTableWidget {
     border-radius: 4px; selection-background-color: $accent; selection-color: $on_accent;
     gridline-color: $control;
 }
-QTextEdit:focus, QListWidget:focus, QTableWidget:focus { border-color: $accent; }
+QTextEdit:focus, QListView:focus, QTableView:focus, QListWidget:focus, QTableWidget:focus { border-color: $accent; }
 QListView::item { min-height: ${control_height}px; padding: 0px 8px; }
 QListView::item:hover { background: $control; }
 QListView::item:selected { background: $accent; color: $on_accent; }

@@ -2,9 +2,11 @@
 
 Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. Convert and Compress support CPU encoding, quality/bitrate controls and H.264 two-pass size estimates.
 
-The UI redesign is underway: the dark theme and reusable controls are implemented
-([R2 evidence and screenshots](docs/R2_THEME.md)). The next phase introduces the
-splitter-based workstation layout; existing operations remain available.
+The default interface is a dark, resizable media workstation with a persistent
+Library, contextual operation Inspector and Processing/Media timelines.
+[Verification, screenshots and remaining platform checks](docs/R6_ROLLOUT.md).
+Source playback uses an explicit unavailable fallback; FFmpeg command preview and
+all processing workflows remain available.
 
 ## Requirements
 - Python 3.11 or later
@@ -46,7 +48,7 @@ python -m pytest -q
 
 ## Current user flow
 1. In **Settings**, select external (PATH or custom folder) or bundled (explicit folder) and detect FFmpeg. Startup also detects the saved installation.
-2. In **Files / Inspect**, add multiple files or drop local files. Select a current file and click **Inspect current file**, or select several and click **Inspect selected files**. **Cancel inspection** stops the active probe and cancels pending files while retaining completed results. Select a row to review its metadata and stream table. **Clear files** clears the selection and inspected source.
+2. In **Workspace / Media Library**, add multiple files or drop local files. Select a current file and click **Inspect current file**, or select several and click **Inspect selected files**. **Cancel inspection** stops the active probe and cancels pending files while retaining completed results. Select a row to review its metadata and stream table. **Clear files** clears the selection and inspected source.
 3. In **Remux**, check the video/audio/subtitle tracks to copy, choose Matroska or MP4 and a new destination. Inline validation explains unsafe or invalid paths. **Advanced details → Validate and preview** shows the generated argument array without creating output.
 4. Click **Run remux**, or **Add to queue** and start it on the **Queue** page. Execution probes and validates again. Progress includes estimated speed/ETA; cancellation waits for process cleanup. Successful output is verified before publication.
 
@@ -147,3 +149,16 @@ installation/removal and packaged Inspect/Remux/Convert/Compress checks. Windows
 verification and public release approval remain pending. No FFmpeg binaries are
 bundled. See [release gates](docs/RELEASE_CHECKLIST.md),
 [third-party notices](THIRD_PARTY_NOTICES.md), and [candidate notes](CHANGELOG.md).
+
+## Workstation shortcuts and layout
+
+- Ctrl+O: import local media and inspect it in the background.
+- Alt+1…6: Workspace, Remux, Convert, Compress, Queue, Settings.
+- Ctrl+Enter: start pending queue jobs.
+- Ctrl+Shift+L: reset splitter layout; layout and selected timeline persist on close.
+
+Operation actions stay visible while the Inspector scrolls. Expand **Advanced
+settings and batch** for detailed encoding controls and batch options. Switch
+between **Processing Timeline** (task progress) and **Media Timeline** (read-only
+source stream overview); unknown durations are shown without a fabricated ruler.
+Expand **Task details and diagnostics** for errors, executed arguments and logs.

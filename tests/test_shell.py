@@ -40,7 +40,7 @@ def test_navigation_preserves_inspection_and_enabled_state(shell):
         assert shell.choose_file_button.isEnabled()
     assert shell.files_view.parentWidget() is not None
     assert shell.pages.widget(0).isAncestorOf(shell.files_view.stream_table)
-    assert shell.pages.widget(1) is shell.remux_view
+    assert shell.pages.widget(1).isAncestorOf(shell.remux_view)
     assert shell.pages.widget(5).widget() is shell.settings_view
 
 
