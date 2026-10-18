@@ -130,3 +130,13 @@ JSON preferences. Reset affects the current mode. Local verification: 364 existi
 tests passed; the added navigation test initially compared tuple to set, corrected
 without production changes; all 3 workspace tests then passed. Native display and
 Windows acceptance remain pending.
+
+### U4 — distinct encoding workflows
+
+Convert promotes resolution/FPS beside format/streams. Compress promotes rate
+control, quality, bitrate, target size and speed, with stream mapping in the
+expandable advanced section. Both retain the same typed requests/services and
+editable presets. A filesystem-free application estimate uses apply_target_size
+for two-pass budgets and known selected-track rates; quality/unknown rates do not
+invent sizes. Four new workflow/estimate tests plus full suite: **369 passed**.
+Changed files pass Ruff. Native visual acceptance remains pending.

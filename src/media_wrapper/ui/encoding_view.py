@@ -34,7 +34,7 @@ class EncodingView(QScrollArea):
         body = QWidget()
         self.setWidget(body)
         layout = QVBoxLayout(body)
-        layout.addWidget(PanelHeader(title, 'Configure output, stream choices and encoding settings.'))
+        layout.addWidget(PanelHeader(title, 'Choose quality or a size budget, then review the estimate.' if title == 'Compress' else 'Choose a format, map streams and set resolution and frame rate.'))
         self.source = QLabel('Inspect a source first.')
         self.source.setWordWrap(True)
         layout.addWidget(self.source)
@@ -174,7 +174,49 @@ class EncodingView(QScrollArea):
         for widget in (self.video_width, self.video_height, self.audio_bitrate):
             widget.valueChanged.connect(self.preview.clear)
         self.container.currentIndexChanged.connect(self.container_changed)
+        self.arrange_workflow()
         self.update_options()
+
+    def arrange_workflow(self) -> None:
+        main, advanced = self.form.layout(), self.advanced.layout()
+
+        def move(widget: QWidget, source: QFormLayout, target: QFormLayout, row: int) -> None:
+            items = source.takeRow(widget)
+            if items.labelItem:
+                target.insertRow(row, items.labelItem.widget(), items.fieldItem.widget())
+            else:
+                target.insertRow(row, items.fieldItem.widget())
+
+        # Promote the controls that define this operation, retaining request bindings.
+        promoted = ((self.mode, self.crf, self.video_bitrate, self.target_size,
+                     self.preset, self.audio_bitrate) if self.title == 'Compress' else
+                    (self.video_width, self.video_height, self.fps))
+        for widget in promoted:
+            row, _ = main.getWidgetPosition(self.advanced_toggle)
+            move(widget, advanced, main, row)
+        if self.title == 'Compress':
+            move(self.tracks, main, advanced, 0)
+            self.advanced_toggle.setText('Streams, format adjustments and advanced settings')
+        self.estimate = QLabel()
+        self.estimate.setWordWrap(True)
+        self.estimate.setAccessibleName('Estimated output size')
+        row, _ = main.getWidgetPosition(self.advanced_toggle)
+        main.insertRow(row, self.estimate)
+        self.estimate.setVisible(self.title == 'Compress')
+        for widget in (self.mode, self.audio_mode):
+            widget.currentIndexChanged.connect(self.update_estimate)
+        for widget in (self.video_bitrate, self.audio_bitrate, self.target_size):
+            widget.valueChanged.connect(self.update_estimate)
+
+    def update_estimate(self) -> None:
+        if not hasattr(self, 'estimate'):
+            return
+        from media_wrapper.application.size_estimate import estimate_output
+        try:
+            text = estimate_output(self._media, self.request()) if self._media else 'Inspect a source to estimate output size.'
+        except ValueError as error:
+            text = str(error)
+        self.estimate.setText(text)
 
     def container_changed(self) -> None:
         from media_wrapper.ui.output_paths import suggest_output_path
@@ -242,6 +284,7 @@ class EncodingView(QScrollArea):
     def clear_preview(self) -> None:
         if hasattr(self, 'preview'):
             self.preview.clear()
+        self.update_estimate()
 
     def update_options(self) -> None:
         self.target_size.setEnabled(self.mode.currentText() == 'target')
@@ -276,9 +319,10 @@ class EncodingView(QScrollArea):
                        'subtitle': ['mov_text', 'srt', 'ass']}.get(stream.kind, [])
             combo.addItems(['copy', 'omit', *options])
             combo.setCurrentText({'video': 'libx264', 'audio': 'aac'}.get(stream.kind, 'copy'))
-            combo.currentIndexChanged.connect(self.preview.clear)
+            combo.currentIndexChanged.connect(self.clear_preview)
             self.tracks.setCellWidget(row, 1, combo)
             self._encoders.append(combo)
+        self.update_estimate()
 
     def request(self) -> ConversionRequest:
         if self._media is None or not self.destination.text().strip():
