@@ -248,3 +248,23 @@ scale and 38 at 200%; full-repository Ruff and whitespace checks pass. No backen
 behavior, timelines or Docker state changed. Native physical-display review remains
 separate from these offscreen checks.
 Final full regression suite: **388 passed** in 28.38 s.
+
+### U10 — narrow forms and horizontal preview
+
+Root causes: long non-wrapping advanced/batch captions, paired profile buttons and
+a wide label column imposed excessive form minimum widths. Shortened captions
+(with a descriptive advanced tooltip), separate profile actions and 112 px wrapped
+label columns let Convert/Compress fit narrow panels without hiding the scrollbar
+or clipping fields.
+
+Preview now sits in a shallow, resizable horizontal strip above Library/settings;
+playback and feedback share the strip side by side. A visible horizontal resize
+handle adjusts its height. Schema 4 persists both splits per operation; legacy
+geometry resets while preserving the selected mode. No timelines return.
+
+Acceptance: forms fit at 280/320/420 logical px, collapsed and expanded, in quality,
+bitrate and target modes with long source filenames; pinned actions remain reachable.
+Preview ordering, layout persistence, navigation and existing operation behavior
+remain covered. Offscreen visual review at 960×640 passed; 34 targeted regressions
+passed at 200% scale. Physical-display and Windows acceptance remain pending.
+Full regression suite: **394 passed** in 27.98 s. Ruff and whitespace checks pass.

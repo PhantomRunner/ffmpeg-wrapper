@@ -147,3 +147,12 @@ its own page; preview retains its transport slider. Layout version 3 retains the
 horizontal split, reads versions 1/2 and drops obsolete vertical/timeline preferences.
 A status-bar output estimate uses application-level plan estimation with honest
 unknown/quality fallback and updates from form changes or Queue selection.
+
+## Horizontal preview strip
+
+Layout version 4 places Preview above the Library/Inspector split. Playback and
+feedback sit side by side within the strip. Both splitter states persist per mode.
+Versions 1–3 preserve their selected mode but reset incompatible three-column
+geometry; obsolete timeline preferences are discarded. Queue/Settings still occupy
+the full work area. Encoding forms retain responsive QFormLayout wrapping and use
+shorter captions and separate profile-action rows to avoid minimum-width overflow.

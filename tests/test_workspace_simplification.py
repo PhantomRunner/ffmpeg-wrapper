@@ -93,5 +93,5 @@ def test_legacy_layout_drops_timeline_state(monkeypatch, tmp_path):
     assert restored.navigation.currentRow() == 2
     assert not hasattr(restored.workspace, 'timelines')
     restored.close()
-    assert settings.value('workspace/version') == '3'
+    assert settings.value('workspace/version') == '4'
     assert not settings.contains('workspace/modes/2/timeline')

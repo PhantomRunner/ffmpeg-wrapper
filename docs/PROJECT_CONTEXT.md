@@ -69,3 +69,8 @@ navigation, Convert/Compress separation, playback, expanded Remux. Verify behavi
 and update documentation after each task. Do not mark unverified work complete or
 attempt a full redesign in one pass. Usability and cohesive architecture precede
 final visual polish.
+
+Source Preview now spans the workspace above Library and operation settings, with
+playback beside source details/feedback. Keep it shallow and height-resizable.
+Encoding forms must fit narrow panels without a horizontal scrollbar, using short
+captions, wrapped labels and stacked actions where needed.

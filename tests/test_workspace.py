@@ -17,17 +17,23 @@ def test_workspace_roundtrip_and_reset(app, monkeypatch, tmp_path):
     window = MainWindow(layout_settings=settings)
     window.show()
     app.processEvents()
-    window.workspace.horizontal.setSizes([250, 500, 400])
+    window.workspace.horizontal.setSizes([250, 700])
     window.navigation.setCurrentRow(2)
+    window.workspace.vertical.setSizes([210, 480])
+    app.processEvents()
     sizes = window.workspace.horizontal.sizes()
+    heights = window.workspace.vertical.sizes()
     window.close()
     restored = MainWindow(layout_settings=settings)
     restored.show()
     app.processEvents()
     assert restored.navigation.currentRow() == 2
     assert restored.workspace.horizontal.sizes() == sizes
+    assert restored.workspace.vertical.sizes() == heights
+    assert restored.workspace.vertical.widget(0) is restored.workspace.preview
+    assert restored.workspace.vertical.widget(1) is restored.workspace.horizontal
     restored.workspace.reset_layout()
-    assert restored.workspace.horizontal.count() == 3
+    assert restored.workspace.horizontal.count() == 2
     assert not hasattr(restored.workspace, 'timelines')
     assert not hasattr(restored.workspace, 'media_timeline')
     for index in range(6):
@@ -65,7 +71,7 @@ def test_navigation_preserves_edits_selection_and_per_mode_geometry(app, monkeyp
     window.navigation.setCurrentRow(2)
     window.convert_view.destination.setText(str(tmp_path / 'custom.mkv'))
     window.convert_view.video_width.setValue(640)
-    window.workspace.horizontal.setSizes([250, 350, 450])
+    window.workspace.horizontal.setSizes([250, 700])
     app.processEvents()
     sizes = window.workspace.horizontal.sizes()
     selected = window.model.state.selected_streams
@@ -77,3 +83,29 @@ def test_navigation_preserves_edits_selection_and_per_mode_geometry(app, monkeyp
     assert window.convert_view.video_width.value() == 640
     assert window.model.state.selected_streams == selected
     window.close()
+
+
+@pytest.mark.parametrize('title', ['Convert', 'Compress'])
+@pytest.mark.parametrize('width', [280, 320, 420])
+def test_encoding_form_fits_narrow_panel(app, title, width):
+    from pathlib import Path
+
+    from media_wrapper.domain.media import MediaFile
+    from media_wrapper.ui.encoding_view import EncodingView
+
+    view = EncodingView(title)
+    view.resize(width, 500)
+    view.set_media(MediaFile(Path('/tmp/' + 'long-source-name-' * 15 + '.mkv')), False)
+    view.show()
+    for expanded in (False, True):
+        view.advanced_toggle.setChecked(expanded)
+        for mode in ('quality', 'bitrate', 'target'):
+            view.mode.setCurrentText(mode)
+            for _ in range(3):
+                app.processEvents()
+            assert view.width() == width
+            assert view.horizontalScrollBar().maximum() == 0
+            assert view.widget().width() <= view.viewport().width()
+            for field in (view.container, view.destination, view.advanced_toggle):
+                assert field.geometry().right() < field.parentWidget().width()
+    view.close()

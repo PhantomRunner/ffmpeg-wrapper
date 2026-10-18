@@ -38,7 +38,7 @@ class Workspace(QWidget):
         self.window = window
         self.settings = settings
         self.mode = -1
-        self._layouts: dict[int, QByteArray] = {}
+        self._layouts: dict[int, tuple[QByteArray, QByteArray]] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         toolbar = QHBoxLayout()
@@ -67,31 +67,38 @@ class Workspace(QWidget):
         self.horizontal.addWidget(self.library)
         self.preview = QFrame()
         self.preview.setProperty('role', 'workspacePanel')
-        preview_layout = QVBoxLayout(self.preview)
+        preview_layout = QHBoxLayout(self.preview)
         preview_layout.setContentsMargins(8, 8, 8, 8)
         preview_layout.setSpacing(6)
-        preview_layout.addWidget(PanelHeader('Source Preview', 'Selected source and operation feedback'))
+        details = QVBoxLayout()
+        details.addWidget(PanelHeader('Source Preview'))
         self.source = QLabel('No source selected')
         self.source.setTextFormat(Qt.TextFormat.PlainText)
         self.source.setWordWrap(True)
-        preview_layout.addWidget(self.source)
+        details.addWidget(self.source)
         self.playback = PlaybackPanel()
         preview_layout.addWidget(self.playback, 2)
         self.feedback = QTabWidget()
         self.feedback.addTab(window.output, 'Operation feedback')
-        preview_layout.addWidget(self.feedback, 1)
-        self.horizontal.addWidget(self.preview)
+        details.addWidget(self.feedback, 1)
+        preview_layout.addLayout(details, 3)
         window.pages.setMinimumWidth(200)
         self.inspector = framed_panel(window.pages)
         self.horizontal.addWidget(self.inspector)
-        layout.addWidget(self.horizontal)
+        self.vertical = QSplitter(Qt.Orientation.Vertical)
+        self.vertical.setObjectName('previewSplit')
+        self.vertical.setChildrenCollapsible(False)
+        self.vertical.setHandleWidth(12)
+        self.vertical.addWidget(self.preview)
+        self.vertical.addWidget(self.horizontal)
+        layout.addWidget(self.vertical)
         window.navigation.currentRowChanged.connect(self.set_mode)
         self.set_mode(window.navigation.currentRow())
         self.restore_layout()
 
     def remember_layout(self) -> None:
         if self.mode >= 0:
-            self._layouts[self.mode] = self.horizontal.saveState()
+            self._layouts[self.mode] = (self.horizontal.saveState(), self.vertical.saveState())
 
     def set_mode(self, mode: int) -> None:
         if not 0 <= mode < 6 or mode == self.mode:
@@ -102,16 +109,20 @@ class Workspace(QWidget):
         self.preview.setVisible(mode in (0, 2, 3))
         self.default_layout()
         if mode in self._layouts:
-            restored = self.horizontal.restoreState(self._layouts[mode])
+            horizontal, vertical = self._layouts[mode]
+            restored = self.horizontal.restoreState(horizontal) and self.vertical.restoreState(vertical)
             if not restored or any(size <= 0 and not self.horizontal.widget(i).isHidden()
-                                   for i, size in enumerate(self.horizontal.sizes())):
+                                   for i, size in enumerate(self.horizontal.sizes())) or any(
+                    size <= 0 and not self.vertical.widget(i).isHidden()
+                    for i, size in enumerate(self.vertical.sizes())):
                 self.default_layout()
 
     def default_layout(self) -> None:
-        proportions = {0: [230, 500, 320], 1: [280, 0, 720],
-                       2: [220, 330, 500], 3: [220, 300, 530],
-                       4: [0, 0, 1000], 5: [0, 0, 1000]}
+        proportions = {0: [280, 720], 1: [280, 720],
+                       2: [280, 720], 3: [280, 720],
+                       4: [0, 1000], 5: [0, 1000]}
         self.horizontal.setSizes(proportions[self.mode])
+        self.vertical.setSizes([190, max(300, self.height() - 190)])
 
     def reset_layout(self) -> None:
         self._layouts.pop(self.mode, None)
@@ -121,18 +132,21 @@ class Workspace(QWidget):
         if self.settings is None:
             return
         version = str(self.settings.value('workspace/version', ''))
-        if version not in ('1', '2', '3'):
+        if version not in ('1', '2', '3', '4'):
             return
         try:
             mode = int(self.settings.value('workspace/mode', 0))
         except (ValueError, TypeError):
             mode = 0
         mode = mode if 0 <= mode < 6 else 0
-        for index in (range(6) if version in ('2', '3') else [mode]):
-            prefix = f'workspace/modes/{index}/' if version in ('2', '3') else 'workspace/'
-            horizontal = self.settings.value(prefix + 'horizontal')
-            if isinstance(horizontal, QByteArray):
-                self._layouts[index] = horizontal
+        # Old three-column geometry is incompatible; preserve only the selected mode.
+        if version == '4':
+            for index in range(6):
+                prefix = f'workspace/modes/{index}/'
+                horizontal = self.settings.value(prefix + 'horizontal')
+                vertical = self.settings.value(prefix + 'vertical')
+                if isinstance(horizontal, QByteArray) and isinstance(vertical, QByteArray):
+                    self._layouts[index] = (horizontal, vertical)
         # Do not overwrite the restored initial mode with the startup geometry.
         self.mode = -1
         self.window.navigation.setCurrentRow(mode)
@@ -142,11 +156,12 @@ class Workspace(QWidget):
         if self.settings is None:
             return
         self.remember_layout()
-        self.settings.setValue('workspace/version', '3')
-        for mode, horizontal in self._layouts.items():
+        self.settings.setValue('workspace/version', '4')
+        self.settings.remove('workspace/modes')
+        for mode, (horizontal, vertical) in self._layouts.items():
             prefix = f'workspace/modes/{mode}/'
             self.settings.setValue(prefix + 'horizontal', horizontal)
-            self.settings.remove(prefix + 'vertical')
+            self.settings.setValue(prefix + 'vertical', vertical)
             self.settings.remove(prefix + 'timeline')
         self.settings.remove('workspace/vertical')
         self.settings.remove('workspace/timeline')

@@ -66,7 +66,8 @@ class EncodingView(QScrollArea):
         form.addRow(self.apply_preset_button)
         self.import_profile_button = ActionButton('Import profile…')
         self.export_profile_button = ActionButton('Save / export profile…')
-        form.addRow(self.import_profile_button, self.export_profile_button)
+        form.addRow(self.import_profile_button)
+        form.addRow(self.export_profile_button)
         self.container = ReadableComboBox()
         for container, spec in CONTAINERS.items():
             self.container.addItem(f'{spec.label} ({spec.extension})', container.value)
@@ -82,7 +83,7 @@ class EncodingView(QScrollArea):
         self.tracks.setMaximumHeight(150)
         self.tracks.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         form.addRow(self.tracks)
-        self.advanced_toggle = QCheckBox('Advanced settings and batch')
+        self.advanced_toggle = QCheckBox('Advanced settings')
         form.addRow(self.advanced_toggle)
         self.advanced = QWidget()
         form.addRow(self.advanced)
@@ -156,7 +157,7 @@ class EncodingView(QScrollArea):
         self.batch_folder = QLineEdit()
         self.batch_folder.setPlaceholderText('Output folder (empty = current destination folder)')
         self.batch_template = QLineEdit('{stem}_{index}_encoded{ext}')
-        self.batch_button = ActionButton('Add selected Files rows as batch')
+        self.batch_button = ActionButton('Queue selected files')
         form.addRow('Batch output folder', self.batch_folder)
         form.addRow('Batch filename template', self.batch_template)
         form.addRow(self.batch_button)
@@ -192,7 +193,7 @@ class EncodingView(QScrollArea):
                 label = form_layout.itemAt(row, QFormLayout.ItemRole.LabelRole)
                 if label and isinstance(label.widget(), QLabel):
                     label.widget().setWordWrap(True)
-                    label.widget().setFixedWidth(132)
+                    label.widget().setFixedWidth(112)
         self.update_options()
 
     def arrange_workflow(self) -> None:
@@ -214,7 +215,8 @@ class EncodingView(QScrollArea):
             move(widget, advanced, main, row)
         if self.title == 'Compress':
             move(self.tracks, main, advanced, 0)
-            self.advanced_toggle.setText('Streams, format adjustments and advanced settings')
+            self.advanced_toggle.setText('Streams and advanced')
+            self.advanced_toggle.setToolTip('Streams, format adjustments, processing, profiles and batch settings')
         self.estimate = QLabel()
         self.estimate.setWordWrap(True)
         self.estimate.setAccessibleName('Estimated output size')
@@ -222,7 +224,7 @@ class EncodingView(QScrollArea):
         main.insertRow(row, self.estimate)
         self.estimate.setVisible(self.title == 'Compress')
         for widget in (self.hardware_mode, self.gpu_encoder, self.hardware_status,
-                       self.import_profile_button):
+                       self.import_profile_button, self.export_profile_button):
             move(widget, main, advanced, advanced.rowCount())
         if self.title == 'Convert':
             for widget in (self.presets, self.apply_preset_button):

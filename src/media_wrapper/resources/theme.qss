@@ -96,7 +96,11 @@ QSplitter#workspaceSplit::handle:horizontal {
     background: $control; border: 1px solid $border; border-radius: 4px;
     margin: 16px 2px;
 }
-QSplitter#workspaceSplit::handle:horizontal:hover {
+QSplitter#previewSplit::handle {
+    background: $control; border: 1px solid $border; border-radius: 4px;
+    margin: 2px 16px;
+}
+QSplitter#workspaceSplit::handle:horizontal:hover, QSplitter#previewSplit::handle:hover {
     background: $accent; border-color: $accent;
 }
 QLineEdit, QSpinBox, QComboBox, QTextEdit, QListView, QTableView {
