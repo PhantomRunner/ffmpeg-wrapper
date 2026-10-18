@@ -9,6 +9,7 @@ from PySide6.QtCore import QObject, QThread, Signal, Slot
 from media_wrapper.application.conversion_service import (
     ConversionRequest,
     conversion_plan,
+    validate_queue_snapshot,
 )
 from media_wrapper.application.errors import ApplicationError, report_failure
 from media_wrapper.application.file_service import validate_files
@@ -412,6 +413,10 @@ class DesktopViewModel(QObject):
             return
         if action == 'preview':
             self._start(EncodingPreviewWorker(self.state.binaries, plan), self.encoding_preview_ready.emit)
+        elif action == 'enqueue':
+            binaries = self.state.binaries
+            self._start(ServiceWorker(lambda: validate_queue_snapshot(binaries, plan), 'Queue validation'),
+                        lambda validated: self._batch_ready((validated,)))
         else:
             self.queue.add(plan, self.state.binaries)
             if action == 'run':

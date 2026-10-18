@@ -68,3 +68,12 @@ def preview_conversion(binaries: Binaries, plan: OperationPlan) -> list[list[str
     prepared = prepare_operation(plan, available_encoders=available)
     prefix = prepared.output.execution_path.with_suffix('.passlog')
     return CommandBuilder().build_passes(binaries.ffmpeg, prepared, available, prefix)
+
+
+def validate_queue_snapshot(binaries: Binaries, plan: OperationPlan) -> OperationPlan:
+    """Refresh and validate immutable intent without reserving or creating output."""
+    from dataclasses import replace
+    event = Event()
+    media = MediaService(binaries).inspect(plan.media.path, event)
+    available = list_encoders(binaries.ffmpeg, event)
+    return prepare_operation(replace(plan, media=media), staged=False, available_encoders=available)

@@ -3,9 +3,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QScrollArea,
@@ -40,6 +40,7 @@ class EncodingView(QScrollArea):
         layout.addWidget(self.source)
         self.form = QWidget()
         form = QFormLayout(self.form)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         self.hardware_mode = QComboBox()
         self.hardware_mode.addItems(['CPU', 'GPU', 'Auto'])
         self.gpu_encoder = QComboBox()
@@ -74,6 +75,14 @@ class EncodingView(QScrollArea):
         self.tracks.setMaximumHeight(150)
         self.tracks.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         form.addRow(self.tracks)
+        self.advanced_toggle = QCheckBox('Advanced settings and batch')
+        form.addRow(self.advanced_toggle)
+        self.advanced = QWidget()
+        form.addRow(self.advanced)
+        self.advanced_toggle.toggled.connect(self.advanced.setVisible)
+        self.advanced.hide()
+        form = QFormLayout(self.advanced)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         self.track_order = QLineEdit()
         self.track_order.setPlaceholderText('Optional selected indices in output order, e.g. 2,0,3')
         self.metadata_policy, self.chapter_policy = QComboBox(), QComboBox()
@@ -147,7 +156,7 @@ class EncodingView(QScrollArea):
         self.note = QLabel('Quality mode gives variable size; lower CRF usually uses more space. Slower presets trade time for efficiency. Bitrate mode targets a rate, not an exact size. Target size estimates overhead and uses two-pass H.264; actual size can differ. Encoders are checked against your FFmpeg build before running. Copy preserves the original stream; Omit removes it explicitly. Scaling uses the exact dimensions entered.')
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
-        buttons = QHBoxLayout()
+        buttons = QVBoxLayout()
         self.preview_button = ActionButton('Validate and preview')
         self.run_button = ActionButton('Run', primary=True)
         self.enqueue_button = ActionButton('Add to queue')

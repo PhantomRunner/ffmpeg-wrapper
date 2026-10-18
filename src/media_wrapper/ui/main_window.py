@@ -72,7 +72,7 @@ class MainWindow(QMainWindow):
         self.navigation = QListWidget()
         self.navigation.setObjectName('modeNavigation')
         self.navigation.setAccessibleName('Workspace modes')
-        self.navigation.addItems(['Files / Inspect', 'Remux', 'Convert', 'Compress', 'Queue', 'Settings'])
+        self.navigation.addItems(['Workspace', 'Remux', 'Convert', 'Compress', 'Queue', 'Settings'])
         self.navigation.setMaximumWidth(170)
         self.pages = QStackedWidget()
         self.files_view = FilesView()
@@ -132,15 +132,15 @@ class MainWindow(QMainWindow):
         self.remux_view.destination.textChanged.connect(self.output_changed)
         self.container.currentIndexChanged.connect(self.output_changed)
         self.remux_view.preview_button.clicked.connect(self.model.preview)
-        self.files_view.files_dropped.connect(self.model.add_files)
+        self.files_view.files_dropped.connect(self.import_media)
         self.files_view.streams_selected.connect(self.model.select_streams)
         self.remux_view.streams_selected.connect(self.model.select_streams)
         self.files_view.inspect_button.clicked.connect(self.inspect_current)
         self.files_view.inspect_selected_button.clicked.connect(self.inspect_selected)
         self.files_view.cancel_button.clicked.connect(self.model.cancel_inspection)
         self.files_view.clear_button.clicked.connect(self.model.clear_files)
-        self.files_view.file_list.currentRowChanged.connect(self.select_current)
-        self.files_view.file_list.itemSelectionChanged.connect(self.file_selection_changed)
+        self.files_view.file_list.selectionModel().currentChanged.connect(lambda current, previous: self.select_current(current.row()))
+        self.files_view.file_list.selectionModel().selectionChanged.connect(self.file_selection_changed)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
         self.output.setAccessibleName('Operation feedback and technical details')
@@ -233,23 +233,12 @@ class MainWindow(QMainWindow):
         self.remux_view.progress_label.setText(state.remux_progress)
         self.files_view.stream_table.setEnabled(not state.busy)
         listing = self.files_view.file_list
-        paths = [str(path) for path in state.files]
-        if [listing.item(i).data(Qt.ItemDataRole.UserRole) for i in range(listing.count())] != paths:
-            with QSignalBlocker(listing):
-                listing.clear()
-                listing.addItems(paths)
-                for row, path in enumerate(paths):
-                    listing.item(row).setData(Qt.ItemDataRole.UserRole, path)
-                if state.current_file in state.files:
-                    listing.setCurrentRow(state.files.index(state.current_file))
-        if state.current_file in state.files and listing.currentRow() != state.files.index(state.current_file):
-            with QSignalBlocker(listing):
-                listing.setCurrentRow(state.files.index(state.current_file), QItemSelectionModel.SelectionFlag.NoUpdate)
-        for row, path in enumerate(state.files):
-            record = state.inspections.get(path)
-            status = record.status.value if record else 'Not inspected'
-            listing.item(row).setText(f'{path} [{status}]')
-            listing.item(row).setToolTip(record.error if record and record.error else status)
+        with QSignalBlocker(listing.selectionModel()):
+            self.files_view.media_model.update(state.files, state.inspections)
+            if state.current_file in state.files:
+                index = self.files_view.media_model.index(state.files.index(state.current_file))
+                if listing.currentIndex() != index:
+                    listing.selectionModel().setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
         self.file_selection_changed()
         self.files_view.cancel_button.setEnabled(state.inspection_active and not state.cancel_requested)
         self.files_view.batch_status.setText(state.inspection_summary)
@@ -326,7 +315,7 @@ class MainWindow(QMainWindow):
             self.model.state.output = str(error)
             self.render()
             return
-        paths = tuple(Path(item.data(Qt.ItemDataRole.UserRole)) for item in self.files_view.file_list.selectedItems())
+        paths = tuple(Path(item.data(Qt.ItemDataRole.UserRole)) for item in self.files_view.file_list.selectionModel().selectedIndexes())
         folder = Path(view.batch_folder.text()) if view.batch_folder.text().strip() else request.destination.parent
         self.model.enqueue_batch(paths, request, folder, view.batch_template.text())
 
@@ -457,7 +446,15 @@ class MainWindow(QMainWindow):
         if self.model.state.busy or self.binaries is None:
             return
         names, _ = QFileDialog.getOpenFileNames(self, 'Select media files')
-        self.model.add_files([Path(name) for name in names])
+        self.import_media([Path(name) for name in names])
+
+    def import_media(self, paths: list[Path]) -> None:
+        if self.model.state.busy:
+            return
+        self.model.add_files(paths)
+        pending = tuple(p for p in paths if p in self.model.state.files)
+        if pending and self.binaries is not None:
+            self.model.inspect_many(pending)
 
     def select_current(self, row: int) -> None:
         self.model.select_file(self.model.state.files[row] if 0 <= row < len(self.model.state.files) else None)
@@ -468,10 +465,10 @@ class MainWindow(QMainWindow):
 
     def file_selection_changed(self) -> None:
         self.files_view.inspect_selected_button.setEnabled(not self.model.state.busy and self.binaries is not None
-                                                          and bool(self.files_view.file_list.selectedItems()))
+                                                          and bool(self.files_view.file_list.selectionModel().selectedIndexes()))
 
     def inspect_selected(self) -> None:
-        paths = tuple(Path(item.data(Qt.ItemDataRole.UserRole)) for item in self.files_view.file_list.selectedItems())
+        paths = tuple(Path(item.data(Qt.ItemDataRole.UserRole)) for item in self.files_view.file_list.selectionModel().selectedIndexes())
         self.model.inspect_many(paths)
 
     def run_inspection(self, path: Path) -> None:

@@ -6,7 +6,8 @@ The functional implementation is the baseline for the new UI-only R1–R6 plan.
 Follow [UI overhaul](UI_OVERHAUL_CODEX.md) and [UI/UX specification](UI_UX_SPEC.md).
 R1 is complete: [UI migration map](UI_MIGRATION_MAP.md). R2 is complete: [theme and controls](R2_THEME.md).
 R3 implementation is verified locally: [workspace evidence](R3_WORKSPACE.md); native Windows acceptance remains pending.
-Next phase: R4 contextual Inspector and library.
+R4 is complete: [Inspector and Library evidence](R4_INSPECTOR.md).
+Next phase: R5 dual timelines.
 The notes below retain historical functional/release evidence; they do not extend
 the scope of this UI redesign.
 

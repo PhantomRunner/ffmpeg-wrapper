@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListView,
     QListWidget,
     QListWidgetItem,
     QScrollArea,
@@ -24,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.ui.inspection_presenter import stream_values
+from media_wrapper.ui.models.media_files import MediaFileModel
 from media_wrapper.ui.widgets.controls import (
     ActionButton,
     EmptyState,
@@ -44,7 +46,10 @@ class FilesView(QWidget):
         layout.addWidget(self.empty_state)
         self.open_button = ActionButton('Add files…', primary=True)
         layout.addWidget(self.open_button)
-        self.file_list = QListWidget()
+        self.file_list = QListView()
+        self.media_model = MediaFileModel(self.file_list)
+        self.file_list.setModel(self.media_model)
+        self.file_list.setUniformItemSizes(True)
         self.file_list.setAccessibleName('Imported media files')
         self.file_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.file_list.setAcceptDrops(False)

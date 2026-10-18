@@ -1,5 +1,5 @@
 """Resizable workspace composition and independently versioned layout preferences."""
-from PySide6.QtCore import QByteArray, QSettings, Qt
+from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -43,6 +43,9 @@ class Workspace(QWidget):
         layout.addLayout(toolbar)
         window.navigation.setFlow(window.navigation.Flow.LeftToRight)
         window.navigation.setWrapping(False)
+        window.navigation.setGridSize(QSize(112, 40))
+        for row in range(window.navigation.count()):
+            window.navigation.item(row).setSizeHint(QSize(108, 36))
         window.navigation.setMaximumWidth(16777215)
         window.navigation.setFixedHeight(44)
         layout.addWidget(window.navigation)

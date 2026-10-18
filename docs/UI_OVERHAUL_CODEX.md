@@ -78,12 +78,14 @@ R2 evidence: [theme and controls verification](R2_THEME.md), 339 tests passed on
 R3 implementation evidence: [workspace verification](R3_WORKSPACE.md). Native Windows acceptance remains pending.
 
 ### R4 — Contextual Inspector and library
-- [ ] Bind selection to one shared state/controller.
-- [ ] Display file metadata and stream selection in the Library/Inspector.
-- [ ] Provide contextual Convert/Compress/Remux settings by reusing existing validation and profiles.
-- [ ] Preserve advanced/expert settings, encoder choice, and FFmpeg command preview if currently available.
-- [ ] Wire Add to Queue and action feedback.
+- [x] Bind selection to one shared state/controller.
+- [x] Display file metadata and stream selection in the Library/Inspector.
+- [x] Provide contextual Convert/Compress/Remux settings by reusing existing validation and profiles.
+- [x] Preserve advanced/expert settings, encoder choice, and FFmpeg command preview if currently available.
+- [x] Wire Add to Queue and action feedback.
 **Done when:** all previously supported operations can be configured and queued from the new workspace.
+
+R4 evidence: [Inspector and Library verification](R4_INSPECTOR.md), 344 tests passed.
 
 ### R5 — Dual timelines
 - [ ] Implement Processing Timeline with real queue events and actions.

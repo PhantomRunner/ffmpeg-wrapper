@@ -38,15 +38,15 @@ QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid $accent; pa
 QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { background: $panel; color: $secondary; border-color: $control; }
 QLineEdit[validation="error"] { border-color: $error; }
 QComboBox QAbstractItemView { background: $control; color: $text; selection-background-color: $accent; selection-color: $on_accent; }
-QTextEdit, QListWidget, QTableWidget {
+QTextEdit, QListView, QTableView, QListWidget, QTableWidget {
     background: $panel; alternate-background-color: $control; border: 1px solid $border;
     border-radius: 4px; selection-background-color: $accent; selection-color: $on_accent;
     gridline-color: $control;
 }
 QTextEdit:focus, QListWidget:focus, QTableWidget:focus { border-color: $accent; }
-QListWidget::item { min-height: ${control_height}px; padding: 0px 8px; }
-QListWidget::item:hover { background: $control; }
-QListWidget::item:selected { background: $accent; color: $on_accent; }
+QListView::item { min-height: ${control_height}px; padding: 0px 8px; }
+QListView::item:hover { background: $control; }
+QListView::item:selected { background: $accent; color: $on_accent; }
 QListWidget#modeNavigation { background: $background; border: none; outline: none; }
 QListWidget#modeNavigation::item { border-radius: 4px; margin: 2px 0px; padding: 4px 12px; }
 QListWidget#modeNavigation::item:selected { background: $control; color: $accent; border-left: 3px solid $accent; }

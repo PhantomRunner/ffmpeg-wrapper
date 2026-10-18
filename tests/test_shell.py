@@ -24,6 +24,10 @@ def shell(monkeypatch):
         time.sleep(.001)
     assert window.thread is None
     yield window
+    deadline = time.monotonic() + 5
+    while window.model.state.busy and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(.001)
     window.close()
 
 
@@ -81,14 +85,22 @@ def test_multi_file_picker_and_selection(shell, tmp_path, monkeypatch):
     second.touch()
     monkeypatch.setattr('media_wrapper.ui.main_window.QFileDialog.getOpenFileNames',
                         lambda *args: ([str(first), str(second)], ''))
+    from media_wrapper.domain.media import MediaFile
+    monkeypatch.setattr('media_wrapper.application.media_service.MediaService.inspect',
+                        lambda self, path, *args, **kwargs: MediaFile(path))
     shell.choose_file()
-    assert shell.files_view.file_list.count() == 2
+    deadline = time.monotonic() + 5
+    while shell.model.state.busy and time.monotonic() < deadline:
+        QApplication.instance().processEvents()
+        time.sleep(.001)
+    assert not shell.model.state.busy
+    assert shell.files_view.file_list.model().rowCount() == 2
     shell.model.state.source = first
-    shell.files_view.file_list.setCurrentRow(1)
-    assert shell.source is None
+    shell.files_view.file_list.setCurrentIndex(shell.files_view.media_model.index(1))
+    assert shell.source == second
     assert shell.model.state.current_file == second
     shell.files_view.clear_button.click()
-    assert shell.files_view.file_list.count() == 0
+    assert shell.files_view.file_list.model().rowCount() == 0
     assert not shell.remux_button.isEnabled()
 
 
