@@ -61,10 +61,12 @@ An actual media-time ruler for the selected source file, with video/audio/subtit
 R1 evidence: [UI migration map](UI_MIGRATION_MAP.md), 329 tests passed on 2026-10-18.
 
 ### R2 — Theme and reusable controls
-- [ ] Implement centralized theme tokens and QSS.
-- [ ] Create reusable panel headers, action buttons, status labels, empty states and field rows.
-- [ ] Validate hover, focus, disabled, error and loading states.
+- [x] Implement centralized theme tokens and QSS.
+- [x] Create reusable panel headers, action buttons, status labels, empty states and field rows.
+- [x] Validate hover, focus, disabled, error and loading states.
 **Done when:** reusable components are demonstrated in the app and old screens remain usable.
+
+R2 evidence: [theme and controls verification](R2_THEME.md), 339 tests passed on 2026-10-18. Native Windows visual verification remains for R6.
 
 ### R3 — New workspace shell
 - [ ] Build MainWindow toolbar, mode navigation, nested splitters, bottom tab switcher and status bar.

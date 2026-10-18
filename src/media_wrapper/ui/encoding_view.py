@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
     QScrollArea,
     QSpinBox,
     QTableWidget,
@@ -24,6 +23,7 @@ from media_wrapper.domain.encoding_presets import PRESETS
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
+from media_wrapper.ui.widgets.controls import ActionButton, PanelHeader
 
 
 class EncodingView(QScrollArea):
@@ -34,6 +34,7 @@ class EncodingView(QScrollArea):
         body = QWidget()
         self.setWidget(body)
         layout = QVBoxLayout(body)
+        layout.addWidget(PanelHeader(title, 'Configure output, stream choices and encoding settings.'))
         self.source = QLabel('Inspect a source first.')
         self.source.setWordWrap(True)
         layout.addWidget(self.source)
@@ -52,17 +53,17 @@ class EncodingView(QScrollArea):
         form.addRow(self.hardware_status)
         self.presets = QComboBox()
         self.presets.addItems([p.name for p in PRESETS])
-        self.apply_preset_button = QPushButton('Apply editable preset')
+        self.apply_preset_button = ActionButton('Apply editable preset')
         self.apply_preset_button.clicked.connect(self.apply_preset)
         form.addRow('Starting point', self.presets)
         form.addRow(self.apply_preset_button)
-        self.import_profile_button = QPushButton('Import profile…')
-        self.export_profile_button = QPushButton('Save / export profile…')
+        self.import_profile_button = ActionButton('Import profile…')
+        self.export_profile_button = ActionButton('Save / export profile…')
         form.addRow(self.import_profile_button, self.export_profile_button)
         self.container = QComboBox()
         self.container.addItems(['Matroska', 'MP4'])
         self.destination = QLineEdit()
-        self.browse = QPushButton('Choose output…')
+        self.browse = ActionButton('Choose output…')
         form.addRow('Container', self.container)
         form.addRow('New destination', self.destination)
         form.addRow(self.browse)
@@ -138,7 +139,7 @@ class EncodingView(QScrollArea):
         self.batch_folder = QLineEdit()
         self.batch_folder.setPlaceholderText('Output folder (empty = current destination folder)')
         self.batch_template = QLineEdit('{stem}_{index}_encoded{ext}')
-        self.batch_button = QPushButton('Add selected Files rows as batch')
+        self.batch_button = ActionButton('Add selected Files rows as batch')
         form.addRow('Batch output folder', self.batch_folder)
         form.addRow('Batch filename template', self.batch_template)
         form.addRow(self.batch_button)
@@ -147,9 +148,9 @@ class EncodingView(QScrollArea):
         self.note.setWordWrap(True)
         layout.addWidget(self.note)
         buttons = QHBoxLayout()
-        self.preview_button = QPushButton('Validate and preview')
-        self.run_button = QPushButton('Run')
-        self.enqueue_button = QPushButton('Add to queue')
+        self.preview_button = ActionButton('Validate and preview')
+        self.run_button = ActionButton('Run', primary=True)
+        self.enqueue_button = ActionButton('Add to queue')
         for button in (self.preview_button, self.run_button, self.enqueue_button):
             buttons.addWidget(button)
         layout.addLayout(buttons)

@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QScrollArea,
     QTableWidget,
     QTableWidgetItem,
@@ -25,6 +24,12 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.ui.inspection_presenter import stream_values
+from media_wrapper.ui.widgets.controls import (
+    ActionButton,
+    EmptyState,
+    FieldRow,
+    PanelHeader,
+)
 
 
 class FilesView(QWidget):
@@ -33,21 +38,23 @@ class FilesView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('Files / Inspect'))
+        layout.addWidget(PanelHeader('Media Library', 'Import files, inspect their streams, then configure an operation.'))
         self.setAcceptDrops(True)
-        layout.addWidget(QLabel('Add or drop local media files. Select files to inspect; choose a row to review its results.'))
-        self.open_button = QPushButton('Add files…')
+        self.empty_state = EmptyState('No media imported', 'Add or drop local media files. Select a file and inspect it to see metadata and available streams.')
+        layout.addWidget(self.empty_state)
+        self.open_button = ActionButton('Add files…', primary=True)
         layout.addWidget(self.open_button)
         self.file_list = QListWidget()
+        self.file_list.setAccessibleName('Imported media files')
         self.file_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.file_list.setAcceptDrops(False)
         layout.addWidget(self.file_list)
-        self.inspect_button = QPushButton('Inspect current file')
-        self.inspect_selected_button = QPushButton('Inspect selected files')
-        self.cancel_button = QPushButton('Cancel inspection')
+        self.inspect_button = ActionButton('Inspect current file')
+        self.inspect_selected_button = ActionButton('Inspect selected files')
+        self.cancel_button = ActionButton('Cancel inspection')
         self.batch_status = QLabel('')
         self.batch_status.setWordWrap(True)
-        self.clear_button = QPushButton('Clear files')
+        self.clear_button = ActionButton('Clear files')
         layout.addWidget(self.inspect_button)
         layout.addWidget(self.inspect_selected_button)
         layout.addWidget(self.cancel_button)
@@ -57,6 +64,7 @@ class FilesView(QWidget):
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
         self.stream_table = QTableWidget(0, 11)
+        self.stream_table.setAccessibleName('Inspected streams and remux selection')
         self.stream_table.setHorizontalHeaderLabels(['Select', 'Index', 'Type', 'Codec / subtitle type', 'Language',
                                                     'Bitrate (bit/s)', 'Frame size', 'Frame rate (fps)',
                                                     'Sample rate (Hz)', 'Channels', 'Layout'])
@@ -119,7 +127,7 @@ class RemuxView(QScrollArea):
         body = QWidget()
         self.setWidget(body)
         layout = QVBoxLayout(body)
-        layout.addWidget(QLabel('Remux'))
+        layout.addWidget(PanelHeader('Remux', 'Change the container while copying compatible selected streams.'))
         self.source_label = QLabel('Inspect a file first. Streams are copied without re-encoding.')
         self.source_label.setWordWrap(True)
         layout.addWidget(self.source_label)
@@ -135,19 +143,17 @@ class RemuxView(QScrollArea):
         self.destination = QLineEdit()
         self.destination.setPlaceholderText('Choose a new destination filename')
         self.destination.setToolTip('Existing files and source replacement are refused. Use .mkv or .mp4 for the chosen container.')
-        self.browse_button = QPushButton('Choose output…')
+        self.browse_button = ActionButton('Choose output…')
         self.validation = QLabel('Inspect a file first.')
         self.validation.setWordWrap(True)
         self.metadata_policy, self.chapter_policy = QComboBox(), QComboBox()
         for combo in (self.metadata_policy, self.chapter_policy):
             combo.addItems(['preserve', 'strip'])
-        form.addWidget(QLabel('Metadata (global and selected tracks)'))
-        form.addWidget(self.metadata_policy)
-        form.addWidget(QLabel('Chapters'))
-        form.addWidget(self.chapter_policy)
-        self.run_button = QPushButton('Run remux')
-        self.cancel_button = QPushButton('Cancel remux')
-        self.enqueue_button = QPushButton('Add to queue')
+        form.addWidget(FieldRow('&Metadata', self.metadata_policy))
+        form.addWidget(FieldRow('&Chapters', self.chapter_policy))
+        self.run_button = ActionButton('Run remux', primary=True)
+        self.cancel_button = ActionButton('Cancel remux')
+        self.enqueue_button = ActionButton('Add to queue')
         self.progress_label = QLabel('')
         self.progress_label.setWordWrap(True)
         self.run_button.setToolTip('Validate the source again and copy selected supported streams. Unsupported tracks cause an error.')
@@ -158,7 +164,7 @@ class RemuxView(QScrollArea):
         layout.addWidget(self.advanced_toggle)
         self.advanced = QGroupBox('Generated argument array')
         advanced_layout = QVBoxLayout(self.advanced)
-        self.preview_button = QPushButton('Validate and preview')
+        self.preview_button = ActionButton('Validate and preview')
         self.preview_button.setToolTip('Probe the source and validate all streams in the background without creating output.')
         self.preview = QTextEdit()
         self.preview.setReadOnly(True)
@@ -189,19 +195,19 @@ class SettingsView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel('FFmpeg installation'))
+        layout.addWidget(PanelHeader('Settings', 'Binary installation, runtime capabilities and diagnostics.'))
         controls = QHBoxLayout()
         self.mode = QComboBox()
         self.mode.addItems(['external', 'bundled'])
         self.mode.setToolTip('External uses PATH or your chosen folder. Bundled requires an explicit folder; there is no fallback.')
         self.folder = QLineEdit()
         self.folder.setPlaceholderText('Optional bin directory (external: empty = PATH)')
-        self.browse_button = QPushButton('Browse bin folder')
-        self.detect_button = QPushButton('Detect FFmpeg')
+        self.browse_button = ActionButton('Browse bin folder')
+        self.detect_button = ActionButton('Detect FFmpeg')
         for widget in (self.mode, self.folder, self.browse_button, self.detect_button):
             controls.addWidget(widget)
         layout.addLayout(controls)
-        self.sidecar_button = QPushButton('Select bundled sidecar folder')
+        self.sidecar_button = ActionButton('Select bundled sidecar folder')
         self.sidecar_button.setToolTip('Explicitly select ffmpeg/bin beside the packaged executable. Missing files are reported; PATH is not used as a fallback.')
         layout.addWidget(self.sidecar_button)
         self.status = QLabel('FFmpeg not detected')
@@ -210,8 +216,8 @@ class SettingsView(QWidget):
         self.test_gpu = QCheckBox('Also runtime-test listed GPU encoders (short synthetic encodes)')
         self.gpu_device = QLineEdit()
         self.gpu_device.setPlaceholderText('Optional VAAPI render device, e.g. /dev/dri/renderD128')
-        self.scan_button = QPushButton('Scan build / refresh capabilities')
-        self.cancel_scan = QPushButton('Cancel capability scan')
+        self.scan_button = ActionButton('Scan build / refresh capabilities')
+        self.cancel_scan = ActionButton('Cancel capability scan')
         self.capabilities = QTextEdit()
         self.capabilities.setReadOnly(True)
         for widget in (self.test_gpu, self.gpu_device, self.scan_button, self.cancel_scan, self.capabilities):
@@ -220,9 +226,9 @@ class SettingsView(QWidget):
         self.log_level.addItems(['DEBUG', 'INFO', 'WARNING', 'ERROR'])
         self.private_diagnostics = QCheckBox('Include private paths, executed arguments and raw task logs')
         self.private_diagnostics.setToolTip('Leave unchecked for a shareable summary without paths, metadata or raw errors.')
-        self.export_diagnostics = QPushButton('Export diagnostics…')
-        layout.addWidget(QLabel('Local diagnostic log level'))
-        for widget in (self.log_level, self.private_diagnostics, self.export_diagnostics):
+        self.export_diagnostics = ActionButton('Export diagnostics…')
+        layout.addWidget(FieldRow('Diagnostic log &level', self.log_level))
+        for widget in (self.private_diagnostics, self.export_diagnostics):
             layout.addWidget(widget)
         layout.addStretch()
 
@@ -242,17 +248,21 @@ class QueueView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
+        layout.addWidget(PanelHeader('Processing Queue', 'Review attempts and verified outputs. Start pending tasks when ready.'))
+        self.empty_state = EmptyState('No tasks queued', 'Configure Remux, Convert or Compress, then choose Add to queue. Saved definitions can also be loaded here.')
+        layout.addWidget(self.empty_state)
         note = QLabel('Sequential queue for this session. Failures and cancellations leave later jobs running. Partial files are retained; retry creates a new attempt.')
         note.setWordWrap(True)
         layout.addWidget(note)
-        self.save_definitions = QPushButton('Save unfinished definitions…')
-        self.load_definitions = QPushButton('Load definitions…')
+        self.save_definitions = ActionButton('Save unfinished definitions…')
+        self.load_definitions = ActionButton('Load definitions…')
         self.save_definitions.setToolTip('Stores source/output paths and settings. Loading revalidates sources and creates new pending attempts; no mid-encode checkpoints.')
         definitions = QHBoxLayout()
         definitions.addWidget(self.save_definitions)
         definitions.addWidget(self.load_definitions)
         layout.addLayout(definitions)
         self.table = QTableWidget(0, 4)
+        self.table.setAccessibleName('Queued processing tasks')
         self.table.setHorizontalHeaderLabels(['Source', 'Output', 'Status', 'Progress'])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -260,11 +270,11 @@ class QueueView(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.table)
         buttons = QHBoxLayout()
-        self.start_button = QPushButton('Start queue')
-        self.cancel_button = QPushButton('Cancel selected')
-        self.cancel_all_button = QPushButton('Cancel all')
-        self.retry_button = QPushButton('Retry selected')
-        self.cpu_retry_button = QPushButton('Retry on CPU')
+        self.start_button = ActionButton('Start queue', primary=True)
+        self.cancel_button = ActionButton('Cancel selected')
+        self.cancel_all_button = ActionButton('Cancel all')
+        self.retry_button = ActionButton('Retry selected')
+        self.cpu_retry_button = ActionButton('Retry on CPU')
         self.cpu_retry_button.setToolTip('Explicitly create a new CPU attempt. Previous diagnostics and partial output are retained.')
         for button in (self.start_button, self.cancel_button, self.cancel_all_button, self.retry_button, self.cpu_retry_button):
             buttons.addWidget(button)

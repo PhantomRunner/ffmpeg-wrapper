@@ -2,6 +2,10 @@
 
 Cross-platform desktop frontend for FFmpeg with advanced media workflows. **Early MVP:** detects FFmpeg/FFprobe, inspects media metadata, and remuxes supported streams into Matroska or MP4. Convert and Compress support CPU encoding, quality/bitrate controls and H.264 two-pass size estimates.
 
+The UI redesign is underway: the dark theme and reusable controls are implemented
+([R2 evidence and screenshots](docs/R2_THEME.md)). The next phase introduces the
+splitter-based workstation layout; existing operations remain available.
+
 ## Requirements
 - Python 3.11 or later
 - Linux or Windows

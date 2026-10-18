@@ -28,6 +28,7 @@ from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
+from media_wrapper.ui.theme import apply_theme
 from media_wrapper.ui.view_model import DesktopViewModel
 from media_wrapper.ui.views import (
     FilesView,
@@ -35,11 +36,13 @@ from media_wrapper.ui.views import (
     RemuxView,
     SettingsView,
 )
+from media_wrapper.ui.widgets.controls import StatusChip
 
 
 class MainWindow(QMainWindow):
     def __init__(self, diagnostic_status: str = '', settings_service: SettingsService | None = None) -> None:
         super().__init__()
+        apply_theme(self)
         self.setWindowTitle('Media Wrapper — FFmpeg UI')
         self.settings_service = settings_service
         preferences = settings_service.load() if settings_service else Preferences()
@@ -48,14 +51,21 @@ class MainWindow(QMainWindow):
         if settings_service and settings_service.warning:
             diagnostic_status += ' | ' + settings_service.warning
         self.statusBar().showMessage(diagnostic_status)
+        self.activity = StatusChip()
+        self.statusBar().addPermanentWidget(self.activity)
         self.model = DesktopViewModel(self)
         self.model.state.container = Container(preferences.container)
         self.model.state.recent_destination = Path(preferences.recent_destination) if preferences.recent_destination else None
         root = QWidget()
+        root.setObjectName('workspaceRoot')
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
+        layout.setContentsMargins(12, 12, 12, 8)
+        layout.setSpacing(8)
         pages = QHBoxLayout()
         self.navigation = QListWidget()
+        self.navigation.setObjectName('modeNavigation')
+        self.navigation.setAccessibleName('Workspace modes')
         self.navigation.addItems(['Files / Inspect', 'Remux', 'Convert', 'Compress', 'Queue', 'Settings'])
         self.navigation.setMaximumWidth(170)
         self.pages = QStackedWidget()
@@ -128,6 +138,8 @@ class MainWindow(QMainWindow):
         self.files_view.file_list.itemSelectionChanged.connect(self.file_selection_changed)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
+        self.output.setAccessibleName('Operation feedback and technical details')
+        self.output.setPlaceholderText('Operation results and details will appear here.')
         layout.addWidget(self.output, 1)
         self._preview_view = self.convert_view
         self.convert_view.preview_button.clicked.connect(self.preview_convert)
@@ -170,6 +182,9 @@ class MainWindow(QMainWindow):
     def render(self) -> None:
         state = self.model.state
         self.status.setText(state.status)
+        self.activity.set_status('Working' if state.busy else 'Ready', 'loading' if state.busy else 'neutral')
+        self.files_view.empty_state.setVisible(not state.files)
+        self.files_view.file_list.setVisible(bool(state.files))
         self.convert_view.set_media(state.media, state.busy)
         self.compress_view.set_media(state.media, state.busy)
         for view in (self.convert_view, self.compress_view):
@@ -241,6 +256,13 @@ class MainWindow(QMainWindow):
         self.remux_view.preview_button.setEnabled(not state.busy and not state.form_error)
         self.remux_view.browse_button.setEnabled(not state.busy and state.source is not None)
         self.remux_view.destination.setEnabled(not state.busy)
+        invalid = bool(state.source and state.destination.strip() and state.form_error)
+        for field in (self.remux_view.validation, self.remux_view.destination):
+            validation = 'error' if invalid else ''
+            if field.property('validation') != validation:
+                field.setProperty('validation', validation)
+                field.style().unpolish(field)
+                field.style().polish(field)
         self.remux_view.validation.setText(state.form_error or 'Ready. Selected streams will be validated before execution.')
         with QSignalBlocker(self.remux_view.destination):
             self.remux_view.destination.setText(state.destination)
@@ -354,6 +376,9 @@ class MainWindow(QMainWindow):
     def render_queue(self) -> None:
         queue = self.model.queue
         table = self.queue_view.table
+        self.queue_view.empty_state.setVisible(not queue.records)
+        table.setVisible(bool(queue.records))
+        self.queue_view.details.setVisible(bool(queue.records))
         row = table.currentRow()
         with QSignalBlocker(table):
             table.setRowCount(len(queue.records))

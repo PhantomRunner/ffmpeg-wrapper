@@ -1,0 +1,79 @@
+/* Scoped to MainWindow by setStyleSheet, using shared semantic tokens. */
+QWidget {
+    color: $text;
+    font-size: ${body_size}px;
+}
+QMainWindow, QWidget#workspaceRoot { background: $background; }
+QStackedWidget, QScrollArea, QScrollArea > QWidget > QWidget { background: $panel; }
+QScrollArea { border: none; }
+QLabel { background: transparent; }
+QLabel[validation="error"] { color: $error; }
+QLabel[role="secondary"], QLabel[role="fieldHelp"] { color: $secondary; }
+QLabel[role="panelTitle"] { font-size: 18px; font-weight: 600; }
+QWidget[role="panelHeader"] { background: transparent; }
+QFrame[role="emptyState"] {
+    background: $panel; border: 1px dashed $border; border-radius: ${radius}px;
+}
+QLabel[role="emptyTitle"] { font-size: 15px; font-weight: 600; }
+QPushButton {
+    background: $control; border: 1px solid $border; border-radius: ${radius}px;
+    min-height: 24px; padding: 3px 10px;
+}
+QPushButton:hover { background: $hover; border-color: $secondary; }
+QPushButton:pressed { background: $background; border-color: $accent; }
+QPushButton:focus { border: 2px solid $accent; padding: 2px 9px; }
+QPushButton[variant="primary"] { background: $accent; color: $on_accent; border-color: $accent; font-weight: 600; }
+QPushButton[variant="primary"]:hover { background: $accent_hover; }
+QPushButton[variant="primary"]:pressed { background: $processing; }
+QPushButton[variant="primary"]:focus { border-color: $text; }
+QPushButton:disabled, QPushButton[variant="primary"]:disabled {
+    background: $panel; color: $secondary; border-color: $control;
+}
+QLineEdit, QSpinBox, QComboBox {
+    background: $control; border: 1px solid $border; border-radius: 4px;
+    min-height: 24px; padding: 3px 8px; selection-background-color: $accent;
+    selection-color: $on_accent;
+}
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid $accent; padding: 2px 7px; }
+QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { background: $panel; color: $secondary; border-color: $control; }
+QLineEdit[validation="error"] { border-color: $error; }
+QComboBox QAbstractItemView { background: $control; color: $text; selection-background-color: $accent; selection-color: $on_accent; }
+QTextEdit, QListWidget, QTableWidget {
+    background: $panel; alternate-background-color: $control; border: 1px solid $border;
+    border-radius: 4px; selection-background-color: $accent; selection-color: $on_accent;
+    gridline-color: $control;
+}
+QTextEdit:focus, QListWidget:focus, QTableWidget:focus { border-color: $accent; }
+QListWidget::item { min-height: ${control_height}px; padding: 0px 8px; }
+QListWidget::item:hover { background: $control; }
+QListWidget::item:selected { background: $accent; color: $on_accent; }
+QListWidget#modeNavigation { background: $background; border: none; outline: none; }
+QListWidget#modeNavigation::item { border-radius: 4px; margin: 2px 0px; padding: 4px 12px; }
+QListWidget#modeNavigation::item:selected { background: $control; color: $accent; border-left: 3px solid $accent; }
+QListWidget#modeNavigation::item:focus { border: 1px solid $accent; }
+QHeaderView { background: $control; }
+QHeaderView::section { background: $control; color: $secondary; padding: 8px; border: none; border-right: 1px solid $panel; }
+QTableCornerButton::section { background: $control; border: none; }
+QGroupBox { border: 1px solid $border; border-radius: ${radius}px; margin-top: 14px; padding: ${padding}px; }
+QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0px 4px; color: $secondary; }
+QCheckBox { spacing: ${spacing}px; min-height: 28px; }
+QCheckBox:disabled { color: $secondary; }
+QCheckBox:focus { color: $accent; }
+QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid $secondary; border-radius: 3px; background: $control; }
+QCheckBox::indicator:checked { background: $accent; image: url("$check_icon"); border-color: $accent; }
+QCheckBox::indicator:disabled { border-color: $border; }
+QCheckBox::indicator:focus { border: 2px solid $accent; }
+QScrollBar:vertical { width: 12px; background: $panel; margin: 0px; }
+QScrollBar:horizontal { height: 12px; background: $panel; margin: 0px; }
+QScrollBar::handle { background: $border; border-radius: 4px; min-width: 20px; min-height: 20px; }
+QScrollBar::handle:hover { background: $secondary; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0px; height: 0px; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+QStatusBar { background: $background; color: $secondary; border-top: 1px solid $control; }
+QStatusBar::item { border: none; }
+QLabel[role="statusChip"] { background: $control; border: 1px solid $border; border-radius: 6px; padding: 4px 8px; }
+QLabel[role="statusChip"][state="success"] { border-color: $success; }
+QLabel[role="statusChip"][state="error"] { border-color: $error; }
+QLabel[role="statusChip"][state="loading"] { border-color: $processing; }
+
+QToolTip { background: $control; color: $text; border: 1px solid $border; padding: 6px; }

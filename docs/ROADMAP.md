@@ -4,7 +4,8 @@
 
 The functional implementation is the baseline for the new UI-only R1–R6 plan.
 Follow [UI overhaul](UI_OVERHAUL_CODEX.md) and [UI/UX specification](UI_UX_SPEC.md).
-R1 is complete: [UI migration map](UI_MIGRATION_MAP.md). Next phase: R2 theme and reusable controls.
+R1 is complete: [UI migration map](UI_MIGRATION_MAP.md). R2 is complete: [theme and controls](R2_THEME.md).
+Next phase: R3 workspace shell.
 The notes below retain historical functional/release evidence; they do not extend
 the scope of this UI redesign.
 
