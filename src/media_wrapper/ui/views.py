@@ -6,7 +6,6 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -28,6 +27,7 @@ from media_wrapper.domain.media import MediaFile
 from media_wrapper.ui.inspection_presenter import stream_values
 from media_wrapper.ui.models.media_files import MediaFileModel
 from media_wrapper.ui.models.tasks import ProgressDelegate, TaskModel
+from media_wrapper.ui.widgets.combo_box import ReadableComboBox
 from media_wrapper.ui.widgets.controls import (
     ActionButton,
     EmptyState,
@@ -146,7 +146,7 @@ class RemuxView(QScrollArea):
         layout.addWidget(self.tracks)
         simple = QGroupBox('Output')
         form = QVBoxLayout(simple)
-        self.container = QComboBox()
+        self.container = ReadableComboBox()
         self.container.addItems(['Matroska (.mkv)', 'MP4 (.mp4)'])
         self.container.setToolTip('Copy supported streams into this container. No re-encoding is performed.')
         self.destination = QLineEdit()
@@ -155,7 +155,7 @@ class RemuxView(QScrollArea):
         self.browse_button = ActionButton('Choose output…')
         self.validation = QLabel('Inspect a file first.')
         self.validation.setWordWrap(True)
-        self.metadata_policy, self.chapter_policy = QComboBox(), QComboBox()
+        self.metadata_policy, self.chapter_policy = ReadableComboBox(), ReadableComboBox()
         for combo in (self.metadata_policy, self.chapter_policy):
             combo.addItems(['preserve', 'strip'])
         form.addWidget(FieldRow('&Metadata', self.metadata_policy))
@@ -206,7 +206,7 @@ class SettingsView(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(PanelHeader('Settings', 'Binary installation, runtime capabilities and diagnostics.'))
         controls = QHBoxLayout()
-        self.mode = QComboBox()
+        self.mode = ReadableComboBox()
         self.mode.addItems(['external', 'bundled'])
         self.mode.setToolTip('External uses PATH or your chosen folder. Bundled requires an explicit folder; there is no fallback.')
         self.folder = QLineEdit()
@@ -231,7 +231,7 @@ class SettingsView(QWidget):
         self.capabilities.setReadOnly(True)
         for widget in (self.test_gpu, self.gpu_device, self.scan_button, self.cancel_scan, self.capabilities):
             layout.addWidget(widget)
-        self.log_level = QComboBox()
+        self.log_level = ReadableComboBox()
         self.log_level.addItems(['DEBUG', 'INFO', 'WARNING', 'ERROR'])
         self.private_diagnostics = QCheckBox('Include private paths, executed arguments and raw task logs')
         self.private_diagnostics.setToolTip('Leave unchecked for a shareable summary without paths, metadata or raw errors.')

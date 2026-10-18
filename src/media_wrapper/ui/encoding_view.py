@@ -4,7 +4,6 @@ from pathlib import Path
 from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QLabel,
     QLineEdit,
@@ -23,6 +22,7 @@ from media_wrapper.domain.encoding_presets import PRESETS
 from media_wrapper.domain.media import MediaFile
 from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
+from media_wrapper.ui.widgets.combo_box import ReadableComboBox
 from media_wrapper.ui.widgets.controls import ActionButton, PanelHeader
 
 
@@ -41,9 +41,9 @@ class EncodingView(QScrollArea):
         self.form = QWidget()
         form = QFormLayout(self.form)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
-        self.hardware_mode = QComboBox()
+        self.hardware_mode = ReadableComboBox()
         self.hardware_mode.addItems(['CPU', 'GPU', 'Auto'])
-        self.gpu_encoder = QComboBox()
+        self.gpu_encoder = ReadableComboBox()
         self.gpu_encoder.addItem('auto')
         self.hardware_status = QLabel('Scan and test GPUs in Settings. CPU is the default.')
         self.hardware_status.setWordWrap(True)
@@ -52,7 +52,7 @@ class EncodingView(QScrollArea):
         form.addRow('Processing', self.hardware_mode)
         form.addRow('Tested GPU encoder', self.gpu_encoder)
         form.addRow(self.hardware_status)
-        self.presets = QComboBox()
+        self.presets = ReadableComboBox()
         self.presets.addItems([p.name for p in PRESETS])
         self.apply_preset_button = ActionButton('Apply editable preset')
         self.apply_preset_button.clicked.connect(self.apply_preset)
@@ -61,7 +61,7 @@ class EncodingView(QScrollArea):
         self.import_profile_button = ActionButton('Import profile…')
         self.export_profile_button = ActionButton('Save / export profile…')
         form.addRow(self.import_profile_button, self.export_profile_button)
-        self.container = QComboBox()
+        self.container = ReadableComboBox()
         self.container.addItems(['Matroska', 'MP4'])
         self.destination = QLineEdit()
         self.browse = ActionButton('Choose output…')
@@ -85,7 +85,7 @@ class EncodingView(QScrollArea):
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
         self.track_order = QLineEdit()
         self.track_order.setPlaceholderText('Optional selected indices in output order, e.g. 2,0,3')
-        self.metadata_policy, self.chapter_policy = QComboBox(), QComboBox()
+        self.metadata_policy, self.chapter_policy = ReadableComboBox(), ReadableComboBox()
         for combo in (self.metadata_policy, self.chapter_policy):
             combo.addItems(['preserve', 'strip'])
             combo.currentIndexChanged.connect(self.clear_preview)
@@ -107,7 +107,7 @@ class EncodingView(QScrollArea):
         form.addRow('Video height', self.video_height)
         form.addRow('Video FPS', self.fps)
         form.addRow('AAC bitrate (kb/s)', self.audio_bitrate)
-        self.mode = QComboBox()
+        self.mode = ReadableComboBox()
         self.mode.addItems(['default', 'quality', 'bitrate', 'target'])
         self.mode.setCurrentText('quality' if title == 'Compress' else 'default')
         self.crf = QSpinBox()
@@ -116,10 +116,10 @@ class EncodingView(QScrollArea):
         self.video_bitrate = QSpinBox()
         self.video_bitrate.setRange(32, 200000)
         self.video_bitrate.setValue(2000)
-        self.preset = QComboBox()
+        self.preset = ReadableComboBox()
         self.preset.addItems(['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'])
         self.preset.setCurrentText('medium')
-        self.audio_mode = QComboBox()
+        self.audio_mode = ReadableComboBox()
         self.audio_mode.addItems(['bitrate', 'quality'])
         self.audio_quality = QSpinBox()
         self.audio_quality.setRange(1, 5)
@@ -168,13 +168,19 @@ class EncodingView(QScrollArea):
         self.preview.setMinimumHeight(100)
         layout.addWidget(self.preview)
         self._media: MediaFile | None = None
-        self._encoders: list[QComboBox] = []
+        self._encoders: list[ReadableComboBox] = []
         for widget in (self.destination, self.fps):
             widget.textChanged.connect(self.preview.clear)
         for widget in (self.video_width, self.video_height, self.audio_bitrate):
             widget.valueChanged.connect(self.preview.clear)
-        self.container.currentIndexChanged.connect(self.preview.clear)
+        self.container.currentIndexChanged.connect(self.container_changed)
         self.update_options()
+
+    def container_changed(self) -> None:
+        from media_wrapper.ui.output_paths import suggest_output_path
+        container = Container.MATROSKA if self.container.currentIndex() == 0 else Container.MP4
+        self.destination.setText(suggest_output_path(self.destination.text(), container))
+        self.clear_preview()
 
     def set_capabilities(self, report: CapabilityReport | None) -> None:
         names = ['auto', *sorted(report.working())] if report else ['auto']
@@ -192,8 +198,7 @@ class EncodingView(QScrollArea):
             return
         preset = PRESETS[self.presets.currentIndex()]
         self.container.setCurrentIndex(0 if preset.container == Container.MATROSKA else 1)
-        if self.destination.text():
-            self.destination.setText(str(Path(self.destination.text()).with_suffix('.mp4' if preset.container == Container.MP4 else '.mkv')))
+        self.container_changed()
         self.mode.setCurrentText('quality' if preset.video_encoder else 'default')
         self.crf.setValue(preset.crf)
         self.preset.setCurrentText(preset.speed)
@@ -266,7 +271,7 @@ class EncodingView(QScrollArea):
         self.destination.setText(str(media.path.with_name(media.path.stem + '_' + self.title.lower() + suffix)))
         for row, stream in enumerate(media.streams):
             self.tracks.setItem(row, 0, QTableWidgetItem(f'{stream.index}: {stream.kind} / {stream.codec}'))
-            combo = QComboBox()
+            combo = ReadableComboBox()
             options = {'video': ['libx264', 'libx265', 'ffv1'], 'audio': ['aac', 'pcm_s16le'],
                        'subtitle': ['mov_text', 'srt', 'ass']}.get(stream.kind, [])
             combo.addItems(['copy', 'omit', *options])

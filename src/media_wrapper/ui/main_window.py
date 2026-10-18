@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
         self.remux_view.chapter_policy.currentIndexChanged.connect(self.preservation_changed)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
         self.remux_view.destination.textChanged.connect(self.output_changed)
-        self.container.currentIndexChanged.connect(self.output_changed)
+        self.container.currentIndexChanged.connect(self.container_changed)
         self.remux_view.preview_button.clicked.connect(self.model.preview)
         self.files_view.files_dropped.connect(self.import_media)
         self.files_view.streams_selected.connect(self.model.select_streams)
@@ -525,6 +525,12 @@ class MainWindow(QMainWindow):
     def preservation_changed(self) -> None:
         self.model.set_preservation(PreservationPolicy(self.remux_view.metadata_policy.currentText()),
                                     PreservationPolicy(self.remux_view.chapter_policy.currentText()))
+
+    def container_changed(self) -> None:
+        from media_wrapper.ui.output_paths import suggest_output_path
+        container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]
+        destination = suggest_output_path(self.remux_view.destination.text(), container)
+        self.model.set_output(destination, container)
 
     def output_changed(self) -> None:
         container = [Container.MATROSKA, Container.MP4][self.container.currentIndex()]

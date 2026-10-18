@@ -19,3 +19,7 @@ Python 3.11+, PySide6 Qt Widgets; FFmpeg/FFprobe are subprocesses, NOT linked li
 - Implement features in small vertical slices; keep the application runnable.
 
 Read docs/ARCHITECTURE.md and docs/ROADMAP.md before substantial changes. Do not assume unfinished features exist.
+
+Before UI work, read docs/PROJECT_CONTEXT.md and docs/UX_REMEDIATION_PLAN.md.
+Use UX_REMEDIATION_PLAN.md for the current UX development stage; retain
+ROADMAP.md as the historical functionality and release-verification record.

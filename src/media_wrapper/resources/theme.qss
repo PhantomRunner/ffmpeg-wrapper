@@ -37,6 +37,7 @@ QLineEdit, QSpinBox, QComboBox {
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border: 2px solid $accent; padding: 2px 7px; }
 QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { background: $panel; color: $secondary; border-color: $control; }
 QLineEdit[validation="error"] { border-color: $error; }
+QComboBox { combobox-popup: 0; }
 QComboBox QAbstractItemView { background: $control; color: $text; selection-background-color: $accent; selection-color: $on_accent; }
 QTextEdit, QListView, QTableView, QListWidget, QTableWidget {
     background: $panel; alternate-background-color: $control; border: 1px solid $border;
