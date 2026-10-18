@@ -1,7 +1,7 @@
 """Read-only container-time overview; no decoded waveform or invented timing."""
 import math
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPen
 from PySide6.QtWidgets import (
     QGraphicsItem,
@@ -17,12 +17,24 @@ from PySide6.QtWidgets import (
 from media_wrapper.ui.theme.tokens import COLORS
 
 
+class SeekView(QGraphicsView):
+    seek_fraction = Signal(float)
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            point = self.mapToScene(event.position().toPoint())
+            self.seek_fraction.emit(max(0., min(1., point.x() / 800)))
+        super().mousePressEvent(event)
+
+
 class MediaTimeline(QWidget):
     stream_selected = Signal(object)
+    seek_requested = Signal('qlonglong')
 
     def __init__(self) -> None:
         super().__init__()
         self.media = None
+        self.playhead = None
         layout = QVBoxLayout(self)
         self.summary = QLabel('Inspect a source to display its stream lanes.')
         self.summary.setWordWrap(True)
@@ -33,7 +45,8 @@ class MediaTimeline(QWidget):
         self.lanes.currentRowChanged.connect(self.select_lane)
         split.addWidget(self.lanes)
         self.scene = QGraphicsScene(self)
-        self.view = QGraphicsView(self.scene)
+        self.view = SeekView(self.scene)
+        self.view.seek_fraction.connect(self.seek_fraction)
         self.view.setAccessibleName('Source container time ruler; stream timing is not individually probed')
         split.addWidget(self.view)
         split.setSizes([250, 750])
@@ -45,6 +58,7 @@ class MediaTimeline(QWidget):
             return
         self.media = media
         self.lanes.clear()
+        self.playhead = None
         self.scene.clear()
         if media is None:
             self.summary.setText('Inspect a source to display its stream lanes.')
@@ -74,7 +88,18 @@ class MediaTimeline(QWidget):
         if not known:
             item = self.scene.addText('Duration unknown — no time scale can be drawn.\nStream metadata remains available in the lane list.')
             item.setDefaultTextColor(QColor(COLORS['text']))
+        if known:
+            self.playhead = self.scene.addLine(0, 25, 0, 30 + 36 * len(media.streams), QPen(QColor(COLORS['accent']), 2))
+            self.playhead.setZValue(2)
         self.scene.setSceneRect(self.scene.itemsBoundingRect())
+
+    def set_position(self, milliseconds: int) -> None:
+        if self.playhead and self.media and self.media.duration:
+            self.playhead.setX(max(0., min(800., milliseconds / (self.media.duration * 1000) * 800)))
+
+    def seek_fraction(self, fraction: float) -> None:
+        if self.media and self.media.duration and math.isfinite(self.media.duration) and self.media.duration > 0:
+            self.seek_requested.emit(round(fraction * self.media.duration * 1000))
 
     def select_lane(self, row: int) -> None:
         if self.media and 0 <= row < len(self.media.streams):

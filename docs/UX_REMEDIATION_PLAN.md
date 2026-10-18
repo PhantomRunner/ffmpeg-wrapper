@@ -140,3 +140,21 @@ editable presets. A filesystem-free application estimate uses apply_target_size
 for two-pass budgets and known selected-track rates; quality/unknown rates do not
 invent sizes. Four new workflow/estimate tests plus full suite: **369 passed**.
 Changed files pass Ruff. Native visual acceptance remains pending.
+
+### U5 — real media preview
+
+Qt Multimedia backend + application playback lifecycle + transport panel replace
+the placeholder. Play/pause, keyboard/mouse seek, duration/position, source reset,
+errors and shutdown are implemented. Media Timeline playhead follows playback;
+clicking its time axis seeks without changing export ranges or processing progress.
+Qt's preview decoder is independent of the selected processing FFmpeg executable.
+API reference: https://doc.qt.io/qtforpython-6/PySide6/QtMultimedia/QMediaPlayer.html
+
+Four new integration tests pass with real 2-second audio/video, decoded video
+frames, pause/seek/end, missing/corrupt inputs and source release. Qt Multimedia
+initialization requires local audio IPC: this environment's restricted sandbox
+blocks PipeWire/PulseAudio and stalls initialization, so playback/full-suite checks
+run with approved local IPC access. No production backend fallback is hidden.
+Native Windows and packaged playback/physical audio-video verification remain open.
+Full regression suite after U5: **373 passed**; changed files pass Ruff after import
+ordering fixes. Physical-display and Windows acceptance are not marked complete.

@@ -11,7 +11,8 @@ from PySide6.QtWidgets import (
 )
 
 from media_wrapper.ui.panels.media_timeline import MediaTimeline
-from media_wrapper.ui.widgets.controls import ActionButton, EmptyState, PanelHeader
+from media_wrapper.ui.panels.playback import PlaybackPanel
+from media_wrapper.ui.widgets.controls import ActionButton, PanelHeader
 
 
 def scroll_panel(widget: QWidget) -> QScrollArea:
@@ -66,8 +67,8 @@ class Workspace(QWidget):
         self.source.setTextFormat(Qt.TextFormat.PlainText)
         self.source.setWordWrap(True)
         preview_layout.addWidget(self.source)
-        self.fallback = EmptyState('Playback unavailable', 'This workspace currently provides metadata inspection. Processing remains available; no decoded video or audio preview is shown.')
-        preview_layout.addWidget(self.fallback, 1)
+        self.playback = PlaybackPanel()
+        preview_layout.addWidget(self.playback, 2)
         self.feedback = QTabWidget()
         self.feedback.addTab(window.output, 'Operation feedback')
         preview_layout.addWidget(self.feedback, 1)
@@ -80,6 +81,9 @@ class Workspace(QWidget):
         self.media_timeline = MediaTimeline()
         self.timelines.addTab(self.media_timeline, 'Media Timeline')
         self.media_timeline.stream_selected.connect(self.show_stream)
+        if self.playback.service:
+            self.playback.service.position_changed.connect(self.media_timeline.set_position)
+            self.media_timeline.seek_requested.connect(self.playback.service.seek)
         self.vertical.addWidget(self.timelines)
         layout.addWidget(self.vertical)
         window.navigation.currentRowChanged.connect(self.set_mode)

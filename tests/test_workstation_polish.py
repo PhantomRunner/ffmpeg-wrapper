@@ -32,7 +32,7 @@ def test_operation_actions_remain_visible_and_shortcuts_work(monkeypatch, width,
     app.processEvents()
     assert window.navigation.currentRow() == 0
     assert 'unavailable' in window.binary_summary.text()
-    assert window.workspace.fallback.accessibleName() == 'Playback unavailable'
+    assert not window.workspace.playback.play.isEnabled()
     assert not window.workspace.import_button.isEnabled()
     window.close()
 

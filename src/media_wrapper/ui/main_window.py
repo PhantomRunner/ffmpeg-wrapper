@@ -252,6 +252,7 @@ class MainWindow(QMainWindow):
             if settings.capabilities.toPlainText() != capability_text:
                 settings.capabilities.setPlainText(capability_text)
         self.workspace.media_timeline.set_media(state.media)
+        self.workspace.playback.set_source(state.media.path if state.media else None)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
         self.remux_view.tracks.setEnabled(not state.busy)
@@ -575,6 +576,7 @@ class MainWindow(QMainWindow):
                                     'Cancel the operation or allow it to finish before closing.')
             event.ignore()
             return
+        self.workspace.playback.shutdown()
         self.workspace.save_layout()
         if self.settings_service:
             warning = self.settings_service.save(self.preferences())
