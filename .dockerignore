@@ -1,0 +1,24 @@
+# Allow only build/test inputs; never send local media, credentials or git history.
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!README.md
+!AGENTS.md
+!CHANGELOG.md
+!THIRD_PARTY_NOTICES.md
+!FFMPEG_CODEX_ROADMAP.md
+!src/
+!src/**
+!packaging/
+!packaging/**
+!tests/
+!tests/**
+!docs/
+!docs/**
+!scripts/
+!scripts/**
+!.github/
+!.github/**
+**/__pycache__/
+**/*.pyc
