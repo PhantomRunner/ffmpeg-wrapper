@@ -230,3 +230,21 @@ toolbar actions and status estimate. Dockerfile and context allowlist are provid
 actual Docker verification awaits engine startup (see DOCKER.md).
 The final targeted 200% run passed 34 tests, including the added version-2-to-3
 layout migration regression. Full-repository Ruff and whitespace checks pass.
+
+### U9 — compact workstation density
+
+Reduced controls/list rows from approximately 32 to 28 logical pixels, panel titles
+from 18 to 15, navigation height from 44 to 36, and spacing/padding to 6–8. Body
+text remains 13 px. Convert/Compress use side-by-side form labels with wrapping
+when needed; shorter labels retain clear meanings and CRF guidance stays in a
+tooltip. Form content stays top-aligned instead of expanding gaps; stream table
+height follows stream count within 72–150 px. Library labels are shortened while
+retaining descriptive accessibility names. Empty-state text is grouped at the top.
+
+Visual review: Convert/Compress/Queue rendered at 1280×720 and 960×640. Corrected
+label-column clipping found on the first pass; final Convert primary controls fit
+at 960×640 without form scrolling. Existing targeted checks: 38 passed at normal
+scale and 38 at 200%; full-repository Ruff and whitespace checks pass. No backend
+behavior, timelines or Docker state changed. Native physical-display review remains
+separate from these offscreen checks.
+Final full regression suite: **388 passed** in 28.38 s.

@@ -27,7 +27,7 @@ def framed_panel(widget: QWidget) -> QFrame:
     panel = QFrame()
     panel.setProperty('role', 'workspacePanel')
     layout = QVBoxLayout(panel)
-    layout.setContentsMargins(8, 8, 8, 8)
+    layout.setContentsMargins(6, 6, 6, 6)
     layout.addWidget(widget)
     return panel
 
@@ -53,11 +53,11 @@ class Workspace(QWidget):
         layout.addLayout(toolbar)
         window.navigation.setFlow(window.navigation.Flow.LeftToRight)
         window.navigation.setWrapping(False)
-        window.navigation.setGridSize(QSize(112, 40))
+        window.navigation.setGridSize(QSize(96, 32))
         for row in range(window.navigation.count()):
-            window.navigation.item(row).setSizeHint(QSize(108, 36))
+            window.navigation.item(row).setSizeHint(QSize(92, 28))
         window.navigation.setMaximumWidth(16777215)
-        window.navigation.setFixedHeight(44)
+        window.navigation.setFixedHeight(36)
         layout.addWidget(window.navigation)
         self.horizontal = QSplitter(Qt.Orientation.Horizontal)
         self.horizontal.setObjectName('workspaceSplit')
@@ -68,6 +68,8 @@ class Workspace(QWidget):
         self.preview = QFrame()
         self.preview.setProperty('role', 'workspacePanel')
         preview_layout = QVBoxLayout(self.preview)
+        preview_layout.setContentsMargins(8, 8, 8, 8)
+        preview_layout.setSpacing(6)
         preview_layout.addWidget(PanelHeader('Source Preview', 'Selected source and operation feedback'))
         self.source = QLabel('No source selected')
         self.source.setTextFormat(Qt.TextFormat.PlainText)

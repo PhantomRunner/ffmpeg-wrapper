@@ -9,7 +9,7 @@ COLORS = MappingProxyType({
     'on_accent': '#15171C',
 })
 BODY_SIZE = 13
-CONTROL_HEIGHT = 32
-SPACING = 8
-PADDING = 12
+CONTROL_HEIGHT = 28
+SPACING = 6
+PADDING = 8
 RADIUS = 6

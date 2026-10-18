@@ -20,7 +20,7 @@ class PanelHeader(QWidget):
         self.setProperty('role', 'panelHeader')
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, SPACING)
-        layout.setSpacing(4)
+        layout.setSpacing(2)
         self.title = QLabel(title)
         self.title.setProperty('role', 'panelTitle')
         self.title.setWordWrap(True)
@@ -79,6 +79,7 @@ class EmptyState(QFrame):
         body.setWordWrap(True)
         layout.addWidget(heading)
         layout.addWidget(body)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
 
 class FieldRow(QWidget):

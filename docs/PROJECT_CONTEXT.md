@@ -17,7 +17,10 @@ compact readable controls, purple accents, minimal clutter, resizable persistent
 panels and context-sensitive layouts. This is a media workstation, not a full editor.
 Design tokens: background #15171C, panels #22242B, raised controls #30333C,
 accent #A99CF5, primary text #ECECF1, secondary text #A3A6B2. Use system fonts,
-approximately 13–14 px body text, 32–36 px controls, 8–12 px spacing and modest radii.
+13 px body text, approximately 28 px controls, 6–8 px spacing/padding and modest
+radii. The current compactness request supersedes the original 32–36 px controls: use
+side-by-side form labels when space allows, shorter visible labels with descriptive
+accessible names/tooltips, and content-sized stream tables.
 
 ## Workspace intent
 

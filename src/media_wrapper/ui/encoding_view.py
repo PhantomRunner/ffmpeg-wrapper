@@ -1,7 +1,7 @@
 """Convert form: typed choices only, never FFmpeg arguments."""
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker, Signal
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
@@ -37,13 +37,16 @@ class EncodingView(QScrollArea):
         body = QWidget()
         self.setWidget(body)
         layout = QVBoxLayout(body)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(6)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.addWidget(PanelHeader(title, 'Choose quality or a size budget, then review the estimate.' if title == 'Compress' else 'Choose a format, map streams and set resolution and frame rate.'))
         self.source = QLabel('Inspect a source first.')
         self.source.setWordWrap(True)
         layout.addWidget(self.source)
         self.form = QWidget()
         form = QFormLayout(self.form)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.hardware_mode = ReadableComboBox()
         self.hardware_mode.addItems(['CPU', 'GPU', 'Auto'])
         self.gpu_encoder = ReadableComboBox()
@@ -70,12 +73,12 @@ class EncodingView(QScrollArea):
         self.destination = QLineEdit()
         self.browse = ActionButton('Choose output…')
         form.addRow('Container', self.container)
-        form.addRow('New destination', self.destination)
+        form.addRow('Output file', self.destination)
         form.addRow(self.browse)
         self.tracks = QTableWidget(0, 2)
         self.tracks.setHorizontalHeaderLabels(['Source track', 'Action / CPU encoder'])
         self.tracks.horizontalHeader().setStretchLastSection(True)
-        self.tracks.setMinimumHeight(120)
+        self.tracks.setMinimumHeight(72)
         self.tracks.setMaximumHeight(150)
         self.tracks.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         form.addRow(self.tracks)
@@ -86,7 +89,7 @@ class EncodingView(QScrollArea):
         self.advanced_toggle.toggled.connect(self.advanced.setVisible)
         self.advanced.hide()
         form = QFormLayout(self.advanced)
-        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.track_order = QLineEdit()
         self.track_order.setPlaceholderText('Optional selected indices in output order, e.g. 2,0,3')
         self.metadata_policy, self.chapter_policy = ReadableComboBox(), ReadableComboBox()
@@ -107,14 +110,15 @@ class EncodingView(QScrollArea):
         self.audio_bitrate = QSpinBox()
         self.audio_bitrate.setRange(8, 512)
         self.audio_bitrate.setValue(128)
-        form.addRow('Video width', self.video_width)
-        form.addRow('Video height', self.video_height)
-        form.addRow('Video FPS', self.fps)
-        form.addRow('AAC bitrate (kb/s)', self.audio_bitrate)
+        form.addRow('Width', self.video_width)
+        form.addRow('Height', self.video_height)
+        form.addRow('Frame rate', self.fps)
+        form.addRow('Audio bitrate (kb/s)', self.audio_bitrate)
         self.mode = ReadableComboBox()
         self.mode.addItems(['default', 'quality', 'bitrate', 'target'])
         self.mode.setCurrentText('quality' if title == 'Compress' else 'default')
         self.crf = QSpinBox()
+        self.crf.setToolTip('Lower CRF gives higher quality and usually a larger output.')
         self.crf.setRange(0, 51)
         self.crf.setValue(23)
         self.video_bitrate = QSpinBox()
@@ -132,11 +136,11 @@ class EncodingView(QScrollArea):
         self.target_size.setRange(1, 1000000)
         self.target_size.setValue(100)
         self.target_size.valueChanged.connect(self.clear_preview)
-        form.addRow('Video rate control', self.mode)
+        form.addRow('Rate control', self.mode)
         form.addRow('Target size (MiB)', self.target_size)
-        form.addRow('Quality (CRF; lower is better)', self.crf)
+        form.addRow('Quality (CRF)', self.crf)
         form.addRow('Video bitrate (kb/s)', self.video_bitrate)
-        form.addRow('Encoder speed preset', self.preset)
+        form.addRow('Speed preset', self.preset)
         form.addRow('AAC rate control', self.audio_mode)
         form.addRow('AAC quality (higher = higher quality)', self.audio_quality)
         self.mode.currentIndexChanged.connect(self.update_options)
@@ -179,6 +183,16 @@ class EncodingView(QScrollArea):
             widget.valueChanged.connect(self.preview.clear)
         self.container.currentIndexChanged.connect(self.container_changed)
         self.arrange_workflow()
+        for form_layout in (self.form.layout(), self.advanced.layout()):
+            form_layout.setContentsMargins(0, 0, 0, 0)
+            form_layout.setVerticalSpacing(6)
+            form_layout.setHorizontalSpacing(8)
+            form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            for row in range(form_layout.rowCount()):
+                label = form_layout.itemAt(row, QFormLayout.ItemRole.LabelRole)
+                if label and isinstance(label.widget(), QLabel):
+                    label.widget().setWordWrap(True)
+                    label.widget().setFixedWidth(132)
         self.update_options()
 
     def arrange_workflow(self) -> None:
@@ -325,8 +339,12 @@ class EncodingView(QScrollArea):
         self._media = media
         self.track_order.clear()
         self.preview.clear()
-        self.source.setText(f'{self.title}: {media.path}' if media else 'Inspect a source first.')
-        self.tracks.setRowCount(len(media.streams) if media else 0)
+        self.source.setText(media.path.name if media else 'Inspect a source first.')
+        self.source.setToolTip(str(media.path) if media else '')
+        count = len(media.streams) if media else 0
+        self.tracks.setRowCount(count)
+        self.tracks.setFixedHeight(min(150, max(72, self.tracks.horizontalHeader().height()
+                                              + count * self.tracks.verticalHeader().defaultSectionSize() + 4)))
         self._encoders.clear()
         if media is None:
             self.destination.clear()
