@@ -1,5 +1,15 @@
 # Development roadmap
 
+## Active UI migration
+
+The functional implementation is the baseline for the new UI-only R1–R6 plan.
+Follow [UI overhaul](UI_OVERHAUL_CODEX.md) and [UI/UX specification](UI_UX_SPEC.md).
+R1 is complete: [UI migration map](UI_MIGRATION_MAP.md). Next phase: R2 theme and reusable controls.
+The notes below retain historical functional/release evidence; they do not extend
+the scope of this UI redesign.
+
+## Functional roadmap archive
+
 The primary task plan and acceptance checklist is
 [FFMPEG_CODEX_ROADMAP.md](../FFMPEG_CODEX_ROADMAP.md).
 Follow its task order and completion criteria. The summary below describes the
