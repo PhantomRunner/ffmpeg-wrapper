@@ -84,3 +84,18 @@ in offscreen tests. On restricted execution sandboxes, denied local audio IPC ca
 prevent backend initialization; run native verification with local IPC access.
 The inventory now separately lists preview media libraries. Processing executables
 remain external or explicitly selected sidecars; public release gates are unchanged.
+
+## Preparing a release candidate
+
+After native verification, run `python scripts/archive_distribution.py`.
+Archives include the application version, OS, architecture and source commit;
+a matching `.sha256` file verifies the download. Existing archives are never
+overwritten. Linux archives preserve symbolic links; Windows produces ZIP.
+
+The "Native distribution verification" workflow can be dispatched with
+`candidate_archives=true` to retain verified Windows/Linux portable archives
+and checksums for 14 days. The default still uploads inventories only.
+This uploads workflow artifacts, not a GitHub Release, tag or installer.
+Use the Ubuntu runner for the supported glibc baseline; an archive built on a
+newer local distribution is only verified for that host. License and native
+desktop acceptance gates in RELEASE_CHECKLIST.md still apply before publication.
