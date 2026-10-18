@@ -3,10 +3,9 @@
 Cross-platform desktop frontend for FFmpeg with advanced media workflows. Detects FFmpeg/FFprobe, inspects media metadata, and remuxes compatible selected streams into Matroska, MP4, MOV, WebM, WAV or FLAC. Convert and Compress support CPU encoding, quality/bitrate controls and H.264 two-pass size estimates.
 
 The default interface is a dark, resizable media workstation with a persistent
-Library, contextual operation Inspector and Processing/Media timelines.
+Library, contextual operation Inspector and standalone Queue page.
 [Current UX plan and verification evidence](docs/UX_REMEDIATION_PLAN.md).
-Source preview supports Play/Pause, position/duration and seeking, synchronized with
-the Media Timeline. Preview uses Qt Multimedia codecs independently of the selected
+Source preview supports Play/Pause, position/duration and seeking. Preview uses Qt Multimedia codecs independently of the selected
 processing FFmpeg build; unsupported media/backend errors are shown explicitly.
 
 ## Requirements
@@ -154,15 +153,14 @@ bundled. See [release gates](docs/RELEASE_CHECKLIST.md),
 ## Workstation shortcuts and layout
 
 - Ctrl+O: import local media and inspect it in the background.
-- Alt+1…6: Workspace, Remux, Convert, Compress, Queue, Settings.
+- Alt+1…6: Inspect, Remux, Convert, Compress, Queue, Settings.
 - Ctrl+Enter: start pending queue jobs.
-- Ctrl+Shift+L: reset splitter layout; layout and selected timeline persist on close.
+- Ctrl+Shift+L: reset the current splitter layout; per-operation layouts persist on close.
 
 Operation actions stay visible while the Inspector scrolls. Expand **Advanced
-settings and batch** for detailed encoding controls and batch options. Switch
-between **Processing Timeline** (task progress) and **Media Timeline** (read-only
-source stream overview); unknown durations are shown without a fabricated ruler.
-Expand **Task details and diagnostics** for errors, executed arguments and logs.
+settings and batch** for detailed encoding controls and batch options.
+Processing jobs are available on the standalone **Queue** page. There are no
+timeline panels in any workspace layout.
 
 ## Workspace and preview
 
@@ -173,8 +171,14 @@ Changing the container proposes a matching extension; manual incompatible extens
 existing outputs and source replacement still fail validation. Long dropdown items
 use screen-bounded popups, scrolling and full-text tooltips.
 
-Preview transport supports keyboard slider seeking and the Media Timeline supports
-click-to-seek. Stream lanes show container spans, not individually probed timestamps;
-export ranges are not edited. Qt Multimedia may use its own FFmpeg shared libraries;
+Preview transport supports keyboard and mouse slider seeking. Export ranges are not edited. Qt Multimedia may use its own FFmpeg shared libraries;
 processing always uses the explicitly selected external/sidecar executables. Native
 Windows, physical audio/display/GPU and public release approval remain pending.
+
+Output size is shown next to Ready in the status bar for Remux, Convert, Compress
+and the selected Queue job. Bitrate/target estimates include a 2% muxing allowance;
+full stream-copy may use source size when stream rates are unknown. Quality-based
+encoding and unknown partial-track rates show a variable size instead of a false
+number. Resizable panes have rounded outlines and visible drag handles.
+
+Docker build and container verification: [Docker workflow](docs/DOCKER.md).

@@ -19,25 +19,23 @@ def test_workspace_roundtrip_and_reset(app, monkeypatch, tmp_path):
     app.processEvents()
     window.workspace.horizontal.setSizes([250, 500, 400])
     window.navigation.setCurrentRow(2)
-    window.workspace.timelines.setCurrentIndex(1)
     sizes = window.workspace.horizontal.sizes()
     window.close()
     restored = MainWindow(layout_settings=settings)
     restored.show()
     app.processEvents()
     assert restored.navigation.currentRow() == 2
-    assert restored.workspace.timelines.currentIndex() == 1
     assert restored.workspace.horizontal.sizes() == sizes
     restored.workspace.reset_layout()
-    assert restored.workspace.timelines.currentIndex() == 0
     assert restored.workspace.horizontal.count() == 3
-    assert restored.workspace.vertical.count() == 2
+    assert not hasattr(restored.workspace, 'timelines')
+    assert not hasattr(restored.workspace, 'media_timeline')
     for index in range(6):
         restored.navigation.setCurrentRow(index)
         assert restored.pages.currentIndex() == index
         assert restored.files_view.isVisible() == (index < 4)
         assert restored.workspace.preview.isVisible() == (index in (0, 2, 3))
-        assert restored.workspace.timelines.isVisible() == (index != 5)
+        assert restored.queue_view.isVisible() == (index == 4)
     restored.close()
 
 

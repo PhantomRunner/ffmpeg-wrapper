@@ -138,3 +138,12 @@ Parallel queue execution and release-approved distribution. Native PyInstaller p
 - Container registry owns muxers/extensions/codecs/count/chapter restrictions.
   Cancellable worker discovery checks muxer availability before preparation and
   execution. Existing output staging, verification and no-overwrite publication remain.
+
+## Workspace simplification (current user direction)
+
+The dual-timeline composition above is historical. Neither timeline is instantiated
+or attached to any current workspace. Queue owns the existing task model/view on
+its own page; preview retains its transport slider. Layout version 3 retains the
+horizontal split, reads versions 1/2 and drops obsolete vertical/timeline preferences.
+A status-bar output estimate uses application-level plan estimation with honest
+unknown/quality fallback and updates from form changes or Queue selection.

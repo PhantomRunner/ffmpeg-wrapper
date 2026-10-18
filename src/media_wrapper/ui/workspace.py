@@ -1,6 +1,7 @@
 """Resizable workspace composition and independently versioned layout preferences."""
 from PySide6.QtCore import QByteArray, QSettings, QSize, Qt
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -10,7 +11,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from media_wrapper.ui.panels.media_timeline import MediaTimeline
 from media_wrapper.ui.panels.playback import PlaybackPanel
 from media_wrapper.ui.widgets.controls import ActionButton, PanelHeader
 
@@ -23,13 +23,22 @@ def scroll_panel(widget: QWidget) -> QScrollArea:
     return area
 
 
+def framed_panel(widget: QWidget) -> QFrame:
+    panel = QFrame()
+    panel.setProperty('role', 'workspacePanel')
+    layout = QVBoxLayout(panel)
+    layout.setContentsMargins(8, 8, 8, 8)
+    layout.addWidget(widget)
+    return panel
+
+
 class Workspace(QWidget):
     def __init__(self, window, settings: QSettings | None = None) -> None:
         super().__init__()
         self.window = window
         self.settings = settings
         self.mode = -1
-        self._layouts: dict[int, tuple[QByteArray, QByteArray, int]] = {}
+        self._layouts: dict[int, QByteArray] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         toolbar = QHBoxLayout()
@@ -41,9 +50,6 @@ class Workspace(QWidget):
         reset = ActionButton('Reset layout')
         reset.clicked.connect(self.reset_layout)
         toolbar.addWidget(reset)
-        settings_button = ActionButton('Settings')
-        settings_button.clicked.connect(lambda: window.navigation.setCurrentRow(5))
-        toolbar.addWidget(settings_button)
         layout.addLayout(toolbar)
         window.navigation.setFlow(window.navigation.Flow.LeftToRight)
         window.navigation.setWrapping(False)
@@ -53,14 +59,14 @@ class Workspace(QWidget):
         window.navigation.setMaximumWidth(16777215)
         window.navigation.setFixedHeight(44)
         layout.addWidget(window.navigation)
-        self.vertical = QSplitter(Qt.Orientation.Vertical)
         self.horizontal = QSplitter(Qt.Orientation.Horizontal)
-        for splitter in (self.vertical, self.horizontal):
-            splitter.setChildrenCollapsible(False)
-            splitter.setHandleWidth(6)
-        self.library = scroll_panel(window.files_view)
+        self.horizontal.setObjectName('workspaceSplit')
+        self.horizontal.setChildrenCollapsible(False)
+        self.horizontal.setHandleWidth(12)
+        self.library = framed_panel(scroll_panel(window.files_view))
         self.horizontal.addWidget(self.library)
-        self.preview = QWidget()
+        self.preview = QFrame()
+        self.preview.setProperty('role', 'workspacePanel')
         preview_layout = QVBoxLayout(self.preview)
         preview_layout.addWidget(PanelHeader('Source Preview', 'Selected source and operation feedback'))
         self.source = QLabel('No source selected')
@@ -74,58 +80,36 @@ class Workspace(QWidget):
         preview_layout.addWidget(self.feedback, 1)
         self.horizontal.addWidget(self.preview)
         window.pages.setMinimumWidth(200)
-        self.horizontal.addWidget(window.pages)
-        self.vertical.addWidget(self.horizontal)
-        self.timelines = QTabWidget()
-        self.timelines.addTab(scroll_panel(window.queue_view), 'Processing Timeline')
-        self.media_timeline = MediaTimeline()
-        self.timelines.addTab(self.media_timeline, 'Media Timeline')
-        self.media_timeline.stream_selected.connect(self.show_stream)
-        if self.playback.service:
-            self.playback.service.position_changed.connect(self.media_timeline.set_position)
-            self.media_timeline.seek_requested.connect(self.playback.service.seek)
-        self.vertical.addWidget(self.timelines)
-        layout.addWidget(self.vertical)
+        self.inspector = framed_panel(window.pages)
+        self.horizontal.addWidget(self.inspector)
+        layout.addWidget(self.horizontal)
         window.navigation.currentRowChanged.connect(self.set_mode)
         self.set_mode(window.navigation.currentRow())
         self.restore_layout()
 
-    def show_stream(self, stream) -> None:
-        from media_wrapper.ui.inspection_presenter import stream_values
-        self.window.navigation.setCurrentRow(0)
-        self.window.output.setPlainText('Selected source stream (selection does not change export choices):\n' +
-                                       ' | '.join(stream_values(stream)))
-
     def remember_layout(self) -> None:
         if self.mode >= 0:
-            self._layouts[self.mode] = (self.horizontal.saveState(), self.vertical.saveState(),
-                                        self.timelines.currentIndex())
+            self._layouts[self.mode] = self.horizontal.saveState()
 
     def set_mode(self, mode: int) -> None:
         if not 0 <= mode < 6 or mode == self.mode:
             return
         self.remember_layout()
         self.mode = mode
-        self.horizontal.setVisible(mode != 4)
         self.library.setVisible(mode < 4)
         self.preview.setVisible(mode in (0, 2, 3))
-        self.window.pages.setVisible(mode != 4)
-        self.timelines.setVisible(mode != 5)
-        self.timelines.setTabVisible(1, mode != 4)
         self.default_layout()
         if mode in self._layouts:
-            horizontal, vertical, timeline = self._layouts[mode]
-            self.horizontal.restoreState(horizontal)
-            self.vertical.restoreState(vertical)
-            self.timelines.setCurrentIndex(0 if mode == 4 else timeline)
+            restored = self.horizontal.restoreState(self._layouts[mode])
+            if not restored or any(size <= 0 and not self.horizontal.widget(i).isHidden()
+                                   for i, size in enumerate(self.horizontal.sizes())):
+                self.default_layout()
 
     def default_layout(self) -> None:
         proportions = {0: [230, 500, 320], 1: [280, 0, 720],
                        2: [220, 330, 500], 3: [220, 300, 530],
-                       4: [230, 470, 300], 5: [0, 0, 1000]}
+                       4: [0, 0, 1000], 5: [0, 0, 1000]}
         self.horizontal.setSizes(proportions[self.mode])
-        self.vertical.setSizes([650, 350] if self.mode == 0 else [760, 240])
-        self.timelines.setCurrentIndex(1 if self.mode == 0 else 0)
 
     def reset_layout(self) -> None:
         self._layouts.pop(self.mode, None)
@@ -135,23 +119,18 @@ class Workspace(QWidget):
         if self.settings is None:
             return
         version = str(self.settings.value('workspace/version', ''))
-        if version not in ('1', '2'):
+        if version not in ('1', '2', '3'):
             return
         try:
             mode = int(self.settings.value('workspace/mode', 0))
         except (ValueError, TypeError):
             mode = 0
         mode = mode if 0 <= mode < 6 else 0
-        for index in (range(6) if version == '2' else [mode]):
-            prefix = f'workspace/modes/{index}/' if version == '2' else 'workspace/'
+        for index in (range(6) if version in ('2', '3') else [mode]):
+            prefix = f'workspace/modes/{index}/' if version in ('2', '3') else 'workspace/'
             horizontal = self.settings.value(prefix + 'horizontal')
-            vertical = self.settings.value(prefix + 'vertical')
-            try:
-                timeline = int(self.settings.value(prefix + 'timeline', 0))
-            except (ValueError, TypeError):
-                timeline = 0
-            if isinstance(horizontal, QByteArray) and isinstance(vertical, QByteArray):
-                self._layouts[index] = (horizontal, vertical, timeline if timeline in (0, 1) else 0)
+            if isinstance(horizontal, QByteArray):
+                self._layouts[index] = horizontal
         # Do not overwrite the restored initial mode with the startup geometry.
         self.mode = -1
         self.window.navigation.setCurrentRow(mode)
@@ -161,12 +140,14 @@ class Workspace(QWidget):
         if self.settings is None:
             return
         self.remember_layout()
-        self.settings.setValue('workspace/version', '2')
-        for mode, (horizontal, vertical, timeline) in self._layouts.items():
+        self.settings.setValue('workspace/version', '3')
+        for mode, horizontal in self._layouts.items():
             prefix = f'workspace/modes/{mode}/'
             self.settings.setValue(prefix + 'horizontal', horizontal)
-            self.settings.setValue(prefix + 'vertical', vertical)
-            self.settings.setValue(prefix + 'timeline', timeline)
+            self.settings.remove(prefix + 'vertical')
+            self.settings.remove(prefix + 'timeline')
+        self.settings.remove('workspace/vertical')
+        self.settings.remove('workspace/timeline')
         self.settings.setValue('workspace/mode', self.mode)
         self.settings.sync()
 

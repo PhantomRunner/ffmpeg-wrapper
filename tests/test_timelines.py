@@ -74,8 +74,8 @@ def test_switch_preserves_queue_and_verified_output_action(monkeypatch, tmp_path
     window.model.queue.records.append(record)
     window.render()
     assert not window.queue_view.open_output.isEnabled()
-    for tab in (1, 0, 1):
-        window.workspace.timelines.setCurrentIndex(tab)
+    for mode in (4, 0, 4):
+        window.navigation.setCurrentRow(mode)
         assert window.model.state.media is media
         assert window.model.queue.records == [record]
     record.status, record.result = TaskStatus.COMPLETED, media

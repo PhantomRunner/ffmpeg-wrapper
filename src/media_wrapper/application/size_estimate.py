@@ -4,6 +4,7 @@ import math
 from media_wrapper.application.conversion_service import conversion_plan
 from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.domain.media import MediaFile
+from media_wrapper.domain.operations import OperationPlan
 from media_wrapper.domain.target_size import apply_target_size
 
 
@@ -30,3 +31,30 @@ def estimate_output(media: MediaFile, request: ConversionRequest) -> str:
         video = next(s for s in plan.streams if sources[s.index].kind == 'video')
         result += f' Two-pass video: {video.profile.bitrate / 1000:.0f} kb/s.'
     return result
+
+
+def estimate_plan_size(plan: OperationPlan) -> int | None:
+    """Approximate bytes; unknown/quality-controlled streams never get fake rates."""
+    plan = apply_target_size(plan)
+    if not plan.streams:
+        return None
+    sources = {stream.index: stream for stream in plan.media.streams}
+    duration = plan.media.duration
+    rates = []
+    for selection in plan.streams:
+        stream = sources.get(selection.index)
+        if stream is None:
+            return None
+        profile = selection.profile
+        rate = stream.bit_rate if profile.encoder == 'copy' else profile.bitrate
+        if profile.crf is not None or profile.audio_quality is not None:
+            return None
+        rates.append(rate)
+    if (duration is not None and math.isfinite(duration) and duration > 0
+            and all(rate is not None and rate > 0 for rate in rates)):
+        return round(sum(rates) * duration / 8 / .98)
+    if (all(selection.profile.encoder == 'copy' for selection in plan.streams)
+            and {selection.index for selection in plan.streams} == set(sources)
+            and plan.media.size_bytes is not None and plan.media.size_bytes > 0):
+        return round(plan.media.size_bytes * 1.02)
+    return None

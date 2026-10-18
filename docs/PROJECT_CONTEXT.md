@@ -23,14 +23,17 @@ approximately 13–14 px body text, 32–36 px controls, 8–12 px spacing and m
 
 Inspect, Remux, Convert, Compress, Queue and Settings share an application shell.
 Navigation must change the relevant workspace composition, not only the Inspector.
-Reuse Media Library, Source Preview, Inspector/Settings, timelines and Status Bar.
+Reuse Media Library, Source Preview, Inspector/Settings and Status Bar.
 Use QSplitter, QStackedWidget and Qt model/view components where appropriate.
 
-Processing Timeline represents queued/running jobs: completion, status, speed, ETA,
-errors, cancel, retry and details. Its bars represent processing completion.
-Media Timeline represents actual video/audio/subtitle streams on a media time axis,
-synchronized with playback. Initially it is inspection/navigation only; export-range
-editing is future scope.
+Current user direction (supersedes the original dual-timeline design): remove both
+Processing Timeline and Media Timeline from every layout. Processing jobs remain
+on the standalone Queue page. Media seeking remains in Preview transport. Remove
+the extra toolbar Settings button beside Import/Reset; keep main Settings navigation.
+Show an approximate output-size indicator beside Ready, using current operation
+settings (or selected Queue job); show unknown/variable when no reliable estimate
+exists. Use rounded controls, clear panel borders and visible resize handles.
+Provide a Docker build and test workflow in addition to native desktop packaging.
 
 Convert prioritizes container, codecs, streams, resolution and FPS. Compress
 prioritizes quality, bitrate, target size, presets and estimated output size.

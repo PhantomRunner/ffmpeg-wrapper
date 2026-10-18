@@ -1,7 +1,7 @@
 """Convert form: typed choices only, never FFmpeg arguments."""
 from pathlib import Path
 
-from PySide6.QtCore import QSignalBlocker
+from PySide6.QtCore import QSignalBlocker, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFormLayout,
@@ -28,6 +28,8 @@ from media_wrapper.ui.widgets.controls import ActionButton, PanelHeader
 
 
 class EncodingView(QScrollArea):
+    estimate_changed = Signal()
+
     def __init__(self, title: str = 'Convert') -> None:
         super().__init__()
         self.title = title
@@ -172,7 +174,7 @@ class EncodingView(QScrollArea):
         self._media: MediaFile | None = None
         self._encoders: list[ReadableComboBox] = []
         for widget in (self.destination, self.fps):
-            widget.textChanged.connect(self.preview.clear)
+            widget.textChanged.connect(self.clear_preview)
         for widget in (self.video_width, self.video_height, self.audio_bitrate):
             widget.valueChanged.connect(self.preview.clear)
         self.container.currentIndexChanged.connect(self.container_changed)
@@ -231,6 +233,7 @@ class EncodingView(QScrollArea):
         except ValueError as error:
             text = str(error)
         self.estimate.setText(text)
+        self.estimate_changed.emit()
 
     def container_changed(self) -> None:
         from media_wrapper.ui.output_paths import suggest_output_path
@@ -327,6 +330,7 @@ class EncodingView(QScrollArea):
         self._encoders.clear()
         if media is None:
             self.destination.clear()
+            self.update_estimate()
             return
         suffix = CONTAINERS[Container(self.container.currentData())].extension
         self.destination.setText(str(media.path.with_name(media.path.stem + '_' + self.title.lower() + suffix)))

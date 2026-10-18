@@ -87,3 +87,20 @@ QSplitter::handle:hover { background: $accent; }
 QGraphicsView { background: $background; border: 1px solid $border; }
 QTableView { background: $panel; color: $text; gridline-color: $border; }
 QTableView::item:selected { background: $control; color: $text; }
+
+/* Persistent pane outlines and visible drag handles separate resizable regions. */
+QFrame[role="workspacePanel"] {
+    background: $panel; border: 1px solid $border; border-radius: 10px;
+}
+QSplitter#workspaceSplit::handle:horizontal {
+    background: $control; border: 1px solid $border; border-radius: 4px;
+    margin: 16px 2px;
+}
+QSplitter#workspaceSplit::handle:horizontal:hover {
+    background: $accent; border-color: $accent;
+}
+QLineEdit, QSpinBox, QComboBox, QTextEdit, QListView, QTableView {
+    border-radius: 6px;
+}
+QTabWidget::pane { border-radius: 6px; }
+QTabBar::tab { border-top-left-radius: 6px; border-top-right-radius: 6px; }

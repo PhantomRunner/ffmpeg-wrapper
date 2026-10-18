@@ -44,7 +44,7 @@ from media_wrapper.ui.views import (
     RemuxView,
     SettingsView,
 )
-from media_wrapper.ui.widgets.controls import EmptyState, PanelHeader, StatusChip
+from media_wrapper.ui.widgets.controls import PanelHeader, StatusChip
 from media_wrapper.ui.workspace import Workspace, operation_panel, scroll_panel
 
 
@@ -61,6 +61,9 @@ class MainWindow(QMainWindow):
         if settings_service and settings_service.warning:
             diagnostic_status += ' | ' + settings_service.warning
         self.statusBar().showMessage(diagnostic_status)
+        self.output_estimate = QLabel('Output: —')
+        self.output_estimate.setAccessibleName('Estimated output size')
+        self.statusBar().addPermanentWidget(self.output_estimate)
         self.activity = StatusChip()
         self.statusBar().addPermanentWidget(self.activity)
         self.binary_summary = QLabel('FFmpeg unavailable')
@@ -91,6 +94,9 @@ class MainWindow(QMainWindow):
         self.queue_view = QueueView()
         self.convert_view = EncodingView()
         self.compress_view = EncodingView('Compress')
+        for view in (self.convert_view, self.compress_view):
+            view.estimate_changed.connect(self.update_output_estimate)
+        self.navigation.currentRowChanged.connect(self.update_output_estimate)
         metadata = QWidget()
         metadata_layout = QVBoxLayout(metadata)
         metadata_layout.addWidget(PanelHeader('Media Inspector', 'Metadata and Remux stream selection'))
@@ -99,7 +105,7 @@ class MainWindow(QMainWindow):
         metadata_layout.addWidget(self.files_view.stream_note)
         for page in (metadata, operation_panel(self.remux_view, remux=True),
                      operation_panel(self.convert_view), operation_panel(self.compress_view),
-                     EmptyState('Queue controls', 'Use the Processing Timeline below to start, cancel, retry and inspect jobs.'),
+                     scroll_panel(self.queue_view),
                      scroll_panel(self.settings_view)):
             self.pages.addWidget(page)
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
@@ -252,7 +258,7 @@ class MainWindow(QMainWindow):
                     capability_text += f'\n\n{name} help:\n{help_text}'
             if settings.capabilities.toPlainText() != capability_text:
                 settings.capabilities.setPlainText(capability_text)
-        self.workspace.media_timeline.set_media(state.media)
+        self.update_output_estimate()
         self.workspace.playback.set_source(state.media.path if state.media else None)
         self.files_view.set_media(state.media, state.selected_streams)
         self.remux_view.set_tracks(state.media, state.selected_streams)
@@ -426,7 +432,46 @@ class MainWindow(QMainWindow):
         self.queue_view.cancel_all_button.setEnabled(any(r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING) for r in queue.records))
         self.render_queue_details()
 
+    def update_output_estimate(self) -> None:
+        from media_wrapper.application.conversion_service import conversion_plan
+        from media_wrapper.application.size_estimate import estimate_plan_size
+        from media_wrapper.domain.operations import (
+            MediaOperation,
+            OperationPlan,
+            OutputTarget,
+            StreamSelection,
+        )
+        mode = self.navigation.currentRow()
+        media = self.model.state.media
+        size = None
+        detail = 'Select an operation and inspect a source to estimate output size.'
+        active = False
+        try:
+            plan = None
+            if mode in (2, 3) and media:
+                view = self.convert_view if mode == 2 else self.compress_view
+                plan = conversion_plan(media, view.request(), self.model.capabilities)
+            elif mode == 1 and media:
+                plan = OperationPlan(MediaOperation.REMUX, media,
+                    tuple(StreamSelection(i) for i in self.model.state.selected_streams),
+                    OutputTarget(Path(self.model.state.destination), self.model.state.container))
+            elif mode == 4:
+                row = self.queue_view.table.currentIndex().row()
+                if 0 <= row < len(self.model.queue.records):
+                    plan = self.model.queue.records[row].plan
+            if plan:
+                active = True
+                size = estimate_plan_size(plan)
+                detail = ('Approximate output size including a 2% muxing allowance; actual size may differ.'
+                          if size is not None else 'Size depends on content/quality or unknown stream bitrates; a reliable estimate is unavailable.')
+        except ValueError as error:
+            detail = str(error)
+        self.output_estimate.setText(f'Output ≈ {size / 1048576:.1f} MiB' if size is not None
+                                    else 'Output: variable' if active else 'Output: —')
+        self.output_estimate.setToolTip(detail)
+
     def render_queue_details(self) -> None:
+        self.update_output_estimate()
         row = self.queue_view.table.currentIndex().row()
         records = self.model.queue.records
         record = records[row] if 0 <= row < len(records) else None

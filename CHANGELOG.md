@@ -11,8 +11,10 @@
   restricted advanced options, private-by-default diagnostics and queue definitions.
 - Native portable build recipe, icon, dependency notices and installation verifier.
 - Operation-specific persistent workspace layouts and distinct Convert/Compress forms.
+- Timeline panels removed; Queue is standalone, with rounded pane borders and visible resize handles.
+- Live approximate output size beside Ready; redundant toolbar Settings action removed.
 - Output extension synchronization and screen-bounded readable dropdowns.
-- Real audio/video preview, play/pause/seek and synchronized Media Timeline playhead.
+- Real audio/video preview with play/pause and slider seeking.
 - Registry-based MOV/WebM/WAV/FLAC support with selected-build muxer checks.
 - Portable verification now waits for asynchronous enqueue and checks decoded preview.
 

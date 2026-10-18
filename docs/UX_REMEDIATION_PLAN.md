@@ -209,3 +209,24 @@ at `dist/MediaWrapper-before-ux-20261018`; first verification candidate retained
 `dist/MediaWrapper-ux-first-check`. Build manifest records this development tree as
 dirty and inventories preview media dependencies; this is a locally tested candidate,
 not a release-approved build. ROADMAP.md remains unchanged as historical evidence.
+
+### U8 — user-directed workspace simplification
+
+This supersedes the earlier dual-timeline design: both timeline panels are removed
+from every layout. Processing controls remain on the standalone Queue page; Preview
+retains its seek slider. The redundant Settings toolbar button beside Import/Reset
+is removed; main Settings navigation remains. Layout schema 3 migrates horizontal
+geometry from versions 1/2 and discards vertical/timeline preferences.
+
+Rounded pane outlines and visibly separated resize handles make the three flexible
+regions distinct. A permanent status label beside Ready shows current-operation or
+selected-queue-job output size. Known bitrate/target modes use the existing 2% muxing
+allowance; full copy can use source size; quality/unknown partial streams never get
+invented numeric estimates. Form edits, mode switches and queue selection update it.
+
+Native regression suite: 387 passed before adding the legacy-layout migration test.
+Visual QA inspected rendered Compress and Queue at 1280×840, including pane boundaries,
+toolbar actions and status estimate. Dockerfile and context allowlist are provided;
+actual Docker verification awaits engine startup (see DOCKER.md).
+The final targeted 200% run passed 34 tests, including the added version-2-to-3
+layout migration regression. Full-repository Ruff and whitespace checks pass.
