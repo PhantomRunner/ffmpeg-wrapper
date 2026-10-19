@@ -147,7 +147,7 @@ class MainWindow(QMainWindow):
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
         self.remux_view.destination.textChanged.connect(self.output_changed)
         self.container.currentIndexChanged.connect(self.container_changed)
-        self.remux_view.preview_button.clicked.connect(self.model.preview)
+        self.remux_view.preview_button.clicked.connect(lambda: self.validate_operation(self.remux_view))
         self.files_view.files_dropped.connect(self.import_media)
         self.files_view.streams_selected.connect(self.model.select_streams)
         self.remux_view.streams_selected.connect(self.model.select_streams)
@@ -164,6 +164,13 @@ class MainWindow(QMainWindow):
         self.workspace = Workspace(self, layout_settings)
         layout.addWidget(self.workspace)
 
+        from media_wrapper.ui.validation_preview import ValidationPreview
+        self.validation_previews = {
+            view: ValidationPreview(self, view)
+            for view in (self.remux_view, self.convert_view, self.compress_view)
+        }
+        for view in (self.convert_view, self.compress_view):
+            view.inputs_changed.connect(self.validation_previews[view].invalidate)
         self._preview_view = self.convert_view
         self.convert_view.preview_button.clicked.connect(self.preview_convert)
         self.convert_view.run_button.clicked.connect(self.run_convert)
@@ -290,7 +297,7 @@ class MainWindow(QMainWindow):
         self.remux_button.setEnabled(not state.busy and not state.form_error)
         self.remux_view.enqueue_button.setEnabled(not state.busy and not state.form_error)
         self.render_queue()
-        self.remux_view.preview_button.setEnabled(not state.busy and not state.form_error)
+        self.remux_view.preview_button.setEnabled(not state.busy and state.media is not None)
         self.remux_view.browse_button.setEnabled(not state.busy and state.source is not None)
         self.remux_view.destination.setEnabled(not state.busy)
         invalid = bool(state.source and state.destination.strip() and state.form_error)
@@ -309,6 +316,66 @@ class MainWindow(QMainWindow):
         self.remux_view.source_label.setText(f'Source: {state.source}' if state.source else 'Inspect a file first.')
         for widget in (self.mode, self.folder, self.settings_view.browse_button, self.container):
             widget.setEnabled(not state.busy)
+        for view, presenter in self.validation_previews.items():
+            if view is self.remux_view:
+                choices = (state.destination, state.container, state.selected_streams,
+                           state.metadata_policy, state.chapter_policy)
+            else:
+                try:
+                    choices = view.request()
+                except ValueError as error:
+                    choices = str(error)
+            presenter.refresh_context((state.media, state.binaries, self.model.capabilities, choices,
+                                       tuple((r.id, r.status) for r in self.model.queue.records)))
+
+    def validate_operation(self, view) -> None:
+        from media_wrapper.application.conversion_service import conversion_plan
+        from media_wrapper.application.validation_preview import (
+            ValidationCandidate,
+            ValidationReport,
+            blocked,
+        )
+        from media_wrapper.domain.operations import (
+            MediaOperation,
+            OperationPlan,
+            OutputTarget,
+            StreamSelection,
+        )
+        state = self.model.state
+        if state.busy:
+            return
+        self.render()
+        presenter = self.validation_previews[view]
+        media, binaries, capabilities = state.media, state.binaries, self.model.capabilities
+        destination = view.destination.text().strip()
+        container = Container(view.container.currentData())
+        operation = 'remux' if view is self.remux_view else view.title.lower()
+        candidate = ValidationCandidate(media.path if media else None,
+                                        Path(destination).expanduser().absolute() if destination else None,
+                                        CONTAINERS[container].label, operation, lambda: None)
+        try:
+            if not media or not binaries:
+                raise ValueError('Detect FFmpeg and inspect a source first.')
+            if not destination:
+                raise ValueError('Choose a new output filename.')
+            if view is self.remux_view:
+                plan = OperationPlan(MediaOperation.REMUX, media,
+                                     tuple(StreamSelection(i) for i in state.selected_streams),
+                                     OutputTarget(Path(destination).expanduser().absolute(), container),
+                                     metadata_policy=state.metadata_policy, chapter_policy=state.chapter_policy)
+                build_plan = lambda: plan
+            else:
+                request = view.request()
+                build_plan = lambda: conversion_plan(media, request, capabilities)
+        except ValueError as error:
+            revision = presenter.begin()
+            presenter.present(revision, ValidationReport((blocked(candidate, error),)))
+            return
+        from dataclasses import replace
+        candidate = replace(candidate, build_plan=build_plan)
+        revision = presenter.begin()
+        presenter.watch_paths((candidate,))
+        self.model.validate_preview((candidate,), lambda report: presenter.present(revision, report))
 
     @Slot()
     def select_sidecar(self) -> None:
@@ -329,7 +396,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def preview_convert(self) -> None:
-        self.encoding_action(self.encoding_sender(), 'preview')
+        self.validate_operation(self.encoding_sender())
 
     @Slot()
     def run_convert(self) -> None:

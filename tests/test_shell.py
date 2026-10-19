@@ -153,10 +153,13 @@ def test_form_validation_preview_and_execution_revalidation(shell, tmp_path, mon
         QApplication.instance().processEvents()
         time.sleep(.001)
     assert not shell.model.state.busy
-    assert shell.remux_view.preview.isReadOnly()
-    command = json.loads(shell.remux_view.preview.toPlainText())
-    assert command[-1] == str(destination)
-    assert '-c' in command and 'copy' in command
+    validation = shell.validation_previews[shell.remux_view]
+    assert validation.commands.isReadOnly()
+    assert validation.report.files[0].ready
+    command = json.loads(validation.commands.toPlainText())[0]
+    assert Path(command[-1]).parent == destination.parent
+    assert command[-1].endswith('.partial.mkv')
+    assert '-map' in command and 'copy' in command
     assert not destination.exists()
     # A file appearing after preview must still be protected when Run is pressed.
     destination.write_bytes(b'keep')
@@ -375,7 +378,9 @@ def test_convert_preview_and_queue_execution(shell, sample):
     view.destination.setText(str(plan.output.path))
     view.preview_button.click()
     wait(QApplication.instance(), lambda: not shell.model.state.busy)
-    assert 'aac' in view.preview.toPlainText()
+    validation = shell.validation_previews[view]
+    assert validation.report.files[0].ready
+    assert 'aac' in validation.commands.toPlainText()
     view.run_button.click()
     wait(QApplication.instance(), lambda: not shell.model.state.busy)
     record = shell.model.queue.records[-1]

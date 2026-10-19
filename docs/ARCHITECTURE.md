@@ -156,3 +156,13 @@ Versions 1–3 preserve their selected mode but reset incompatible three-column
 geometry; obsolete timeline preferences are discarded. Queue/Settings still occupy
 the full work area. Encoding forms retain responsive QFormLayout wrapping and use
 shorter captions and separate profile-action rows to avoid minimum-width overflow.
+
+## Pre-release validation feedback (UX-03)
+
+Application validation_preview provides immutable candidate/file/report contracts
+and aggregates failures around existing preview_conversion validation. It never
+queues or executes jobs. MainWindow snapshots typed form choices; DesktopViewModel
+runs validation on ServiceWorker and relays results through a GUI-thread QObject
+slot. The shared ValidationPreview presenter owns summary/details, revision guards
+and filesystem invalidation. Existing operation preparation/publication and queue
+snapshot policies are unchanged. Bulk editing will reuse these contracts.

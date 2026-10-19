@@ -49,3 +49,39 @@ ROADMAP.md remains historical. No timeline will be reintroduced.
 - Preview never creates output or modifies the queue; existing staged publication remains.
 - Tests: success/mixed reports, all-valid batches, collisions, missing encoders,
   stale responses, changed settings, accessible text and narrow layouts.
+
+## UX-03 implementation evidence — 2026-10-19
+
+Implemented the single-operation vertical slice and reusable multi-file contract.
+Application validation uses the existing fresh inspection, muxer/encoder checks,
+plan/path validation and staged command builder. Immutable reports preserve
+per-file errors, stream/encoder summaries, hardware warnings and command arrays;
+colliding candidates are all blocked. Preview never queues partial batches.
+
+Remux/Convert/Compress show pinned counts and an accessible nonmodal read-only
+details window. Commands are an optional disclosure. Blocked results disable
+current Run/Queue controls; existing execution validation remains authoritative.
+Input edits, source/build/capability/queue context changes and source/output-folder
+notifications invalidate results. Revision checks discard stale callbacks.
+Native worker integration exposed a Qt callback-affinity issue; delivery now goes
+through a QObject slot on the GUI thread, verified by the real-media regression.
+
+Acceptance coverage includes all-ready and mixed reports, collision/reserved names,
+missing encoder, warnings versus errors, routed/stale callbacks, edited container/
+resolution, actual worker validation, filesystem changes and no-overwrite execution.
+Existing shell tests now inspect the new command disclosure and staged preview
+path while retaining their output safety assertions.
+
+Batch editing and explicit partial-batch queue controls remain UX-01 work; the
+current batch action retains all-or-nothing validation. UX-04/01/02/05 are pending.
+Native Windows and physical screen-reader/display checks remain pending.
+
+Verification commands/results:
+- QT_QPA_PLATFORM=offscreen .venv/bin/pytest -q — **401 passed in 27.16 s**.
+- QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=2 .venv/bin/pytest
+  tests/test_validation_preview.py tests/test_workstation_polish.py
+  tests/test_workspace.py -q — **19 passed**.
+- .venv/bin/ruff check . and git diff --check — passed.
+- Offscreen 1280×720 workspace and mixed-result dialog reviewed; corrected dialog
+  palette contrast. This is not physical-display or Windows acceptance.
+No release, tag, remote push or production publication performed.

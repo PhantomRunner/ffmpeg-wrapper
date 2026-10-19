@@ -268,3 +268,10 @@ Preview ordering, layout persistence, navigation and existing operation behavior
 remain covered. Offscreen visual review at 960×640 passed; 34 targeted regressions
 passed at 200% scale. Physical-display and Windows acceptance remain pending.
 Full regression suite: **394 passed** in 27.98 s. Ruff and whitespace checks pass.
+
+### Pre-release milestone
+
+Current follow-up work is tracked in PRE_RELEASE_UX_MILESTONE.md and its audited
+PRE_RELEASE_UX_IMPLEMENTATION.md. UX-03 is the first implementation slice; remaining
+features proceed individually. Public distribution requires the milestone,
+existing release blockers and a specific user publication command.

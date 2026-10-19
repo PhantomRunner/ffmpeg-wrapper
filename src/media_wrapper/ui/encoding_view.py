@@ -29,6 +29,7 @@ from media_wrapper.ui.widgets.controls import ActionButton, PanelHeader
 
 class EncodingView(QScrollArea):
     estimate_changed = Signal()
+    inputs_changed = Signal()
 
     def __init__(self, title: str = 'Convert') -> None:
         super().__init__()
@@ -181,7 +182,7 @@ class EncodingView(QScrollArea):
         for widget in (self.destination, self.fps):
             widget.textChanged.connect(self.clear_preview)
         for widget in (self.video_width, self.video_height, self.audio_bitrate):
-            widget.valueChanged.connect(self.preview.clear)
+            widget.valueChanged.connect(self.clear_preview)
         self.container.currentIndexChanged.connect(self.container_changed)
         self.arrange_workflow()
         for form_layout in (self.form.layout(), self.advanced.layout()):
@@ -315,6 +316,7 @@ class EncodingView(QScrollArea):
         self.clear_preview()
 
     def clear_preview(self) -> None:
+        self.inputs_changed.emit()
         if hasattr(self, 'preview'):
             self.preview.clear()
         self.update_estimate()

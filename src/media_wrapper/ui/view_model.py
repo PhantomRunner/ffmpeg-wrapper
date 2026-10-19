@@ -281,6 +281,25 @@ class DesktopViewModel(QObject):
             except (ApplicationError, PlanValidationError) as error:
                 self.state.form_error = str(error)
 
+    def validate_preview(self, candidates, on_success) -> None:
+        if self.state.busy or self.state.binaries is None:
+            return
+        from media_wrapper.application.validation_preview import validate_candidates
+        from media_wrapper.domain.tasks import TaskStatus
+        binaries = self.state.binaries
+        reserved = tuple(record.plan.output.path for record in self.queue.records
+                         if record.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
+        self._validation_callback = on_success
+        self._start(ServiceWorker(lambda: validate_candidates(candidates, binaries, reserved),
+                                  'Validation preview'), self._validation_ready)
+
+    @Slot(object)
+    def _validation_ready(self, report) -> None:
+        callback = self._validation_callback
+        self._validation_callback = None
+        if callback is not None:
+            callback(report)
+
     def preview(self) -> None:
         if self.state.busy or self.state.binaries is None or self.state.source is None:
             return
