@@ -99,3 +99,10 @@ This uploads workflow artifacts, not a GitHub Release, tag or installer.
 Use the Ubuntu runner for the supported glibc baseline; an archive built on a
 newer local distribution is only verified for that host. License and native
 desktop acceptance gates in RELEASE_CHECKLIST.md still apply before publication.
+
+## Requested final distribution formats
+
+The next packaging targets are Linux AppImage and a Windows EXE installer.
+Current scripts produce only portable folders/archives. See
+[release packaging and Windows preflight](RELEASE_PACKAGING_PLAN.md) for the
+implementation sequence, checks before/after building and remaining release gates.
