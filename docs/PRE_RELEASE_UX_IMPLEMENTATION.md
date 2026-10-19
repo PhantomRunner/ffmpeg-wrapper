@@ -113,3 +113,29 @@ Visual review at 1280×720 corrected native button contrast and help remnants fo
 hidden rate-control rows. Normal layout/workflow tests: 17 passed. Keyboard/help/
 workspace checks at 200%: 15 passed. Ruff and whitespace checks passed.
 UX-01 remains deferred; this task does not implement Bulk Editor.
+
+## UX-05 — clear finished queue history
+
+TaskQueue.finished_history_ids/clear_history removes only Completed/Failed/Cancelled
+session records not owned by the active task. Only those IDs lose their per-attempt
+binary references; no source, output, partial file or on-disk log is deleted.
+The Queue button shows the eligible count and is disabled when empty. Confirmation
+defaults to No and captures IDs before opening, so jobs finishing while it is open
+are not silently added to the deletion scope. Task-owned notification records are
+removed along with cleared history; active diagnostics remain intact.
+
+Tests verify cancellation of confirmation, captured scope, repeated clearing,
+empty controls, file preservation, active reference protection and a real FFmpeg
+job completing successfully while previous history is removed.
+
+Final verification:
+- Full suite: 406 passed in 30.27 s.
+- Subsequently added real-active-job clearing regression and reran it with the
+  help/feedback/history/layout suite at 200%: 10 passed.
+- Ruff and git diff --check passed.
+- Visual review: 1280×720 compact controls and persistent banner. Physical display,
+  screen-reader and native Windows acceptance remain pending.
+
+UX-02, UX-04 and UX-05 are implemented and locally verified. UX-01 Bulk Editor
+remains pending. No public release, tag or push was performed; all release gates
+and the explicit-publication-command requirement remain in force.

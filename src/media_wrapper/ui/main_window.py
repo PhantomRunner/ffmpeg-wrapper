@@ -140,6 +140,7 @@ class MainWindow(QMainWindow):
         self.queue_view.cancel_button.clicked.connect(self.cancel_queue_selected)
         self.queue_view.cancel_all_button.clicked.connect(self.model.queue.cancel_all)
         self.queue_view.retry_button.clicked.connect(self.retry_queue_selected)
+        self.queue_view.clear_history.clicked.connect(self.clear_queue_history)
         self.queue_view.cpu_retry_button.clicked.connect(self.retry_queue_cpu)
         self.queue_view.table.selectionModel().selectionChanged.connect(self.render_queue_details)
         self.remux_view.metadata_policy.currentIndexChanged.connect(self.preservation_changed)
@@ -483,8 +484,30 @@ class MainWindow(QMainWindow):
         if name:
             view.destination.setText(name)
 
+    @Slot()
+    def clear_queue_history(self) -> None:
+        ids = self.model.queue.finished_history_ids()
+        if not ids:
+            return
+        answer = QMessageBox.question(
+            self, 'Clear History',
+            f'Remove {len(ids)} finished session entries and their in-memory diagnostics?\n'
+            'Completed, failed and cancelled entries only. Active and pending jobs remain.\n'
+            'Source files, outputs, partial files and on-disk logs will not be deleted.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        removed = self.model.queue.clear_history(ids)
+        self.feedback.forget_tasks(set(removed))
+        self.feedback.post('history', f'History cleared: {len(removed)} entries. Media files unchanged.')
+        self.render_queue()
+
     def render_queue(self) -> None:
         queue = self.model.queue
+        count = len(queue.finished_history_ids())
+        self.queue_view.clear_history.setEnabled(count > 0)
+        self.queue_view.history_summary.setText(f"{count} finished session entries")
         direct = self.model.remux_task is not None
         self.queue_view.direct_status.setVisible(direct)
         self.queue_view.cancel_direct.setVisible(direct)

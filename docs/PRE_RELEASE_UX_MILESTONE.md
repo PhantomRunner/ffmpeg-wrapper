@@ -1,6 +1,6 @@
 # FFmpeg UI Wrapper — Pre-release UX Milestone
 
-**Status:** In progress — UX-03 single-operation feedback and reusable per-file validation implemented and locally verified; remaining tasks pending. See [implementation evidence](PRE_RELEASE_UX_IMPLEMENTATION.md).
+**Status:** In progress — UX-03 single-operation feedback and reusable per-file validation implemented and locally verified; UX-02/04/05 implemented and locally verified; UX-01 and platform/release acceptance remain pending. See [implementation evidence](PRE_RELEASE_UX_IMPLEMENTATION.md).
 **Scope:** Usability and release-blocking workflows before beta/stable release.  
 **Platform:** PySide6 Qt Widgets, Linux AppImage and Windows EXE installer.  
 **Reference:** Existing `AGENTS.md`, `docs/ARCHITECTURE.md`, roadmap, UI specification and working code are the source of truth; audit actual implementation first.

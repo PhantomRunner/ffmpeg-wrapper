@@ -72,6 +72,24 @@ class TaskQueue(QObject):
         for record in self.records:
             self.cancel(record.id)
 
+    def finished_history_ids(self) -> tuple[str, ...]:
+        active_id = self.active.record.id if self.active is not None else None
+        finished = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+        return tuple(record.id for record in self.records
+                     if record.status in finished and record.id != active_id)
+
+    def clear_history(self, ids: tuple[str, ...] | None = None) -> tuple[str, ...]:
+        # Optional IDs freeze the confirmation scope while other jobs finish.
+        eligible = self.finished_history_ids()
+        removed = tuple(task_id for task_id in eligible if ids is None or task_id in ids)
+        if not removed:
+            return ()
+        self.records[:] = [record for record in self.records if record.id not in removed]
+        for task_id in removed:
+            self._binaries.pop(task_id, None)
+        self.changed.emit()
+        return removed
+
     def retry(self, task_id: str) -> TaskRecord:
         record = next(r for r in self.records if r.id == task_id)
         if record.status not in (TaskStatus.FAILED, TaskStatus.CANCELLED):

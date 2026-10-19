@@ -166,3 +166,14 @@ runs validation on ServiceWorker and relays results through a GUI-thread QObject
 slot. The shared ValidationPreview presenter owns summary/details, revision guards
 and filesystem invalidation. Existing operation preparation/publication and queue
 snapshot policies are unchanged. Bulk editing will reuse these contracts.
+
+## Pre-release help, notifications and history
+
+OperationFeedback projects queue/direct-task transitions into persistent notices,
+deduplicated by task/status; failures remain prominent until acknowledgment.
+Only verified completed results expose Open output. Shared parameter_help metadata
+and keyboard-accessible field disclosures do not modify validation or codec policy.
+TaskQueue owns history eligibility/removal: only finished inactive records and their
+binary references are forgotten. UI confirmation captures the eligible ID set,
+protecting jobs that finish while the confirmation is open; filesystem data is
+untouched. Queue-owned notices are removed with their cleared records.
