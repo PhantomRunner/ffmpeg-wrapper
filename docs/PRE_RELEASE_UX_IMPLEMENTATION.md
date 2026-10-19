@@ -139,3 +139,6 @@ Final verification:
 UX-02, UX-04 and UX-05 are implemented and locally verified. UX-01 Bulk Editor
 remains pending. No public release, tag or push was performed; all release gates
 and the explicit-publication-command requirement remain in force.
+
+Owner direction: UX-01 is paused while preparing the Linux AppImage candidate.
+This is not a waiver of public release gates and does not authorize publication.

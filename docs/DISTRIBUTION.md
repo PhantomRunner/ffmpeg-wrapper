@@ -106,3 +106,28 @@ The next packaging targets are Linux AppImage and a Windows EXE installer.
 Current scripts produce only portable folders/archives. See
 [release packaging and Windows preflight](RELEASE_PACKAGING_PLAN.md) for the
 implementation sequence, checks before/after building and remaining release gates.
+
+## Linux AppImage candidate
+
+After building the native payload, supply the official tool and runtime files in
+build/appimage-tools, matching packaging/appimage-tools.json. Then run:
+
+```
+python scripts/build_appimage.py
+python scripts/verify_distribution.py dist/MediaWrapper --appimage dist/MediaWrapper-VERSION-Linux-x86_64-COMMIT.AppImage
+```
+
+The recipe verifies pinned SHA-256 tool/runtime hashes and the payload manifest,
+preserves old outputs, and creates an executable AppImage with checksum and build
+metadata. It does not download tools, sign, publish, or bundle processing FFmpeg.
+AppRun preserves arguments and lets the existing frozen subprocess environment
+handling isolate external FFmpeg. Official continuous assets can be replaced
+upstream: retain the exact cached files; a different hash requires an explicit pin
+review, never bypass verification.
+Tool provenance: https://github.com/AppImage/appimagetool and
+https://github.com/AppImage/type2-runtime.
+
+The packaged verifier launches the actual AppImage with
+APPIMAGE_EXTRACT_AND_RUN=1, allowing testing without a FUSE mount. This requires
+temporary disk space for extraction. Normal desktop/FUSE launch and other Linux
+distributions need separate acceptance; the host glibc baseline still applies.

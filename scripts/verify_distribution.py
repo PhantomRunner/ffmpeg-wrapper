@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 
-def verify(bundle: Path) -> None:
+def verify(bundle: Path, appimage: Path | None = None) -> None:
     manifest = json.loads((bundle / 'SHA256SUMS.json').read_text(encoding='utf-8'))
     for name, expected in manifest.items():
         if hashlib.sha256((bundle / name).read_bytes()).hexdigest() != expected:
@@ -19,6 +19,10 @@ def verify(bundle: Path) -> None:
         install = root / 'portable app'
         shutil.copytree(bundle, install, symlinks=True)
         executable = install / ('MediaWrapper.exe' if os.name == 'nt' else 'MediaWrapper')
+        if appimage is not None:
+            executable = install / 'MediaWrapper.AppImage'
+            shutil.copy2(appimage, executable)
+            executable.chmod(0o755)
         source_directory = root / 'read only source' / ('long-path-' + 'x' * 180)
         source_directory.mkdir(parents=True)
         source = source_directory / 'clip ü with spaces.mkv'
@@ -29,6 +33,8 @@ def verify(bundle: Path) -> None:
         output = root / 'new outputs'
         output.mkdir()
         environment = dict(os.environ, QT_QPA_PLATFORM='offscreen')
+        if appimage is not None:
+            environment['APPIMAGE_EXTRACT_AND_RUN'] = '1'
         environment.pop('PYTHONPATH', None)
         environment.pop('QT_PLUGIN_PATH', None)
         try:
@@ -57,4 +63,6 @@ def verify(bundle: Path) -> None:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('bundle', type=Path)
-    verify(parser.parse_args().bundle.resolve())
+    parser.add_argument('--appimage', type=Path)
+    args = parser.parse_args()
+    verify(args.bundle.resolve(), args.appimage.resolve() if args.appimage else None)
