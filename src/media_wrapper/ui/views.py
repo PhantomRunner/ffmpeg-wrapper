@@ -196,6 +196,9 @@ class RemuxView(QScrollArea):
         self.advanced_toggle.toggled.connect(self.advanced.setVisible)
         self.advanced.hide()
 
+        from media_wrapper.ui.parameter_help import install_help
+        install_help(self, ('container', 'destination', 'tracks', 'metadata_policy', 'chapter_policy'))
+
     def set_tracks(self, media: MediaFile | None, selected: tuple[int, ...]) -> None:
         with QSignalBlocker(self.tracks):
             self.tracks.clear()

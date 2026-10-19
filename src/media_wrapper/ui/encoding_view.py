@@ -196,6 +196,9 @@ class EncodingView(QScrollArea):
                     label.widget().setWordWrap(True)
                     label.widget().setFixedWidth(112)
         self.update_options()
+        from media_wrapper.ui.parameter_help import HELP, install_help
+        install_help(self, tuple(HELP))
+        self.update_options()
 
     def arrange_workflow(self) -> None:
         main, advanced = self.form.layout(), self.advanced.layout()

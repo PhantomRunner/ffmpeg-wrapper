@@ -98,3 +98,18 @@ is available only for completed records containing verified result metadata.
 No timeline is reintroduced. Tests cover deduplication, sticky failure, acknowledgment,
 navigation and verification gating alongside existing real processing tests.
 UX-04 verification: 30 targeted tests passed; Ruff and whitespace checks passed.
+
+## UX-02 — contextual parameter help
+
+Shared help metadata covers container, naming, stream mapping/codecs, rate control,
+CRF, bitrates, target size, preset, resolution/FPS, hardware, audio, preservation
+and batch naming. Each field has an adjacent keyboard-focusable ? action, detailed
+tooltip and F1 shortcut; a scrollable, screen-bounded nonmodal help window provides
+keyboard-readable explanations. Codec-specific CRF/AAC ranges describe only the
+existing validated controls; no universal GPU CQ range or capability is invented.
+Current build/runtime validation remains authoritative.
+
+Visual review at 1280×720 corrected native button contrast and help remnants for
+hidden rate-control rows. Normal layout/workflow tests: 17 passed. Keyboard/help/
+workspace checks at 200%: 15 passed. Ruff and whitespace checks passed.
+UX-01 remains deferred; this task does not implement Bulk Editor.
