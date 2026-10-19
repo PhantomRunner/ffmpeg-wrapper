@@ -89,6 +89,10 @@ class ValidationPreview(QObject):
         if revision != self.revision:
             return
         self.report = report
+        self.window.feedback.post(f"validation:{id(self.view)}:{revision}",
+                                  "Validation — " + report.summary,
+                                  "\n".join(f"{f.source}: {f.error or 'Ready'} {f.advice}" for f in report.files),
+                                  any(not f.ready for f in report.files))
         self.summary.setText(report.summary)
         text = []
         commands = []

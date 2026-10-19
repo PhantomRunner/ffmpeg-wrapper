@@ -85,3 +85,16 @@ Verification commands/results:
 - Offscreen 1280×720 workspace and mixed-result dialog reviewed; corrected dialog
   palette contrast. This is not physical-display or Windows acceptance.
 No release, tag, remote push or production publication performed.
+
+## UX-04 — persistent operation feedback
+
+Added a shared, nonmodal notification strip across workspaces. Queue and direct
+Remux records drive added/preparing/running/verified-completed/failed/cancelled
+notices. Progress updates replace the same notice; repeated signals do not duplicate
+transitions. Validation and worker errors are also surfaced. Unacknowledged failures
+remain prominent while later jobs proceed. Details retain diagnostics without
+stealing focus; Go to Queue and Open output are explicit user actions. Open output
+is available only for completed records containing verified result metadata.
+No timeline is reintroduced. Tests cover deduplication, sticky failure, acknowledgment,
+navigation and verification gating alongside existing real processing tests.
+UX-04 verification: 30 targeted tests passed; Ruff and whitespace checks passed.

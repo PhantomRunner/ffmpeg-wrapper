@@ -163,6 +163,11 @@ class MainWindow(QMainWindow):
         self.output.setPlaceholderText('Operation results and details will appear here.')
         self.workspace = Workspace(self, layout_settings)
         layout.addWidget(self.workspace)
+        from media_wrapper.ui.operation_feedback import OperationFeedback
+        self.feedback = OperationFeedback(self)
+        layout.addWidget(self.feedback)
+        self.model.failure_notice.connect(lambda error: self.feedback.post(
+            "service:" + error, "Failed — " + error, error, True))
 
         from media_wrapper.ui.validation_preview import ValidationPreview
         self.validation_previews = {
@@ -498,6 +503,10 @@ class MainWindow(QMainWindow):
         self.queue_view.start_button.setEnabled(not self.model.state.busy and any(r.status == TaskStatus.PENDING for r in queue.records))
         self.queue_view.cancel_all_button.setEnabled(any(r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING) for r in queue.records))
         self.render_queue_details()
+        records = list(queue.records)
+        if isinstance(self.model.remux_task, OperationTask):
+            records.append(self.model.remux_task.record)
+        self.feedback.observe(records)
 
     def update_output_estimate(self) -> None:
         from media_wrapper.application.conversion_service import conversion_plan

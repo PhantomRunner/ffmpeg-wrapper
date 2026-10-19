@@ -49,6 +49,7 @@ Worker = DetectionWorker | InspectionWorker | RemuxPreparationWorker | EncodingP
 
 class DesktopViewModel(QObject):
     changed = Signal()
+    failure_notice = Signal(str)
     encoding_preview_ready = Signal(object)
     profile_loaded = Signal(object)
 
@@ -503,6 +504,7 @@ class DesktopViewModel(QObject):
         if success and isinstance(self.remux_task, OperationTask) and self.remux_task.record.result is not None:
             self.state.output += '\nVerified output metadata:\n' + format_inspection(self.remux_task.record.result)
         if self.remux_task is not None:
+            self.changed.emit()
             self.remux_task.deleteLater()
         self.remux_task = None
         self._validate_form()
@@ -511,6 +513,7 @@ class DesktopViewModel(QObject):
 
     @Slot(str)
     def _failed(self, error: str) -> None:
+        self.failure_notice.emit(error)
         if self.state.inspection_active:
             for path in self._inspection_paths:
                 record = self.state.inspections[path]
