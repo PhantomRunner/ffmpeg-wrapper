@@ -437,7 +437,7 @@ class DesktopViewModel(QObject):
         elif action == 'enqueue':
             binaries = self.state.binaries
             self._start(ServiceWorker(lambda: validate_queue_snapshot(binaries, plan), 'Queue validation'),
-                        lambda validated: self._batch_ready((validated,)))
+                        self._validated_enqueue)
         else:
             self.queue.add(plan, self.state.binaries)
             if action == 'run':
@@ -445,6 +445,11 @@ class DesktopViewModel(QObject):
             else:
                 self.state.output = 'Added to queue.'
                 self.changed.emit()
+
+    @Slot(object)
+    def _validated_enqueue(self, validated: OperationPlan) -> None:
+        # A QObject slot keeps delivery on the GUI thread on Qt 6.7 as well.
+        self._batch_ready((validated,))
 
     def enqueue_remux(self) -> None:
         if self.state.busy or self.state.media is None or self.state.binaries is None:

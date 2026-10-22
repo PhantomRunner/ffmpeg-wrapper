@@ -18,3 +18,8 @@ htmlcov/
 .aws/
 .venv-build/
 docs
+.env
+/media/*
+!/media/.gitkeep
+/output/*
+!/output/.gitkeep

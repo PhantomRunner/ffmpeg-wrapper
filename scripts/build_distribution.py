@@ -38,12 +38,7 @@ def main() -> None:
         raise SystemExit('Could not create executable icon')
     subprocess.run([sys.executable, '-m', 'PyInstaller', '--clean', '--noconfirm',
                     str(ROOT / 'packaging/MediaWrapper.spec')], cwd=ROOT, check=True)
-    documents = destination / 'docs'
-    documents.mkdir()
-    for name in ('README.md', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md'):
-        shutil.copy2(ROOT / name, destination / name)
-    for name in ('DISTRIBUTION.md', 'RELEASE_CHECKLIST.md'):
-        shutil.copy2(ROOT / 'docs' / name, documents / name)
+    shutil.copy2(ROOT / 'README.md', destination / 'README.md')
     # Retain license files supplied by the installed wheels without claiming this
     # inventory alone satisfies every distributor's licensing obligations.
     licenses = destination / 'licenses'
@@ -77,6 +72,7 @@ def main() -> None:
     manifest = {'source_dirty': dirty, 'source_sha256': source_hashes,
                 'license_audit_required': True, 'missing_wheel_license_files': missing_license_files,
                 'python': sys.version, 'platform': platform.platform(), 'machine': platform.machine(),
+                'build_libc': platform.libc_ver(),
                 'commit': commit, 'packages': packages, 'ffmpeg_bundled': False,
                 'preview_media_libraries': [str(path.relative_to(destination)) for path in sorted(destination.rglob('*'))
                     if path.is_file() and any(name in path.name.lower() for name in ('avcodec', 'avformat', 'avutil', 'swresample', 'swscale', 'ffmpegmedia'))]}

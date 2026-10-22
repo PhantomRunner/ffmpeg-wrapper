@@ -2,7 +2,7 @@
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread
 from PySide6.QtWidgets import QApplication
 
 from media_wrapper.domain.conversion import ConversionRequest
@@ -42,6 +42,12 @@ def test_context_selection_and_validated_snapshot(monkeypatch, tmp_path):
         seen.append(plan)
         return plan
     monkeypatch.setattr('media_wrapper.ui.view_model.validate_queue_snapshot', validate)
+    delivery_threads = []
+    original_ready = window.model._batch_ready
+    def record_delivery(plans):
+        delivery_threads.append(QThread.currentThread())
+        original_ready(plans)
+    monkeypatch.setattr(window.model, '_batch_ready', record_delivery)
     window.model.encode(request, 'enqueue')
     window.convert_view.destination.setText(str(tmp_path / 'later.mkv'))
     deadline = time.monotonic() + 5
@@ -49,6 +55,7 @@ def test_context_selection_and_validated_snapshot(monkeypatch, tmp_path):
         app.processEvents()
         time.sleep(.001)
     assert not window.model.state.busy
+    assert delivery_threads == [app.thread()]
     assert len(seen) == len(window.model.queue.records) == 1
     assert window.model.queue.records[0].plan.output.path == request.destination
     assert window.convert_view._media is window.compress_view._media is media
