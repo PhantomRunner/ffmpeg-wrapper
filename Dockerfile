@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
 
 FROM base AS builder
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends git binutils \
+RUN apt-get update && apt-get install -y --no-install-recommends git binutils file \
     && rm -rf /var/lib/apt/lists/*
 RUN python -m pip install -r packaging/requirements.txt
 ENV QT_QPA_PLATFORM=offscreen
