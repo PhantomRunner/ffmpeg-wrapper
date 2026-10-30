@@ -45,14 +45,16 @@ from media_wrapper.ui.views import (
     SettingsView,
 )
 from media_wrapper.ui.widgets.controls import PanelHeader, StatusChip
+from media_wrapper.ui.widgets.window_resize import WindowResize
 from media_wrapper.ui.workspace import Workspace, operation_panel, scroll_panel
 
 
 class MainWindow(QMainWindow):
     def __init__(self, diagnostic_status: str = '', settings_service: SettingsService | None = None, layout_settings: QSettings | None = None) -> None:
         super().__init__()
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         apply_theme(self)
-        self.setWindowTitle('Media Wrapper — FFmpeg UI')
+        self.setWindowTitle('Media Wrapper')
         self.settings_service = settings_service
         preferences = settings_service.load() if settings_service else Preferences()
         self.resize(preferences.width if preferences.width >= 960 else 1280,
@@ -75,8 +77,9 @@ class MainWindow(QMainWindow):
         root.setObjectName('workspaceRoot')
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(8, 8, 8, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 8, 12, 6)
+        layout.setSpacing(8)
+        self.window_resize = WindowResize(self)
         self.navigation = QListWidget()
         self.navigation.setObjectName('modeNavigation')
         self.navigation.setAccessibleName('Workspace modes')
