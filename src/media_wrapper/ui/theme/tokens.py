@@ -2,14 +2,15 @@
 from types import MappingProxyType
 
 COLORS = MappingProxyType({
-    'background': '#15171C', 'panel': '#22242B', 'control': '#30333C',
-    'hover': '#3B3F4B', 'border': '#505562', 'accent': '#A99CF5',
-    'accent_hover': '#BDB2FF', 'text': '#ECECF1', 'secondary': '#A3A6B2',
-    'success': '#419883', 'error': '#D46B76', 'processing': '#8C79D7',
-    'on_accent': '#15171C',
+    'background': '#111213', 'panel': '#1A1B1E', 'control': '#27282C',
+    'hover': '#343439', 'border': '#45464D', 'accent': '#F2B45F',
+    'accent_hover': '#FFCB86', 'text': '#F3F0EB', 'secondary': '#B7B2AA',
+    'success': '#9DCCA9', 'error': '#F09A94', 'processing': '#D69A4E',
+    'on_accent': '#24190C', 'subtle': '#202125', 'selection': '#403323',
+    'success_surface': '#25352A', 'error_surface': '#3C2828',
 })
 BODY_SIZE = 13
-CONTROL_HEIGHT = 28
-SPACING = 6
-PADDING = 8
-RADIUS = 6
+CONTROL_HEIGHT = 32
+SPACING = 8
+PADDING = 12
+RADIUS = 8
