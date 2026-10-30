@@ -113,6 +113,26 @@ python -m pytest -q
 
 ## Assemble a Linux binary and AppImage
 
+For a complete AppImage build on Linux x86-64, run:
+
+```bash
+./scripts/build_appimage.sh
+```
+
+The script builds the compatible Docker packaging image, downloads missing
+AppImage tools using the SHA-256 pins in `packaging/appimage-tools.json`, builds
+the application, and verifies both the portable bundle and the final AppImage.
+Docker and network access are required for uncached dependencies. It can be
+launched from any directory, including a repository path containing spaces.
+The AppImage, checksum and build metadata are written to `dist/`.
+
+Existing builds are preserved. To package an existing `dist/MediaWrapper`
+without rebuilding it, use `./scripts/build_appimage.sh --reuse-bundle`.
+Add `--skip-image-build` to reuse the existing Docker builder image.
+Run `./scripts/build_appimage.sh --help` for all options.
+
+For the individual build steps:
+
 Build the portable binary in the older Linux environment rather than on a modern
 host. Run from the repository root on Linux x86-64:
 
