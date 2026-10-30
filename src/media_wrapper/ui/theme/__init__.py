@@ -1,10 +1,10 @@
-"""A scoped theme: native dialogs and other application windows keep their style."""
+"""Complete studio styling, scoped to the application window and its dialogs."""
 from functools import lru_cache
 from importlib.resources import files
 from string import Template
 
-from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtWidgets import QApplication, QWidget
 
 from media_wrapper.ui.theme.tokens import (
     BODY_SIZE,
@@ -20,21 +20,43 @@ from media_wrapper.ui.theme.tokens import (
 def stylesheet() -> str:
     # Small packaged resource, loaded once; no media I/O or runtime style polling.
     source = files('media_wrapper').joinpath('resources', 'theme.qss').read_text(encoding='utf-8')
-    return Template(source).substitute(**COLORS, body_size=BODY_SIZE,
+    resource = files('media_wrapper').joinpath('resources')
+    assets = {name: str(resource.joinpath(filename)).replace('\\', '/') for name, filename in (
+        ('check_icon', 'check.svg'), ('minus_icon', 'minus.svg'), ('radio_icon', 'radio.svg'),
+        ('chevron_down', 'chevron-down.svg'), ('chevron_up', 'chevron-up.svg'),
+        ('chevron_right', 'chevron-right.svg'), ('close_icon', 'close.svg'),
+    )}
+    return Template(source).substitute(**COLORS, **assets, body_size=BODY_SIZE,
                                        control_height=CONTROL_HEIGHT, spacing=SPACING,
-                                       padding=PADDING, radius=RADIUS,
-                                       check_icon=str(files('media_wrapper').joinpath('resources', 'check.svg')).replace('\\', '/'))
+                                       padding=PADDING, radius=RADIUS)
 
 
 def apply_theme(window: QWidget) -> None:
+    from media_wrapper.ui.theme.style import StudioStyle
+
+    app = QApplication.instance()
+    # Widgets do not own their QStyle. Keep it alive until after Qt destroys
+    # their children, including the short-lived static message boxes.
+    if not hasattr(app, 'studio_style'):
+        app.studio_style = StudioStyle()
+        app.studio_style.setParent(app)
+    style = app.studio_style
+    window.setStyle(style)
+    font = QFont()
+    font.setFamilies(['Inter', 'Segoe UI', 'Noto Sans', 'DejaVu Sans'])
+    window.setFont(font)
     palette = QPalette(window.palette())
     for role, color in ((QPalette.ColorRole.Window, 'background'), (QPalette.ColorRole.WindowText, 'text'),
-                        (QPalette.ColorRole.Base, 'panel'), (QPalette.ColorRole.AlternateBase, 'control'),
+                        (QPalette.ColorRole.Base, 'background'), (QPalette.ColorRole.AlternateBase, 'subtle'),
                         (QPalette.ColorRole.Text, 'text'), (QPalette.ColorRole.Button, 'control'),
-                        (QPalette.ColorRole.ButtonText, 'text'), (QPalette.ColorRole.Highlight, 'accent'),
-                        (QPalette.ColorRole.HighlightedText, 'on_accent'),
+                        (QPalette.ColorRole.ButtonText, 'text'), (QPalette.ColorRole.Highlight, 'selection'),
+                        (QPalette.ColorRole.HighlightedText, 'text'),
                         (QPalette.ColorRole.ToolTipBase, 'control'), (QPalette.ColorRole.ToolTipText, 'text'),
-                        (QPalette.ColorRole.PlaceholderText, 'secondary')):
+                        (QPalette.ColorRole.PlaceholderText, 'secondary'),
+                        (QPalette.ColorRole.Light, 'hover'), (QPalette.ColorRole.Midlight, 'control'),
+                        (QPalette.ColorRole.Mid, 'border'), (QPalette.ColorRole.Dark, 'background'),
+                        (QPalette.ColorRole.Shadow, 'background'), (QPalette.ColorRole.Link, 'accent'),
+                        (QPalette.ColorRole.LinkVisited, 'processing'), (QPalette.ColorRole.BrightText, 'text')):
         palette.setColor(role, QColor(COLORS[color]))
     for role in (QPalette.ColorRole.Text, QPalette.ColorRole.ButtonText, QPalette.ColorRole.WindowText):
         palette.setColor(QPalette.ColorGroup.Disabled, role, QColor(COLORS['secondary']))
