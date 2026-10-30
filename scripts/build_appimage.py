@@ -1,4 +1,4 @@
-"""Package a verified native payload without fetching tools or changing system paths."""
+"""Package a native payload, optionally fetch pinned tools and verify the image."""
 import argparse
 import hashlib
 import json
@@ -6,8 +6,11 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +19,38 @@ ROOT = Path(__file__).resolve().parents[1]
 def digest(path: Path) -> str:
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def prepare_tools(directory: Path, pins: dict, *, download: bool = False) -> dict[str, Path]:
+    tools = {}
+    for key, pin in pins.items():
+        path = directory.resolve() / pin['name']
+        if not path.exists() and download:
+            directory.mkdir(parents=True, exist_ok=True)
+            temporary = None
+            try:
+                request = urllib.request.Request(pin['url'], headers={'User-Agent': 'MediaWrapper-AppImage-builder'})
+                with tempfile.NamedTemporaryFile(dir=directory, prefix='.appimage-download-', delete=False) as stream:
+                    temporary = Path(stream.name)
+                    with urllib.request.urlopen(request, timeout=30) as response:
+                        shutil.copyfileobj(response, stream)
+                if digest(temporary) != pin['sha256']:
+                    raise SystemExit(f'Download checksum mismatch for {key}; review packaging/appimage-tools.json before retrying')
+                # A hard link publishes the complete, verified file atomically
+                # without overwriting a file created by another builder.
+                temporary.chmod(0o755)
+                os.link(temporary, path)
+            except (OSError, urllib.error.URLError) as error:
+                raise SystemExit(f'Could not prepare {key}: {error}') from error
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+        if not path.is_file() or digest(path) != pin['sha256']:
+            raise SystemExit(f'Missing or mismatched {key}; supply the pinned file from {pin["url"]}')
+        if not os.access(path, os.X_OK):
+            path.chmod(path.stat().st_mode | 0o100)
+        tools[key] = path
+    return tools
 
 
 def assemble_appdir(bundle: Path, destination: Path, icon: Path) -> None:
@@ -43,16 +78,17 @@ def assemble_appdir(bundle: Path, destination: Path, icon: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--tools', type=Path, default=ROOT / 'build/appimage-tools')
+    parser.add_argument('--download-tools', action='store_true', help='Download missing tools and check their pinned SHA-256 hashes')
+    parser.add_argument('--tools-only', action='store_true', help='Prepare tools without assembling an AppImage')
+    parser.add_argument('--verify', action='store_true', help='Run installation and media checks on the generated AppImage')
     args = parser.parse_args()
     if platform.system() != 'Linux' or platform.machine() != 'x86_64':
         raise SystemExit('This recipe requires native Linux x86_64')
     pins = json.loads((ROOT / 'packaging/appimage-tools.json').read_text())
-    tools = {}
-    for key, pin in pins.items():
-        path = args.tools.resolve() / pin['name']
-        if not path.is_file() or digest(path) != pin['sha256']:
-            raise SystemExit(f'Missing or mismatched {key}; supply the pinned file from {pin["url"]}')
-        tools[key] = path
+    tools = prepare_tools(args.tools, pins, download=args.download_tools)
+    if args.tools_only:
+        print(args.tools.resolve())
+        return
     bundle = ROOT / 'dist/MediaWrapper'
     info = json.loads((bundle / 'build-info.json').read_text())
     version = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
@@ -62,6 +98,7 @@ def main() -> None:
     metadata = output.with_name(output.name + '.build.json')
     if any(path.exists() for path in (output, checksum, metadata)):
         raise SystemExit('AppImage or metadata already exists; preserve it explicitly before rebuilding')
+    (ROOT / 'build').mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='appimage-', dir=ROOT / 'build') as staging:
         appdir = Path(staging) / 'MediaWrapper.AppDir'
         assemble_appdir(bundle, appdir, ROOT / 'src/media_wrapper/resources/icon.svg')
@@ -73,6 +110,9 @@ def main() -> None:
     metadata.write_text(json.dumps({'payload': info, 'appimage_tools': pins,
                                    'signed': False, 'build_platform': platform.platform()},
                                   indent=2), encoding='utf-8')
+    if args.verify:
+        subprocess.run([sys.executable, str(ROOT / 'scripts/verify_distribution.py'),
+                        str(bundle), '--appimage', str(output)], check=True)
     print(output)
 
 
