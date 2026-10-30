@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.ui.theme import apply_theme
+from media_wrapper.ui.widgets.controls import ActionButton
 
 
 @dataclass
@@ -30,21 +30,24 @@ class Notice:
 class OperationFeedback(QWidget):
     def __init__(self, window):
         super().__init__()
+        self.setObjectName('operationNotice')
         self.window = window
         self.notices: dict[str, Notice] = {}
         self.current = None
         row = QHBoxLayout(self)
-        row.setContentsMargins(4, 4, 4, 4)
+        row.setContentsMargins(12, 8, 12, 8)
+        row.setSpacing(8)
         self.message = QLabel()
         self.message.setWordWrap(True)
         self.message.setTextFormat(Qt.TextFormat.PlainText)
         self.message.setAccessibleName('Operation notification')
         row.addWidget(self.message, 1)
-        self.details_button = QPushButton('View details')
-        self.queue_button = QPushButton('Go to Queue')
-        self.open_button = QPushButton('Open output')
-        self.ack_button = QPushButton('Acknowledge')
+        self.details_button = ActionButton('View details')
+        self.queue_button = ActionButton('Go to Queue')
+        self.open_button = ActionButton('Open output')
+        self.ack_button = ActionButton('Acknowledge')
         for button in (self.details_button, self.queue_button, self.open_button, self.ack_button):
+            button.setProperty('variant', 'ghost')
             row.addWidget(button)
         self.queue_button.clicked.connect(lambda: window.navigation.setCurrentRow(4))
         self.details_button.clicked.connect(self.show_details)
@@ -53,9 +56,11 @@ class OperationFeedback(QWidget):
         self.dialog = QDialog(window)
         apply_theme(self.dialog)
         self.dialog.setWindowTitle('Operation notifications')
+        self.dialog.setObjectName('notificationDialog')
         self.dialog.resize(640, 400)
         layout = QVBoxLayout(self.dialog)
         self.details = QTextEdit()
+        self.details.setProperty('role', 'code')
         self.details.setReadOnly(True)
         self.details.setAccessibleName('Persistent operation notifications and diagnostics')
         layout.addWidget(self.details)
@@ -99,6 +104,11 @@ class OperationFeedback(QWidget):
             self.hide()
             return
         notice = self.notices[self.current]
+        state = 'error' if notice.error and not notice.acknowledged else 'success' if notice.output else 'neutral'
+        if self.property('state') != state:
+            self.setProperty('state', state)
+            self.style().unpolish(self)
+            self.style().polish(self)
         errors = sum(n.error and not n.acknowledged for n in self.notices.values())
         self.message.setText(notice.text + (f' · {errors} unacknowledged error(s)' if errors else ''))
         self.message.setToolTip(notice.details)
