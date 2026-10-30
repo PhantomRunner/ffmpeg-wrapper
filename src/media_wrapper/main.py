@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -14,6 +14,7 @@ from media_wrapper.ui.main_window import MainWindow
 
 
 def main() -> int:
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs)
     app = QApplication(sys.argv)
     app.setApplicationName('MediaWrapper')
     from media_wrapper.infrastructure.process_environment import (

@@ -37,6 +37,7 @@ from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
 from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.theme import apply_theme
+from media_wrapper.ui.theme.dialogs import DialogTheme
 from media_wrapper.ui.view_model import DesktopViewModel
 from media_wrapper.ui.views import (
     FilesView,
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         apply_theme(self)
+        self.dialog_theme = DialogTheme(self)
         self.setWindowTitle('Media Wrapper')
         self.settings_service = settings_service
         preferences = settings_service.load() if settings_service else Preferences()
