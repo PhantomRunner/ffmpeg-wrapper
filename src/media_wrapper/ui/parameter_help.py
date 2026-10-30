@@ -50,6 +50,8 @@ def install_help(view, names) -> None:
         title, body = HELP[name]
         button = QPushButton()
         button.setText('?')
+        button.setProperty('variant', 'help')
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setFixedSize(24, 26)
         button.setAccessibleName(f'Help: {title}')
         button.setToolTip(f'{title}: {body}\nPress F1 in the field for help.')

@@ -7,12 +7,18 @@ class ReadableComboBox(QComboBox):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         view = QListView()
+        view.setObjectName('comboPopup')
+        view.setFrameShape(QListView.Shape.NoFrame)
+        view.setSpacing(2)
+        view.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        view.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
         view.setTextElideMode(Qt.TextElideMode.ElideNone)
         view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setView(view)
         self.setMaxVisibleItems(12)
         self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.setMinimumContentsLength(8)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def showPopup(self) -> None:
         view = self.view()
