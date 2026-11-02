@@ -59,6 +59,31 @@ def test_corrupt_layout_falls_back(app, monkeypatch, tmp_path):
     window.close()
 
 
+@pytest.mark.parametrize('width,height,show_method', [
+    (960, 640, 'show'),
+    (1920, 1080, 'show'),
+    (2560, 1440, 'show'),
+    (1280, 720, 'showMaximized'),
+    (1280, 720, 'showFullScreen'),
+])
+def test_navigation_keeps_compact_height_across_tabs(app, monkeypatch, width, height, show_method):
+    monkeypatch.setattr(MainWindow, 'detect', lambda self: None)
+    window = MainWindow()
+    window.resize(width, height)
+    getattr(window, show_method)()
+    navigation_bar = window.navigation.parentWidget()
+    try:
+        for mode in (0, 1, 4, 5, 2, 3, 1, 0):
+            window.navigation.setCurrentRow(mode)
+            for _ in range(3):
+                app.processEvents()
+            assert navigation_bar.height() == navigation_bar.sizeHint().height()
+            assert window.workspace.title_bar.height() == window.workspace.title_bar.sizeHint().height()
+            assert window.workspace.vertical.geometry().bottom() == window.workspace.height() - 1
+    finally:
+        window.close()
+
+
 def test_navigation_preserves_edits_selection_and_per_mode_geometry(app, monkeypatch, tmp_path):
     from media_wrapper.domain.media import MediaFile, MediaStream
     monkeypatch.setattr(MainWindow, 'detect', lambda self: None)

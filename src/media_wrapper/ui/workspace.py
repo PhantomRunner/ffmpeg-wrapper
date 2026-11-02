@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -179,6 +180,7 @@ class Workspace(QWidget):
         layout.addWidget(header)
         navigation_bar = QFrame()
         navigation_bar.setObjectName('navigationBar')
+        navigation_bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         navigation_layout = QHBoxLayout(navigation_bar)
         navigation_layout.setContentsMargins(4, 3, 12, 3)
         navigation_layout.setSpacing(12)
@@ -240,7 +242,7 @@ class Workspace(QWidget):
         self.vertical.setHandleWidth(12)
         self.vertical.addWidget(self.preview)
         self.vertical.addWidget(self.horizontal)
-        layout.addWidget(self.vertical)
+        layout.addWidget(self.vertical, 1)
         window.navigation.currentRowChanged.connect(self.set_mode)
         self.set_mode(window.navigation.currentRow())
         self.restore_layout()
