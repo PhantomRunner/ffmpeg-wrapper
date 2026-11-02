@@ -32,11 +32,12 @@ def shell(monkeypatch):
 
 
 def test_navigation_preserves_inspection_and_enabled_state(shell):
+    shell.model.state.output = 'Existing inspection'
     shell.output.setPlainText('Existing inspection')
     for index in range(6):
         shell.navigation.setCurrentRow(index)
         assert shell.pages.currentIndex() == index
-        assert shell.output.toPlainText() == 'Existing inspection'
+        assert shell.output.toPlainText() == ('No tasks queued.' if index == 4 else 'Existing inspection')
         assert shell.choose_file_button.isEnabled()
     assert shell.files_view.parentWidget() is not None
     assert shell.pages.widget(0).isAncestorOf(shell.files_view.stream_table)
@@ -345,10 +346,15 @@ def test_queue_view_real_failure_and_completion(shell, sample):
     assert plan.output.path.read_bytes() == b'collision'
     shell.queue_view.table.selectRow(0)
     assert shell.queue_view.retry_button.isEnabled()
-    assert 'already exists' in shell.queue_view.details.toPlainText()
+    shell.queue_view.show_task_error(shell.queue_view.task_model.index(0, 2))
+    assert 'already exists' in shell.queue_view.error_message.toPlainText()
+    assert 'Arguments:' not in shell.queue_view.error_message.toPlainText()
+    shell.queue_view.error_dialog.accept()
     shell.queue_view.table.selectRow(1)
-    assert 'Verified output' in shell.queue_view.details.toPlainText()
-    assert 'pcm_s16le' in shell.queue_view.details.toPlainText()
+    assert shell.model.queue.records[1].result.streams[0].codec == 'pcm_s16le'
+    assert shell.output.toPlainText().endswith('Completed')
+    shell.queue_view.show_task_error(shell.queue_view.task_model.index(1, 2))
+    assert not shell.queue_view.error_dialog.isVisible()
     assert not shell.queue_view.retry_button.isEnabled()
 
 

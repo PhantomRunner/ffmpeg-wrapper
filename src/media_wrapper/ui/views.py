@@ -6,6 +6,7 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
+    QDialog,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -26,9 +27,15 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.media import MediaFile
+from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.ui.inspection_presenter import stream_values
 from media_wrapper.ui.models.media_files import MediaFileModel
-from media_wrapper.ui.models.tasks import ProgressDelegate, TaskModel
+from media_wrapper.ui.models.tasks import (
+    ProgressDelegate,
+    TaskModel,
+    TaskStatusDelegate,
+)
+from media_wrapper.ui.theme import apply_theme
 from media_wrapper.ui.widgets.combo_box import ReadableComboBox
 from media_wrapper.ui.widgets.controls import (
     ActionButton,
@@ -378,6 +385,7 @@ class QueueView(QWidget):
         self.table.verticalHeader().hide()
         self.task_model = TaskModel(self.table)
         self.table.setModel(self.task_model)
+        self.table.setItemDelegateForColumn(2, TaskStatusDelegate(self.table))
         self.table.setItemDelegateForColumn(3, ProgressDelegate(self.table))
         self.table.setAccessibleName('Processing tracks with accessible text percentages')
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -389,18 +397,40 @@ class QueueView(QWidget):
         self.table.setWordWrap(False)
         self.table.setMinimumHeight(70)
         layout.addWidget(self.table, 1)
-        self.details_toggle = QCheckBox('Task details and diagnostics')
-        self.details_toggle.setProperty('role', 'disclosure')
-        layout.addWidget(self.details_toggle)
-        self.details = QTextEdit()
-        self.details.setProperty('role', 'code')
-        self.details.setReadOnly(True)
-        self.details.setMaximumHeight(130)
-        self.details_toggle.toggled.connect(self.details.setVisible)
-        self.details.hide()
-        layout.addWidget(self.details)
+        self.error_dialog = None
+        self.table.setMouseTracking(True)
+        self.table.entered.connect(self.update_status_cursor)
+        self.table.viewportEntered.connect(lambda: self.table.viewport().unsetCursor())
+        self.table.clicked.connect(self.show_task_error)
+        self.table.activated.connect(self.show_task_error)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.context_menu)
+
+    def update_status_cursor(self, index) -> None:
+        clickable = index.column() == 2 and index.data(TaskModel.STATUS_ROLE) == TaskStatus.FAILED
+        self.table.viewport().setCursor(Qt.CursorShape.PointingHandCursor if clickable else Qt.CursorShape.ArrowCursor)
+
+    def show_task_error(self, index) -> None:
+        if not index.isValid() or index.column() != 2 or index.data(TaskModel.STATUS_ROLE) != TaskStatus.FAILED:
+            return
+        record = self.task_model.records[index.row()]
+        if self.error_dialog is None:
+            self.error_dialog = QDialog(self.window())
+            self.error_dialog.setWindowTitle('Operation error')
+            self.error_dialog.setObjectName('taskErrorDialog')
+            self.error_dialog.resize(640, 300)
+            apply_theme(self.error_dialog)
+            layout = QVBoxLayout(self.error_dialog)
+            self.error_message = QTextEdit()
+            self.error_message.setProperty('role', 'code')
+            self.error_message.setReadOnly(True)
+            self.error_message.setAccessibleName('Operation error message')
+            layout.addWidget(self.error_message)
+            close = ActionButton('Close')
+            close.clicked.connect(self.error_dialog.accept)
+            layout.addWidget(close, alignment=Qt.AlignmentFlag.AlignRight)
+        self.error_message.setPlainText(record.failure_detail or 'No error message was provided.')
+        self.error_dialog.open()
 
     def context_menu(self, point) -> None:
         from PySide6.QtWidgets import QMenu

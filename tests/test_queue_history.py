@@ -64,7 +64,7 @@ def test_confirmation_snapshot_cancel_and_empty_state(sample, monkeypatch):
     window.clear_queue_history()
     assert not queue.records
     assert not window.queue_view.clear_history.isEnabled()
-    assert not window.queue_view.details.toPlainText()
+    assert window.queue_view.task_model.rowCount() == 0
     window.clear_queue_history()
     window.close()
     app.processEvents()

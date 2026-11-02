@@ -35,7 +35,6 @@ from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.infrastructure.ffmpeg.binary_resolver import Binaries
 from media_wrapper.ui.encoding_view import EncodingView
-from media_wrapper.ui.inspection_presenter import format_inspection
 from media_wrapper.ui.theme import apply_theme
 from media_wrapper.ui.theme.dialogs import DialogTheme
 from media_wrapper.ui.view_model import DesktopViewModel
@@ -147,7 +146,7 @@ class MainWindow(QMainWindow):
         self.queue_view.retry_button.clicked.connect(self.retry_queue_selected)
         self.queue_view.clear_history.clicked.connect(self.clear_queue_history)
         self.queue_view.cpu_retry_button.clicked.connect(self.retry_queue_cpu)
-        self.queue_view.table.selectionModel().selectionChanged.connect(self.render_queue_details)
+        self.queue_view.table.selectionModel().selectionChanged.connect(self.render_queue_selection)
         self.remux_view.metadata_policy.currentIndexChanged.connect(self.preservation_changed)
         self.remux_view.chapter_policy.currentIndexChanged.connect(self.preservation_changed)
         self.remux_view.browse_button.clicked.connect(self.choose_remux_destination)
@@ -165,10 +164,11 @@ class MainWindow(QMainWindow):
         self.files_view.file_list.selectionModel().selectionChanged.connect(self.file_selection_changed)
         self.output = QTextEdit()
         self.output.setReadOnly(True)
-        self.output.setAccessibleName('Operation feedback and technical details')
+        self.output.setAccessibleName('Operation feedback')
         self.output.setPlaceholderText('Operation results and details will appear here.')
         self.workspace = Workspace(self, layout_settings)
         layout.addWidget(self.workspace)
+        self.navigation.currentRowChanged.connect(self.render_queue_selection)
         from media_wrapper.ui.operation_feedback import OperationFeedback
         self.feedback = OperationFeedback(self)
         layout.addWidget(self.feedback)
@@ -301,8 +301,6 @@ class MainWindow(QMainWindow):
         self.files_view.setAcceptDrops(not state.busy)
         self.files_view.inspect_button.setEnabled(not state.busy and state.binaries is not None and state.current_file is not None)
         self.files_view.clear_button.setEnabled(not state.busy and bool(state.files))
-        if self.output.toPlainText() != state.output:
-            self.output.setPlainText(state.output)
         self.detect_button.setEnabled(not state.busy)
         self.choose_file_button.setEnabled(not state.busy and state.binaries is not None)
         self.remux_button.setEnabled(not state.busy and not state.form_error)
@@ -480,7 +478,7 @@ class MainWindow(QMainWindow):
     def show_encoding_preview(self, command: list[list[str]]) -> None:
         self._preview_view.advanced_toggle.setChecked(True)
         self._preview_view.preview.setPlainText(json.dumps(command, ensure_ascii=False, indent=2))
-        self.model.state.output = 'Validated preview. Run creates a fresh temporary path; executed arguments are shown in Queue.'
+        self.model.state.output = 'Validated preview. Run creates a fresh temporary path.'
         self.render()
 
     def choose_encoding_destination(self, view: EncodingView) -> None:
@@ -520,7 +518,6 @@ class MainWindow(QMainWindow):
         table = self.queue_view.table
         self.queue_view.empty_state.setVisible(not queue.records)
         table.setVisible(bool(queue.records))
-        self.queue_view.details.setVisible(bool(queue.records) and self.queue_view.details_toggle.isChecked())
         row = table.currentIndex().row()
         with QSignalBlocker(table.selectionModel()):
             self.queue_view.task_model.update(queue.records)
@@ -530,7 +527,7 @@ class MainWindow(QMainWindow):
         self.queue_view.load_definitions.setEnabled(not self.model.state.busy and self.binaries is not None)
         self.queue_view.start_button.setEnabled(not self.model.state.busy and any(r.status == TaskStatus.PENDING for r in queue.records))
         self.queue_view.cancel_all_button.setEnabled(any(r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING) for r in queue.records))
-        self.render_queue_details()
+        self.render_queue_selection()
         records = list(queue.records)
         if isinstance(self.model.remux_task, OperationTask):
             records.append(self.model.remux_task.record)
@@ -574,7 +571,7 @@ class MainWindow(QMainWindow):
                                     else 'Output: variable' if active else 'Output: —')
         self.output_estimate.setToolTip(detail)
 
-    def render_queue_details(self) -> None:
+    def render_queue_selection(self) -> None:
         self.update_output_estimate()
         row = self.queue_view.table.currentIndex().row()
         records = self.model.queue.records
@@ -583,17 +580,21 @@ class MainWindow(QMainWindow):
         self.queue_view.retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED))
         self.queue_view.cpu_retry_button.setEnabled(record is not None and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) and any(s.profile.encoder in GPU_ENCODERS for s in record.plan.streams))
         self.queue_view.open_output.setEnabled(record is not None and record.status == TaskStatus.COMPLETED and record.result is not None)
-        if record is None:
-            self.queue_view.details.clear()
-            return
-        progress = record.progress
-        text = (f'{record.status.value}\nOutput: {record.plan.output.path}\n'
-                f'Temporary path (may remain): {record.partial_path or "not created"}\n'
-                f'Estimated speed: {progress.speed}; ETA: {progress.eta} seconds\n'
-                f'{record.error}\nArguments: {json.dumps(record.command, ensure_ascii=False)}\n')
-        if record.result is not None:
-            text += 'Verified output:\n' + format_inspection(record.result)
-        self.queue_view.details.setPlainText(text + '\nDiagnostics (last 16000 characters):\n' + record.log)
+        text = self.model.state.output
+        if self.navigation.currentRow() == 4:
+            text = 'No tasks queued.'
+            if record is not None:
+                text = f'{record.plan.operation.value.title()} · {record.plan.media.path.name}\n{record.status.value}'
+                progress = record.progress
+                if record.status == TaskStatus.RUNNING:
+                    if progress.percent is not None:
+                        text += f' · {progress.percent:.1f}%'
+                    if progress.speed is not None:
+                        text += f' · {progress.speed:.2f}×'
+                    if progress.eta is not None:
+                        text += f' · {progress.eta:.0f} s remaining'
+        if self.output.toPlainText() != text:
+            self.output.setPlainText(text)
 
     def open_queue_output(self) -> None:
         row = self.queue_view.table.currentIndex().row()

@@ -1,13 +1,20 @@
 """Accessible queue projection with real progress values and stable attempt IDs."""
-from PySide6.QtCore import QAbstractTableModel, Qt
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QStyledItemDelegate
+from PySide6.QtCore import QAbstractTableModel, QRect, Qt
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import (
+    QApplication,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+)
 
+from media_wrapper.domain.tasks import TaskStatus
 from media_wrapper.ui.theme.tokens import COLORS
 
 
 class TaskModel(QAbstractTableModel):
     HEADERS = ('Source / operation', 'Output', 'State', 'Progress', 'Speed / ETA')
+    STATUS_ROLE = Qt.ItemDataRole.UserRole + 1
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -30,8 +37,12 @@ class TaskModel(QAbstractTableModel):
             return None
         record = self.records[index.row()]
         progress = record.progress
+        if role == self.STATUS_ROLE:
+            return record.status
         if role == Qt.ItemDataRole.UserRole:
             return progress.percent if index.column() == 3 else record.id
+        if role == Qt.ItemDataRole.AccessibleDescriptionRole and index.column() == 2:
+            return 'Activate to view the error message' if record.status == TaskStatus.FAILED else record.status.value
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole, Qt.ItemDataRole.ToolTipRole):
             codecs = ', '.join(s.profile.encoder for s in record.plan.streams)
             values = (f'{record.plan.media.path.name} · {record.plan.operation.value} · {codecs}',
@@ -41,6 +52,8 @@ class TaskModel(QAbstractTableModel):
                       (f'{progress.eta:.0f} s' if progress.eta is not None else 'ETA unknown'))
             if role == Qt.ItemDataRole.ToolTipRole and index.column() == 0:
                 return str(record.plan.media.path) + '\n' + values[0]
+            if role == Qt.ItemDataRole.ToolTipRole and index.column() == 2 and record.status == TaskStatus.FAILED:
+                return 'Failed — click to view the error'
             return values[index.column()]
         return None
 
@@ -54,6 +67,39 @@ class TaskModel(QAbstractTableModel):
             self.records = tuple(records)
             if records:
                 self.dataChanged.emit(self.index(0, 0), self.index(len(records) - 1, len(self.HEADERS) - 1))
+
+
+class TaskStatusDelegate(QStyledItemDelegate):
+    """Per-task result indicators, independent of row selection and progress text."""
+
+    @staticmethod
+    def indicator_rect(rect: QRect) -> QRect:
+        return QRect(rect.left() + 10, rect.center().y() - 6, 14, 14)
+
+    def paint(self, painter, option, index) -> None:
+        styled = QStyleOptionViewItem(option)
+        self.initStyleOption(styled, index)
+        text, styled.text = styled.text, ''
+        style = styled.widget.style() if styled.widget else QApplication.style()
+        style.drawControl(QStyle.ControlElement.CE_ItemViewItem, styled, painter, styled.widget)
+        status = index.data(TaskModel.STATUS_ROLE)
+        color = COLORS['success'] if status == TaskStatus.COMPLETED else (
+            COLORS['error'] if status == TaskStatus.FAILED else
+            COLORS['accent'] if status in (TaskStatus.PREPARING, TaskStatus.RUNNING) else COLORS['secondary'])
+        circle = self.indicator_rect(option.rect)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor(color), 2))
+        painter.setBrush(QColor(color) if status in (TaskStatus.COMPLETED, TaskStatus.FAILED)
+                         else Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(circle)
+        if status == TaskStatus.FAILED:
+            painter.setPen(QColor(COLORS['background']))
+            painter.drawText(circle, Qt.AlignmentFlag.AlignCenter, '!')
+        painter.setPen(QColor(COLORS['text']))
+        painter.setFont(option.font)
+        painter.drawText(option.rect.adjusted(34, 0, -6, 0), Qt.AlignmentFlag.AlignVCenter, text)
+        painter.restore()
 
 
 class ProgressDelegate(QStyledItemDelegate):
