@@ -40,7 +40,7 @@ def test_workspace_roundtrip_and_reset(app, monkeypatch, tmp_path):
         restored.navigation.setCurrentRow(index)
         assert restored.pages.currentIndex() == index
         assert restored.files_view.isVisible() == (index < 4)
-        assert restored.workspace.preview.isVisible() == (index in (0, 2, 3))
+        assert restored.workspace.preview.isVisible() == (index == 0)
         assert restored.queue_view.isVisible() == (index == 4)
     restored.close()
 
@@ -79,7 +79,38 @@ def test_navigation_keeps_compact_height_across_tabs(app, monkeypatch, width, he
                 app.processEvents()
             assert navigation_bar.height() == navigation_bar.sizeHint().height()
             assert window.workspace.title_bar.height() == window.workspace.title_bar.sizeHint().height()
-            assert window.workspace.vertical.geometry().bottom() == window.workspace.height() - 1
+            footer = window.workspace.operation_footer
+            assert footer.isVisible() == (mode < 5)
+            if footer.isVisible():
+                assert window.workspace.vertical.geometry().bottom() < footer.y()
+                assert footer.geometry().bottom() == window.workspace.height() - 1
+            else:
+                assert window.workspace.vertical.geometry().bottom() == window.workspace.height() - 1
+    finally:
+        window.close()
+
+
+@pytest.mark.parametrize('width,height', [(960, 640), (1920, 1080)])
+def test_operation_footer_is_shared_by_encoding_and_queue(app, monkeypatch, width, height):
+    monkeypatch.setattr(MainWindow, 'detect', lambda self: None)
+    window = MainWindow()
+    window.resize(width, height)
+    window.show()
+    footer = window.workspace.operation_footer
+    footer.toggle.setChecked(True)
+    try:
+        for mode in (2, 3, 4, 2):
+            window.navigation.setCurrentRow(mode)
+            for _ in range(3):
+                app.processEvents()
+            assert footer.isVisible() and window.output.isVisible()
+            assert footer.isAncestorOf(window.output)
+            assert not window.workspace.preview.isVisible()
+            assert not window.workspace.preview_toggle.isVisible()
+            assert window.workspace.vertical.geometry().bottom() < footer.y()
+            assert window.rect().contains(window.output.mapTo(window, window.output.rect().bottomRight()))
+        footer.toggle.click()
+        assert not window.output.isVisible()
     finally:
         window.close()
 

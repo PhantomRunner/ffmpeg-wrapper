@@ -8,11 +8,11 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSplitter,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from media_wrapper.ui.panels.operation_footer import OperationFooter
 from media_wrapper.ui.panels.playback import PlaybackPanel
 from media_wrapper.ui.theme.icons import icon
 from media_wrapper.ui.theme.tokens import COLORS
@@ -227,11 +227,7 @@ class Workspace(QWidget):
         details.addWidget(self.source)
         self.playback = PlaybackPanel()
         preview_layout.addWidget(self.playback, 2)
-        self.feedback = QTabWidget()
-        self.feedback.setObjectName('previewFeedback')
-        window.output.setProperty('role', 'console')
-        self.feedback.addTab(window.output, 'Operation feedback')
-        details.addWidget(self.feedback, 1)
+        details.addStretch()
         preview_layout.addLayout(details, 3)
         window.pages.setMinimumWidth(200)
         self.inspector = framed_panel(window.pages)
@@ -243,6 +239,8 @@ class Workspace(QWidget):
         self.vertical.addWidget(self.preview)
         self.vertical.addWidget(self.horizontal)
         layout.addWidget(self.vertical, 1)
+        self.operation_footer = OperationFooter(window.output)
+        layout.addWidget(self.operation_footer)
         window.navigation.currentRowChanged.connect(self.set_mode)
         self.set_mode(window.navigation.currentRow())
         self.restore_layout()
@@ -257,6 +255,7 @@ class Workspace(QWidget):
         self.remember_layout()
         self.mode = mode
         self.library.setVisible(mode < 4)
+        self.operation_footer.setVisible(mode < 5)
         self.update_preview_visibility()
         self.default_layout()
         if mode in self._layouts:
@@ -269,17 +268,18 @@ class Workspace(QWidget):
                 self.default_layout()
 
     def update_preview_visibility(self) -> None:
-        available = self.mode in (0, 2, 3)
-        visible = available and self._preview_choices.get(
-            self.mode, self.mode == 0 or self.window.height() >= 700)
+        available = self.mode == 0
+        visible = available and self._preview_choices.get(self.mode, True)
         self.preview_toggle.setVisible(available)
         self.preview_toggle.blockSignals(True)
         self.preview_toggle.setChecked(visible)
         self.preview_toggle.blockSignals(False)
         self.preview.setVisible(visible)
+        if not visible and self.playback.service and self.playback.service.playing:
+            self.playback.service.toggle()
 
     def toggle_preview(self, visible: bool) -> None:
-        if self.mode < 0:
+        if self.mode != 0:
             return
         self._preview_choices[self.mode] = visible
         self.update_preview_visibility()

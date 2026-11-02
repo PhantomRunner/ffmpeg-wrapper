@@ -27,7 +27,7 @@ def test_operation_actions_remain_visible_and_shortcuts_work(monkeypatch, width,
         if height == 640 and mode in (2, 3):
             assert view.viewport().height() >= 200
             assert window.workspace.preview.isHidden()
-            assert window.workspace.preview_toggle.isVisible()
+            assert window.workspace.preview_toggle.isHidden()
         view.verticalScrollBar().setValue(view.verticalScrollBar().maximum())
         assert view.enqueue_button.isVisible()
     shortcuts = {shortcut.key().toString() for shortcut in window.findChildren(QShortcut)}
@@ -63,24 +63,24 @@ def test_layout_version_fallback_and_saved_dimensions(monkeypatch, tmp_path):
     window.close()
 
 
-def test_small_workspace_preview_toggle_preserves_user_choice(monkeypatch):
+def test_source_preview_only_available_in_inspect_and_preserves_choice(monkeypatch):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(MainWindow, 'detect', lambda self: None)
     window = MainWindow()
     window.resize(960, 640)
     window.show()
-    window.navigation.setCurrentRow(2)
-    app.processEvents()
-    assert not window.workspace.preview.isVisible()
-    window.workspace.preview_toggle.click()
     app.processEvents()
     assert window.workspace.preview.isVisible()
-    window.navigation.setCurrentRow(3)
-    assert not window.workspace.preview.isVisible()
-    window.navigation.setCurrentRow(2)
-    assert window.workspace.preview.isVisible()
     window.workspace.preview_toggle.click()
+    assert not window.workspace.preview.isVisible()
+    for mode in (2, 3):
+        window.navigation.setCurrentRow(mode)
+        window.workspace.reset_layout()
+        app.processEvents()
+        assert not window.workspace.preview.isVisible()
+        assert not window.workspace.preview_toggle.isVisible()
     window.resize(1280, 800)
+    window.navigation.setCurrentRow(0)
     app.processEvents()
     assert not window.workspace.preview.isVisible()
     window.workspace.reset_layout()
