@@ -152,7 +152,8 @@ class OperationTask(QObject):
     def _executed(self, success: bool, details: str) -> None:
         self.record.append_log(details)
         if not success or self.cancel_event.is_set():
-            self._end(RuntimeError(details))
+            self._end(RuntimeError(details), detail=self.runner.error_output.strip()
+                      or 'FFmpeg did not provide an error message.')
         elif self._remaining_commands:
             self.runner.deleteLater()
             self._start_command(self._remaining_commands.pop(0))
@@ -201,7 +202,8 @@ class OperationTask(QObject):
         self.changed.emit()
         self.finished.emit(True, f'Output: {self.record.result.path}\n{warning}')
 
-    def _end(self, error: Exception) -> None:
+    def _end(self, error: Exception, *, detail: str | None = None) -> None:
+        self.record.failure_detail = str(error) if detail is None else detail
         self.record.append_log(str(error) + "\n")
         # Keep pass logs on failure for diagnosis, just like partial media.
         if self._pass_directory is not None:

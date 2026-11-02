@@ -47,6 +47,21 @@ def test_crash_reports_once():
     assert len(results) == 1 and not results[0][0]
 
 
+def test_error_output_excludes_progress_and_exit_summary():
+    app = QApplication.instance() or QApplication([])
+    runner = ProcessRunner()
+    results = []
+    runner.finished.connect(lambda *r: results.append(r))
+    message = 'Error opening output file: Permission denied'
+    script = "import sys; print('frame=10\\nprogress=end'); print(sys.argv[1], file=sys.stderr); sys.exit(1)"
+    runner.start([sys.executable, '-c', script, message])
+    wait(app, lambda: bool(results))
+    assert not results[0][0]
+    assert runner.error_output.strip() == message
+    assert 'FFmpeg exit code: 1' in results[0][1]
+    assert 'frame=10' in results[0][1]
+
+
 def test_stubborn_process_is_killed_after_cancel():
     import os
 

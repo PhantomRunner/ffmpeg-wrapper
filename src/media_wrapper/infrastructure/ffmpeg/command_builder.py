@@ -35,7 +35,7 @@ class CommandBuilder:
         if any(s.profile.encoder.endswith('_vaapi') for s in plan.streams):
             args[4:4] = ['-vaapi_device', plan.hardware_device]
         if progress:
-            args[4:4] = ['-progress', 'pipe:1', '-nostats']
+            args[4:4] = ['-loglevel', 'error', '-progress', 'pipe:1', '-nostats']
         for selection in plan.streams:
             args.extend(['-map', f'0:{selection.index}'])
         if all(selection.profile.encoder == 'copy' for selection in plan.streams):

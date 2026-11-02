@@ -37,7 +37,47 @@ def test_verified_staged_remux(sample):
     assert task.record.result.streams[0].codec == 'pcm_s16le'
     assert not task.record.partial_path.exists()
     assert '-progress' in task.record.command
+    loglevel = task.record.command.index('-loglevel')
+    assert task.record.command[loglevel + 1] == 'error'
     assert task.thread is None
+
+
+def test_process_failure_keeps_only_stderr_in_failure_detail(sample, monkeypatch):
+    import sys
+
+    app = QApplication.instance() or QApplication([])
+    binaries, plan = sample
+    task = OperationTask(TaskRecord(plan), binaries)
+    message = 'Error opening encoder: Invalid argument'
+    script = "import sys; print('frame=10\\nprogress=end'); print(sys.argv[1], file=sys.stderr); sys.exit(1)"
+    monkeypatch.setattr(task, '_prepare', lambda: (plan, [sys.executable, '-c', script, message]))
+    results = []
+    task.finished.connect(lambda *r: results.append(r))
+    task.start()
+    wait(app, lambda: bool(results))
+    assert task.record.status == TaskStatus.FAILED
+    assert task.record.failure_detail == message
+    assert 'Arguments:' in task.record.log
+    assert 'FFmpeg exit code: 1' in task.record.log
+    assert 'selected FFmpeg/FFprobe process failed' in task.record.error
+
+
+def test_preparation_failure_keeps_original_message(sample, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    binaries, plan = sample
+    task = OperationTask(TaskRecord(plan), binaries)
+    message = 'Destination already exists'
+
+    def fail():
+        raise ValueError(message)
+
+    monkeypatch.setattr(task, '_prepare', fail)
+    results = []
+    task.finished.connect(lambda *r: results.append(r))
+    task.start()
+    wait(app, lambda: bool(results))
+    assert task.record.failure_detail == message
+    assert task.record.status == TaskStatus.FAILED
 
 
 def test_publication_never_overwrites(tmp_path):

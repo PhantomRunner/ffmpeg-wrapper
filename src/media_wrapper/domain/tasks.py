@@ -37,6 +37,7 @@ class TaskRecord:
     error: str = ''
     partial_path: Path | None = None
     result: MediaFile | None = None
+    failure_detail: str = ''
 
     def transition(self, status: TaskStatus) -> None:
         if status not in TRANSITIONS[self.status]:

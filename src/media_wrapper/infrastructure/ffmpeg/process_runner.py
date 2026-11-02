@@ -23,6 +23,7 @@ class ProcessRunner(QObject):
         self.kill_timer.setSingleShot(True)
         self.kill_timer.timeout.connect(self.process.kill)
         self._tail = ''
+        self.error_output = ''
         self._done = False
         self._used = False
         self.cancelled = False
@@ -63,7 +64,9 @@ class ProcessRunner(QObject):
         self._append(data)
 
     def _read_stderr(self) -> None:
-        self._append(bytes(self.process.readAllStandardError()))
+        data = bytes(self.process.readAllStandardError())
+        self.error_output = (self.error_output + data.decode('utf-8', errors='replace'))[-16000:]
+        self._append(data)
 
     def _append(self, data: bytes) -> None:
         text = data.decode('utf-8', errors='replace')
@@ -80,6 +83,7 @@ class ProcessRunner(QObject):
 
     def _error(self, error: QProcess.ProcessError) -> None:
         if error == QProcess.ProcessError.FailedToStart:
+            self.error_output = self.process.errorString()
             self._emit(False, self.process.errorString())
 
     def _emit(self, success: bool, message: str) -> None:
