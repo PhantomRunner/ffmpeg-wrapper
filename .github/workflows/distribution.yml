@@ -37,6 +37,21 @@ jobs:
       - run: python -m pip check
       - run: python scripts/build_distribution.py
       - run: python scripts/verify_distribution.py dist/MediaWrapper
+      - name: Assemble and verify Linux AppImage
+        if: runner.os == 'Linux'
+        run: python scripts/build_appimage.py --download-tools --verify
+      - name: Prepare checksum-pinned Inno Setup compiler
+        if: runner.os == 'Windows'
+        run: python scripts/build_windows_installer.py --prepare-compiler
+      - name: Build Windows per-user installer
+        if: runner.os == 'Windows'
+        run: python scripts/build_windows_installer.py --compiler build/inno-tools/compiler/ISCC.exe
+      - name: Verify Windows installation upgrade and uninstall
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
+          python scripts/verify_windows_installer.py $installer
       - run: python scripts/archive_distribution.py
       - uses: actions/upload-artifact@v4
         with:
@@ -44,6 +59,8 @@ jobs:
           path: |
             dist/MediaWrapper/build-info.json
             dist/MediaWrapper/SHA256SUMS.json
+            dist/*setup.build.json
+            dist/*.AppImage.build.json
           if-no-files-found: error
           retention-days: 7
 
@@ -55,5 +72,7 @@ jobs:
             dist/MediaWrapper-*.zip
             dist/MediaWrapper-*.tar.gz
             dist/MediaWrapper-*.sha256
+            dist/MediaWrapper-*.AppImage
+            dist/MediaWrapper-*-setup.exe
           if-no-files-found: error
           retention-days: 14

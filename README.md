@@ -1,17 +1,23 @@
 # FFmpeg UI Wrapper
 
-MVP early access Cross-platform UI for FFmpeg in development process.
+PySide6 / Qt Widgets desktop workbench for FFmpeg on Linux and Windows.
 
-## In progress
-- UI Refactoring
-- Windows compatibility
+The flat interface has Workspace, Queue and Settings. Import files or folders,
+inspect real FFprobe metadata, then Remux, Compress or Convert. Supported workflows
+include stream copy/mapping, quality/bitrate/two-pass encoding, tested GPU encoders,
+scoped batch edits, editable presets, command inspection, logs and persisted history.
 
-Deployed features:
-- media metadata inspection
-- remux into Matroska, MP4, MOV, WebM, WAV or FLAC containers
-- Converting and Compress, 
-- Quality/bitrate controls.
-- Source preview
+File checkboxes control inclusion; highlighted rows control inspection; **Edit
+scope** controls which files receive settings changes. **Mixed** preserves distinct
+per-file settings until a field is explicitly changed. **Add to queue** leaves an
+idle queue stopped; **Start processing** queues the ready files and starts it.
+Blocked files remain in Workspace. Jobs keep frozen settings; changing a draft
+does not change queued work. Outputs use new names; optional auto-numbering resolves
+collisions without overwriting. Queue details include commands and actual logs.
+
+The application has no player, FFplay, timeline, trimming, editing or recording.
+Native Windows installation and physical-display/GPU acceptance must be verified
+on their target systems before release.
 
 ## Run with Docker (Linux, Windows or macOS)
 
@@ -32,8 +38,7 @@ Docker Desktop hosts still require native verification.
 Put input files in `media/`; select `/media` in the application's file picker.
 Choose `/output` for results, which appear in `output/` on your computer.
 Inputs are mounted read-only; settings persist in a Docker volume. Processing
-uses CPU by default. Browser preview has no audio forwarding; output audio is
-still processed. The browser port binds only to localhost and has no login.
+uses CPU by default. The browser port binds only to localhost and has no login.
 
 Stop with Ctrl+C, or `docker compose down` if running detached. Wait for jobs to
 finish or cancel them before stopping. Start detached with
@@ -174,3 +179,30 @@ is unavailable use `APPIMAGE_EXTRACT_AND_RUN=1 ./MediaWrapper-....AppImage`.
 AppImage does not bundle glibc or processing FFmpeg. Packaging does not remove
 system-library requirements. Builds are verification candidates, not a published
 production release; Windows and other-device desktop checks remain necessary.
+
+## Build a Windows installer
+
+Build on native Windows with Python 3.11/3.12 and `packaging/requirements.txt`.
+FFmpeg and FFprobe must be available for verification; processing binaries are not
+bundled. Keep the complete PyInstaller folder when using the portable executable.
+
+```powershell
+python scripts/build_distribution.py
+python scripts/verify_distribution.py dist/MediaWrapper
+python scripts/build_windows_installer.py --prepare-compiler
+python scripts/build_windows_installer.py --compiler build/inno-tools/compiler/ISCC.exe
+$installer = (Get-ChildItem dist/*-setup.exe | Select-Object -First 1).FullName
+python scripts/verify_windows_installer.py $installer
+```
+
+The build-only Inno Setup 7.1.1 x64 installer is checksum-pinned. The resulting
+per-user installer contains the entire payload, creates shortcuts and an uninstall
+entry, and guards against replacing a running application. It never force-closes
+processing. Upgrade/uninstall preserve settings, history, presets and user media.
+Generated candidates are unsigned; these commands do not publish a release.
+
+AppImage tools are pinned to versioned upstream releases, with SHA-256 verification
+for cached and downloaded files. Installation verification exercises the real flat
+UI, three FFmpeg operations, frozen snapshots, persisted history and source
+preservation. Legacy screen modules remain as regression references during native
+platform acceptance; the production entry point loads the flat workbench.
