@@ -67,11 +67,18 @@ class OperationTask(QObject):
 
     def cancel(self) -> None:
         if self.record.status in (TaskStatus.PREPARING, TaskStatus.RUNNING):
+            self.record.cancel_requested = True
             self.cancel_event.set()
+            self.changed.emit()
             if self.runner is not None:
                 self.runner.cancel()
 
     def _prepare(self) -> tuple[OperationPlan, list[str]]:
+        source_stat = self.record.plan.media.path.stat()
+        fingerprint = source_stat.st_size, source_stat.st_mtime_ns
+        if self.record.source_fingerprint is not None and self.record.source_fingerprint != fingerprint:
+            raise ValueError('Source changed since this job was prepared. Inspect it and create a new draft.')
+        self.record.source_fingerprint = fingerprint
         media = MediaService(self.binaries).inspect(self.record.plan.media.path, self.cancel_event)
         plan = replace(self.record.plan, media=media)
         require_muxer(self.binaries.ffmpeg, plan.output.container, self.cancel_event)
@@ -127,6 +134,7 @@ class OperationTask(QObject):
         self.record.append_log(self.prepared.hardware_note + "\n")
         self.record.partial_path = self.prepared.output.execution_path
         self.record.command = tuple(command)
+        self.record.pass_count = len(self._remaining_commands) + 1
         if self.cancel_event.is_set():
             self._end(OperationCancelled())
             return
@@ -135,6 +143,8 @@ class OperationTask(QObject):
 
     def _start_command(self, command: list[str]) -> None:
         self.record.command = tuple(command)
+        self.record.commands += (tuple(command),)
+        self.record.pass_index += 1
         self.record.append_log("\nArguments: " + json.dumps(command) + "\n")
         self.runner = ProcessRunner(self)
         self.runner.progress.connect(self._progress)

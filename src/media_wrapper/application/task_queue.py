@@ -27,6 +27,8 @@ class TaskQueue(QObject):
         """Insert one prepared batch with one notification; plans stay immutable."""
         # Every attempt receives a fresh temporary target at preparation time.
         records = tuple(TaskRecord(replace(plan, output=replace(plan.output, temporary_path=None))) for plan in plans)
+        for record in records:
+            record.binary_version = binaries.version
         self.records.extend(records)
         self._binaries.update((record.id, binaries) for record in records)
         if records:
