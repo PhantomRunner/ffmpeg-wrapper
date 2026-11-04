@@ -11,7 +11,10 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -41,7 +44,7 @@ from media_wrapper.ui.workers import CapabilityWorker
 
 class MainWindow(QMainWindow):
     def __init__(self, diagnostic_status='', settings_service=None, layout_settings: QSettings | None = None,
-                 history_repository=None):
+                 history_repository=None, preset_repository=None):
         super().__init__()
         self.setWindowTitle('FFmpeg Wrapper')
         self.setMinimumSize(760, 600)
@@ -60,6 +63,8 @@ class MainWindow(QMainWindow):
         self._capability_key = None
         self._dialogs = []
         self.named_presets = {}
+        self.preset_repository = preset_repository
+        self.presets_writable = True
         self.workspace_page = QWidget()
         workspace = QVBoxLayout(self.workspace_page)
         workspace.setContentsMargins(0, 0, 0, 0)
@@ -182,6 +187,8 @@ class MainWindow(QMainWindow):
         if history_repository:
             from media_wrapper.ui.history_sync import HistorySync
             self.history_sync = HistorySync(self.controller, history_repository)
+        if preset_repository:
+            self.controller.service('presets', preset_repository.read, self.presets_loaded, self.presets_failed)
         QTimer.singleShot(0, self.detect)
 
     @property
@@ -211,7 +218,7 @@ class MainWindow(QMainWindow):
                     statuses[item.id] = 'Added to queue'
             self.sources.model.statuses = statuses
             self.sources.refresh()
-            self.inspector.render(self.draft, controller.capabilities, tuple(self.named_presets))
+            self.inspector.render(self.draft, controller.capabilities, self.preset_names())
             included = [i for i in self.draft.items.values() if i.included]
             probing = sum(not i.inspected and (not i.inspection or not i.inspection.error) for i in included)
             if valid:
@@ -271,7 +278,7 @@ class MainWindow(QMainWindow):
     def select_sources(self, ids):
         self.draft.selected = ids
         if not self._rendering:
-            self.inspector.render(self.draft, self.controller.capabilities, tuple(self.named_presets))
+            self.inspector.render(self.draft, self.controller.capabilities, self.preset_names())
 
     def set_operation(self, operation):
         self.draft.operation = operation
@@ -580,6 +587,12 @@ class MainWindow(QMainWindow):
                 for field, value in patch.items():
                     self.draft.patch(field, value, (item.id,), preset_name=preset.name)
             self.controller.changed.emit()
+        elif name.startswith('named:'):
+            from media_wrapper.domain.named_presets import apply_named_preset
+            preset = self.named_presets.get(name.removeprefix('named:'))
+            if preset:
+                apply_named_preset(self.draft, preset)
+                self.controller.changed.emit()
 
     def exchange_profile(self, importing):
         from media_wrapper.application.profile_service import (
@@ -626,10 +639,107 @@ class MainWindow(QMainWindow):
                                     lambda path: self.show_notice(f'Saved profile: {path}'))
 
     def save_preset(self):
-        self.show_notice('Choose an inspected scope before saving a preset.')
+        from media_wrapper.domain.named_presets import capture_preset
+        if not self.presets_writable:
+            self.show_notice('Preset storage is unavailable. Its original file is preserved; repair it and restart.')
+            return
+        name, accepted = QInputDialog.getText(self, 'Save named preset', 'Preset name')
+        if not accepted:
+            return
+        try:
+            preset = capture_preset(self.draft, name)
+        except ValueError as error:
+            self.show_text('Preset needs review', str(error))
+            return
+        overwrite = preset.name in self.named_presets
+        if overwrite and QMessageBox.question(self, 'Replace named preset', f'Replace "{preset.name}"?',
+                                               QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                               QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+            return
+        if self.preset_repository:
+            self.controller.service('presets', lambda: self.preset_repository.save(preset, overwrite), self.presets_loaded, self.presets_failed)
+        else:
+            self.named_presets[preset.name] = preset
+            self.controller.changed.emit()
 
     def manage_presets(self):
-        self.show_notice('No saved named presets yet.')
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Named presets')
+        dialog.resize(480, 340)
+        apply_theme(dialog)
+        layout = QVBoxLayout(dialog)
+        listing = QListWidget()
+        listing.setAccessibleName('Saved named presets')
+        layout.addWidget(listing)
+        def refresh():
+            listing.clear()
+            for preset in self.named_presets.values():
+                item = QListWidgetItem(f'{preset.name} · {preset.operation.value}')
+                item.setData(Qt.ItemDataRole.UserRole, preset.name)
+                listing.addItem(item)
+        def updated(presets):
+            self.presets_loaded(presets)
+            refresh()
+        def remove():
+            item = listing.currentItem()
+            if not item or not self.presets_writable:
+                return
+            name = item.data(Qt.ItemDataRole.UserRole)
+            if QMessageBox.question(dialog, 'Delete preset', f'Delete "{name}"? Existing drafts and jobs are preserved.',
+                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+                return
+            if self.preset_repository:
+                self.controller.service('presets', lambda: self.preset_repository.delete((name,)), updated, self.presets_failed)
+            else:
+                self.named_presets.pop(name, None)
+                updated(self.named_presets)
+        def rename():
+            item = listing.currentItem()
+            if not item or not self.presets_writable:
+                return
+            old = item.data(Qt.ItemDataRole.UserRole)
+            new, accepted = QInputDialog.getText(dialog, 'Rename preset', 'New name', text=old)
+            if accepted:
+                if self.preset_repository:
+                    self.controller.service('presets', lambda: self.preset_repository.rename(old, new), updated, self.presets_failed)
+                else:
+                    from dataclasses import replace
+
+                    from media_wrapper.domain.named_presets import (
+                        parse_named_preset,
+                        preset_payload,
+                    )
+                    try:
+                        if new in self.named_presets:
+                            raise ValueError('A preset with this name already exists')
+                        preset = parse_named_preset(preset_payload(replace(self.named_presets[old], name=new)))
+                    except ValueError as error:
+                        self.show_notice(str(error))
+                        return
+                    self.named_presets.pop(old)
+                    self.named_presets[preset.name] = preset
+                    updated(self.named_presets)
+        row = QHBoxLayout()
+        for title, action in (('Rename…', rename), ('Delete', remove), ('Close', dialog.close)):
+            button = ActionButton(title)
+            button.clicked.connect(action)
+            row.addWidget(button)
+        layout.addLayout(row)
+        refresh()
+        self._dialogs.append(dialog)
+        dialog.show()
+
+    def preset_names(self):
+        return tuple(name for name, preset in self.named_presets.items() if preset.operation == self.draft.operation)
+
+    def presets_loaded(self, presets):
+        self.named_presets = presets
+        self.controller.changed.emit()
+
+    def presets_failed(self, error):
+        self.presets_writable = False
+        self.show_notice('Named presets are unavailable; the original document is preserved. ' + error)
 
     def _toggle_inspector(self, visible):
         self._narrow_inspector = visible

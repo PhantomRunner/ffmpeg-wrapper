@@ -19,6 +19,7 @@ from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.draft import MIXED, EditScope
 from media_wrapper.domain.encoding_presets import PRESETS
+from media_wrapper.domain.inspection import InspectionStatus
 from media_wrapper.domain.operation_policy import ENCODERS
 from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
 from media_wrapper.domain.remux import Container
@@ -274,11 +275,14 @@ class SettingsInspector(QScrollArea):
             self.scope.addItem(f'Edit: Selected rows ({len(draft.selected)})', EditScope.SELECTED.value)
             self.scope.setCurrentIndex(0 if draft.scope == EditScope.INCLUDED else 1)
             targets = draft.editable()
-            self.scope_note.setText(f'{len(targets)} inspected file(s) in scope. Only the changed field is applied.')
-            self.config.setEnabled(bool(targets))
-            self.preset.setEnabled(bool(targets))
+            waiting = any(not item.inspection or item.inspection.status in (InspectionStatus.PENDING, InspectionStatus.RUNNING)
+                          for item in draft.targets())
+            self.scope_note.setText('Wait for probing in this scope to finish, or use Selected rows.' if waiting else
+                                   f'{len(targets)} inspected file(s) in scope. Only the changed field is applied.')
+            self.config.setEnabled(bool(targets) and not waiting)
+            self.preset.setEnabled(bool(targets) and not waiting)
             self.preset.clear()
-            names = [i.options[draft.operation].preset_name for i in targets]
+            names = [i.options[draft.operation].preset_name + (' (modified)' if i.options[draft.operation].preset_modified else '') for i in targets]
             self.preset.addItem('Mixed' if names and len(set(names)) > 1 else names[0] if names and names[0] else 'Custom', '')
             if draft.operation != MediaOperation.REMUX:
                 for index, preset in enumerate(PRESETS):

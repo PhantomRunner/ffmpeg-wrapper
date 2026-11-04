@@ -31,6 +31,7 @@ class DraftOptions:
     auto_number: bool = False
     output_override: str = ''
     preset_name: str = ''
+    preset_modified: bool = False
 
 
 def default_options(media: MediaFile, operation: MediaOperation) -> DraftOptions:
@@ -140,16 +141,18 @@ class DraftState:
         changed = False
         for item in targets:
             current = item.options[self.operation]
+            label = preset_name or current.preset_name
+            modified = bool(current.preset_name and not preset_name)
             if name in ('video_encoder', 'audio_encoder'):
                 kind = name.split('_')[0]
                 indices = {s.index for s in item.media.streams if s.kind == kind}
                 tracks = tuple((i, value if i in indices and encoder != 'omit' else encoder)
                                for i, encoder in current.request.tracks)
-                updated = replace(current, request=replace(current.request, tracks=tracks), preset_name=preset_name)
+                updated = replace(current, request=replace(current.request, tracks=tracks), preset_name=label, preset_modified=modified)
             elif name in {'folder', 'template', 'auto_number', 'output_override'}:
-                updated = replace(current, **{name: value}, preset_name=preset_name)
+                updated = replace(current, **{name: value}, preset_name=label, preset_modified=modified)
             else:
-                updated = replace(current, request=replace(current.request, **{name: value}), preset_name=preset_name)
+                updated = replace(current, request=replace(current.request, **{name: value}), preset_name=label, preset_modified=modified)
             if updated != current:
                 item.options[self.operation] = updated
                 item.revision += 1

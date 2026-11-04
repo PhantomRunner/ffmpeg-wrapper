@@ -1,10 +1,8 @@
 """Locked, atomic terminal history storage, separate from no-overwrite exports."""
 import json
-from contextlib import contextmanager
-
-from PySide6.QtCore import QLockFile
 
 from media_wrapper.domain.history_document import history_entries, record_payload
+from media_wrapper.infrastructure.document_lock import document_lock
 from media_wrapper.infrastructure.json_documents import read_document
 from media_wrapper.infrastructure.settings_repository import SettingsRepository
 
@@ -15,17 +13,6 @@ class HistoryRepository:
     def __init__(self, path):
         self.path = path
 
-    @contextmanager
-    def _locked(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        lock = QLockFile(str(self.path) + '.lock')
-        if not lock.tryLock(2000):
-            raise OSError('History is locked by another application instance. Try again after it finishes.')
-        try:
-            yield
-        finally:
-            lock.unlock()
-
     def _read(self):
         if not self.path.exists():
             return ()
@@ -34,12 +21,12 @@ class HistoryRepository:
     def read(self):
         if not self.path.exists():
             return ()
-        with self._locked():
+        with document_lock(self.path):
             return self._read()
 
     def merge(self, entries=(), remove=()):
         """Under one lock, preserve concurrent records and remove only captured IDs."""
-        with self._locked():
+        with document_lock(self.path):
             merged = {r.id: record_payload(r) for r in self._read()}
             for entry in entries:
                 merged[entry['id']] = entry
