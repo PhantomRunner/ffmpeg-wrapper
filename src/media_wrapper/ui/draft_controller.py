@@ -1,4 +1,5 @@
 """GUI-thread draft coordinator; services and queue execution have separate lifetimes."""
+from dataclasses import replace
 from threading import Event
 from types import SimpleNamespace
 
@@ -58,6 +59,7 @@ class DraftController(QObject):
     changed = Signal()
     notice = Signal(str)
     prepared = Signal(object, str)
+    binaries_ready = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -73,6 +75,7 @@ class DraftController(QObject):
         self.probe_cancel = Event()
         self.pending_probe = []
         self.generation = 0
+        self.defaults = {}
         self.preparation = None
         self.validation_cancel = Event()
         self.watcher = QFileSystemWatcher(self)
@@ -123,13 +126,17 @@ class DraftController(QObject):
         self.binaries = self.capabilities = None
         self.draft.revision += 1
         self.status = 'Detecting FFmpeg and FFprobe…'
-        self.launch('detect', DetectionWorker(mode, directory), self._detected)
+        generation = self.generation
+        self.launch('detect', DetectionWorker(mode, directory), lambda binaries: self._detected(binaries, generation))
 
-    def _detected(self, binaries):
+    def _detected(self, binaries, generation):
+        if generation != self.generation:
+            return
         self.binaries = binaries
         self.status = f'FFmpeg: {binaries.ffmpeg}\nFFprobe: {binaries.ffprobe}\n{binaries.version}'
         self.pending_probe.extend(item.path for item in self.draft.items.values() if not item.inspected)
         self._start_probe()
+        self.binaries_ready.emit(binaries)
 
     def import_sources(self, paths):
         self.import_cancel = Event()
@@ -161,14 +168,26 @@ class DraftController(QObject):
     def _probe_finished(self, generation, results):
         if generation == self.generation:
             for record in results:
-                self.draft.inspected(record)
+                self._accept_inspection(record)
         self._start_probe()
 
     @Slot(int, object)
     def _progress(self, generation, record):
         if generation == self.generation:
-            self.draft.inspected(record)
+            self._accept_inspection(record)
             self.changed.emit()
+
+    def _accept_inspection(self, record):
+        item_id = self.draft._paths.get(record.path)
+        fresh = item_id is not None and not self.draft.items[item_id].options
+        self.draft.inspected(record)
+        if fresh and item_id in self.draft.items and self.draft.items[item_id].inspected:
+            item = self.draft.items[item_id]
+            for operation, options in item.options.items():
+                item.options[operation] = replace(options,
+                    request=replace(options.request, container=self.defaults.get('container', options.request.container)),
+                    folder=self.defaults.get('folder', ''), template=self.defaults.get('template', options.template),
+                    auto_number=self.defaults.get('auto_number', False))
 
     def cancel_import(self):
         self.import_cancel.set()

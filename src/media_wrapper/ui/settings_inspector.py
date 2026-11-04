@@ -340,6 +340,25 @@ class SettingsInspector(QScrollArea):
                     visible = has_video
                 field.setVisible(visible)
             self.hardware_note.setVisible(not remux and has_video)
+            if capabilities:
+                for name in ('video_encoder', 'audio_encoder'):
+                    control = self.fields[name].control
+                    for index in range(control.count()):
+                        value = control.itemData(index)
+                        available = value not in ENCODERS or value in capabilities.build.encoders
+                        control.model().item(index).setEnabled(available)
+                hardware = self.fields['hardware_mode'].control
+                hardware.model().item(hardware.findData('GPU')).setEnabled(bool(capabilities.working()))
+            encoder, hardware = draft.value('video_encoder'), draft.value('hardware_mode')
+            quality_supported = encoder in ('libx264', 'libx265', MIXED) and hardware != 'GPU'
+            self.fields['crf'].control.setEnabled(quality_supported)
+            self.fields['crf'].show_error('Quality mode requires CPU H.264/H.265. Select Encoder default or a supported codec.'
+                                          if has_video and not remux and mode == 'quality' and not quality_supported else '')
+            aac = draft.value('audio_encoder') in ('aac', MIXED)
+            for name in ('audio_mode', 'audio_quality', 'audio_bitrate'):
+                self.fields[name].setVisible(not remux and has_audio and aac and
+                                             (name == 'audio_mode' or name == 'audio_quality' and audio_quality is not None
+                                              or name == 'audio_bitrate' and (audio_quality is None or audio_quality is MIXED)))
             auto = draft.value('auto_number')
             self.auto_number.setTristate(auto is MIXED)
             self.auto_number.setCheckState(Qt.CheckState.PartiallyChecked if auto is MIXED else Qt.CheckState.Checked if auto else Qt.CheckState.Unchecked)

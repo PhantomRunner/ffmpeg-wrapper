@@ -42,7 +42,9 @@ def apply_theme(window: QWidget) -> None:
         app.studio_style.setParent(app)
     style = app.studio_style
     window.setStyle(style)
-    window.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont))
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+    font.setPointSizeF(max(font.pointSizeF(), BODY_SIZE * 72 / 96))
+    window.setFont(font)
     palette = QPalette(window.palette())
     for role, color in ((QPalette.ColorRole.Window, 'background'), (QPalette.ColorRole.WindowText, 'text'),
                         (QPalette.ColorRole.Base, 'background'), (QPalette.ColorRole.AlternateBase, 'subtle'),

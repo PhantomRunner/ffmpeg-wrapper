@@ -3,16 +3,19 @@ import json
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import QSettings, Qt, QTimer, QUrl
+from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDialog,
     QFileDialog,
     QFrame,
+    QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -27,8 +30,9 @@ from PySide6.QtWidgets import (
 
 from media_wrapper.domain.draft import default_options
 from media_wrapper.domain.operations import MediaOperation
-from media_wrapper.domain.preferences import Preferences
+from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
+from media_wrapper.domain.workbench_preferences import WorkbenchPreferences
 from media_wrapper.ui.draft_controller import DraftController
 from media_wrapper.ui.queue_page import TERMINAL, QueuePage
 from media_wrapper.ui.settings_inspector import SettingsInspector
@@ -38,7 +42,7 @@ from media_wrapper.ui.theme import apply_theme
 from media_wrapper.ui.theme.dialogs import DialogTheme
 from media_wrapper.ui.views import SettingsView
 from media_wrapper.ui.widgets.combo_box import ReadableComboBox
-from media_wrapper.ui.widgets.controls import ActionButton
+from media_wrapper.ui.widgets.controls import ActionButton, FieldRow
 from media_wrapper.ui.workers import CapabilityWorker
 
 
@@ -51,13 +55,26 @@ class MainWindow(QMainWindow):
         apply_theme(self)
         self.dialog_theme = DialogTheme(self)
         self.settings_service = settings_service
-        self.preferences_loaded = settings_service.load() if settings_service else Preferences()
+        self.preferences_loaded = settings_service.load() if settings_service else WorkbenchPreferences()
         preferences = self.preferences_loaded
         self.resize(max(1024, preferences.width), max(680, preferences.height))
         self.controller = DraftController(self)
+        self.controller.defaults = {'container': Container(preferences.container),
+                                    'folder': getattr(preferences, 'output_folder', ''),
+                                    'template': getattr(preferences, 'naming_template', '{name}_{operation}'),
+                                    'auto_number': getattr(preferences, 'auto_number', False)}
         self.model = self.controller
         self.draft = self.controller.draft
         route, self.draft.operation = WorkspaceLayout.legacy_route(preferences.page)
+        if isinstance(preferences, WorkbenchPreferences):
+            route, self.draft.operation = preferences.route, MediaOperation(preferences.operation)
+        if (layout_settings and getattr(settings_service, 'loaded_version', None) == 1
+                and str(layout_settings.value('workspace/version', '')) in ('1', '2', '3', '4')
+                and str(layout_settings.value('flat/version', '')) != WorkspaceLayout.VERSION):
+            try:
+                route, self.draft.operation = WorkspaceLayout.legacy_route(int(layout_settings.value('workspace/mode', preferences.page)))
+            except (TypeError, ValueError):
+                pass  # Invalid legacy geometry/mode resets to the migrated preferences.
         self._rendering = False
         self._narrow_inspector = False
         self._capability_key = None
@@ -119,6 +136,8 @@ class MainWindow(QMainWindow):
         self.settings_view.mode.setCurrentText(preferences.binary_mode)
         self.settings_view.folder.setText(preferences.binary_directory)
         self.settings_view.log_level.setCurrentText(preferences.log_level)
+        self.settings_view.gpu_device.setText(getattr(preferences, 'gpu_device', ''))
+        self.add_preferences_controls()
         settings_scroll = QScrollArea()
         settings_scroll.setWidgetResizable(True)
         settings_scroll.setWidget(self.settings_view)
@@ -134,6 +153,7 @@ class MainWindow(QMainWindow):
         self.controller.changed.connect(self.schedule_render)
         self.controller.notice.connect(self.show_notice)
         self.controller.prepared.connect(self.prepared)
+        self.controller.binaries_ready.connect(lambda _binaries: self.scan_capabilities())
         self.toolbar.add_files.clicked.connect(self.choose_files)
         self.toolbar.add_folder.clicked.connect(self.choose_folder)
         self.toolbar.remove.clicked.connect(self.remove_selected)
@@ -181,6 +201,11 @@ class MainWindow(QMainWindow):
         self.sources.table.customContextMenuRequested.connect(self.source_menu)
         self.capability_cancel = Event()
         self.workspace_layout.restore()
+        self.layout_settings = layout_settings
+        if layout_settings and self.remember_window.isChecked():
+            geometry = layout_settings.value('flat/geometry')
+            if isinstance(geometry, QByteArray):
+                self.restoreGeometry(geometry)
         self.shell.set_page(route)
         self.render()
         self.history_sync = None
@@ -218,15 +243,19 @@ class MainWindow(QMainWindow):
                     statuses[item.id] = 'Added to queue'
             self.sources.model.statuses = statuses
             self.sources.refresh()
+            if not self.draft.selected and self.sources.proxy.rowCount():
+                self.sources.table.selectRow(0)
             self.inspector.render(self.draft, controller.capabilities, self.preset_names())
             included = [i for i in self.draft.items.values() if i.included]
-            probing = sum(not i.inspected and (not i.inspection or not i.inspection.error) for i in included)
+            from media_wrapper.domain.inspection import InspectionStatus
+            probing = sum(not i.inspection or i.inspection.status in (InspectionStatus.PENDING, InspectionStatus.RUNNING) for i in included)
+            failed = sum(bool(i.inspection and i.inspection.status == InspectionStatus.FAILED) for i in included)
             if valid:
                 ready = len(result.ready)
                 warnings = sum(bool(i.validation.warnings) for i in result.ready)
                 self.validation_summary.setText(f'{ready} ready · {warnings} warnings · {len(result.items) - ready} errors · {probing} probing')
             else:
-                self.validation_summary.setText(f'{len(included)} included · {probing} waiting/probing · Not validated' +
+                self.validation_summary.setText(f'{len(included)} included · {probing} probing · {failed} failed probe · Not validated' +
                                                 (' — settings or files changed' if result else ''))
             preparing = 'prepare' in controller.calls
             for button in (self.command, self.validate, self.enqueue, self.start):
@@ -461,11 +490,59 @@ class MainWindow(QMainWindow):
             self.capability_cancel = Event()
             worker = CapabilityWorker(self.binaries, self.capability_cancel, self.settings_view.test_gpu.isChecked(),
                                       self.settings_view.gpu_device.text().strip() or None)
-            self.controller.launch('capabilities', worker, self.capabilities_ready)
+            generation, binaries = self.controller.generation, self.binaries
+            self.controller.launch('capabilities', worker,
+                                   lambda report: self.capabilities_ready(report, binaries, generation))
 
-    def capabilities_ready(self, report):
+    def capabilities_ready(self, report, binaries, generation):
+        if binaries != self.binaries or generation != self.controller.generation:
+            self.show_notice('Discarded capability results for the previous FFmpeg selection.')
+            return
         self.controller.capabilities = report
         self.controller.invalidate()
+
+    def add_preferences_controls(self):
+        preferences = self.preferences_loaded
+        box = QGroupBox('Output defaults & interface')
+        layout = QVBoxLayout(box)
+        hint = QLabel('Defaults apply to newly imported files. Existing drafts and queued jobs keep their settings.')
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        self.default_folder = QLineEdit(getattr(preferences, 'output_folder', ''))
+        self.default_folder.setPlaceholderText('Empty = each source folder')
+        self.default_template = QLineEdit(getattr(preferences, 'naming_template', '{name}_{operation}'))
+        self.default_auto_number = QCheckBox('Auto-number conflicting output names by default')
+        self.default_auto_number.setChecked(getattr(preferences, 'auto_number', False))
+        self.remember_window = QCheckBox('Remember window size and position')
+        self.remember_window.setChecked(getattr(preferences, 'remember_window', True))
+        layout.addWidget(FieldRow('Default output folder', self.default_folder))
+        browse = ActionButton('Choose default folder…')
+        def choose():
+            folder = QFileDialog.getExistingDirectory(self, 'Choose default output folder')
+            if folder:
+                self.default_folder.setText(folder)
+                self.defaults_changed()
+        browse.clicked.connect(choose)
+        layout.addWidget(browse)
+        layout.addWidget(FieldRow('Default naming template', self.default_template))
+        layout.addWidget(self.default_auto_number)
+        layout.addWidget(self.remember_window)
+        layout.addWidget(QLabel('Theme: Flat dark · Processing: one FFmpeg job at a time'))
+        self.default_folder.editingFinished.connect(self.defaults_changed)
+        self.default_template.editingFinished.connect(self.defaults_changed)
+        self.default_auto_number.toggled.connect(self.defaults_changed)
+        self.settings_view.layout().insertWidget(2, box)
+
+    def defaults_changed(self, *_):
+        from media_wrapper.domain.output_naming import draft_output_name
+        try:
+            draft_output_name(self.default_template.text(), Path('source.mkv'), self.draft.operation, 1, '.mkv')
+        except ValueError as error:
+            self.default_template.setToolTip(str(error))
+            self.show_notice(str(error))
+            return
+        self.controller.defaults.update(folder=self.default_folder.text(), template=self.default_template.text(),
+                                        auto_number=self.default_auto_number.isChecked())
 
     def set_log_level(self, level):
         from media_wrapper.application.diagnostic_service import set_log_level
@@ -757,9 +834,16 @@ class MainWindow(QMainWindow):
         from dataclasses import replace
         page = 4 if self.shell.page == 'queue' else 5 if self.shell.page == 'settings' else {
             MediaOperation.REMUX: 1, MediaOperation.CONVERT: 2, MediaOperation.COMPRESS: 3}[self.draft.operation]
+        extra = {}
+        if isinstance(self.preferences_loaded, WorkbenchPreferences):
+            extra = {'route': self.shell.page, 'operation': self.draft.operation.value,
+                     'output_folder': self.controller.defaults.get('folder', ''),
+                     'naming_template': self.controller.defaults.get('template', '{name}_{operation}'),
+                     'auto_number': self.default_auto_number.isChecked(),
+                     'remember_window': self.remember_window.isChecked(), 'gpu_device': self.settings_view.gpu_device.text()}
         return replace(self.preferences_loaded, log_level=self.settings_view.log_level.currentText(),
                        binary_mode=self.settings_view.mode.currentText(), binary_directory=self.settings_view.folder.text(),
-                       page=page, width=self.width(), height=self.height())
+                       page=page, width=self.width(), height=self.height(), **extra)
 
     def closeEvent(self, event):
         if self.controller.busy or self.controller.queue.running:
@@ -772,6 +856,12 @@ class MainWindow(QMainWindow):
         for dialog in self._dialogs:
             dialog.close()
         self.workspace_layout.save()
+        if self.layout_settings:
+            if self.remember_window.isChecked():
+                self.layout_settings.setValue('flat/geometry', self.saveGeometry())
+            else:
+                self.layout_settings.remove('flat/geometry')
+            self.layout_settings.sync()
         if self.settings_service:
             warning = self.settings_service.save(self.preferences())
             if warning:

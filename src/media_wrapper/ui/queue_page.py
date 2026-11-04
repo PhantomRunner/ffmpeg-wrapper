@@ -9,10 +9,12 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QSplitter,
     QTableView,
     QTabWidget,
     QTextEdit,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -82,18 +84,27 @@ class QueuePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.buttons = {}
-        for actions in ((('start', 'Start queue'), ('cancel', 'Cancel selected'), ('retry', 'Retry failed'),
-                         ('clear', 'Clear completed')),
-                        (('cancel_all', 'Cancel all'), ('cpu', 'Retry on CPU'), ('open', 'Open output folder'),
-                         ('load', 'Load queue…'), ('save', 'Save queue…'), ('history', 'Clear history…'))):
-            row = QHBoxLayout()
-            for name, text in actions:
-                button = ActionButton(text, primary=name == 'start')
-                button.clicked.connect(lambda _checked=False, name=name: self.action.emit(name))
-                self.buttons[name] = button
-                row.addWidget(button)
-            row.addStretch()
-            layout.addLayout(row)
+        row = QHBoxLayout()
+        for name, text in (('start', 'Start queue'), ('cancel', 'Cancel selected'), ('retry', 'Retry failed'),
+                           ('clear', 'Clear completed')):
+            button = ActionButton(text, primary=name == 'start')
+            button.clicked.connect(lambda _checked=False, name=name: self.action.emit(name))
+            self.buttons[name] = button
+            row.addWidget(button)
+        more = QToolButton()
+        more.setText('More actions')
+        more.setAccessibleName('More queue actions')
+        more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(more)
+        for name, text in (('cancel_all', 'Cancel all'), ('cpu', 'Retry on CPU'), ('open', 'Open output folder'),
+                           ('load', 'Load queue…'), ('save', 'Save queue…'), ('history', 'Clear history…')):
+            action = menu.addAction(text)
+            action.triggered.connect(lambda _checked=False, name=name: self.action.emit(name))
+            self.buttons[name] = action
+        more.setMenu(menu)
+        row.addWidget(more)
+        row.addStretch()
+        layout.addLayout(row)
         filters = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText('Search filename, operation or output…')
@@ -190,7 +201,10 @@ class QueuePage(QWidget):
                 widget.setPlainText(f'{len(selected)} jobs selected.' if selected else 'Select a job to inspect its settings, commands and logs.')
             return
         record = selected[0]
-        settings = json.dumps(asdict(record.plan), default=str, ensure_ascii=False, indent=2)
+        settings = json.dumps({'settings': asdict(record.plan), 'created_at': record.created_at,
+                               'started_at': record.started_at, 'finished_at': record.finished_at,
+                               'elapsed_seconds': record.elapsed, 'ffmpeg_build': record.binary_version},
+                              default=str, ensure_ascii=False, indent=2)
         commands = getattr(record, 'commands', ()) or ((record.command,) if record.command else ())
         values = ((self.settings, settings), (self.commands, json.dumps(commands, ensure_ascii=False, indent=2)),
                   (self.logs, '\n'.join(filter(None, (record.error, record.failure_detail, record.log)))))
