@@ -52,8 +52,10 @@ class DraftItem:
     included: bool = True
     inspection: InspectionRecord | None = None
     options: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
+    defaults: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
     queued: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
     revision: int = 0
+    fingerprint: tuple[int, int] | None = None
 
     @property
     def media(self):
@@ -108,6 +110,7 @@ class DraftState:
         item.inspection = record
         if item.inspected and not item.options:
             item.options = {op: default_options(item.media, op) for op in MediaOperation}
+            item.defaults = dict(item.options)
         item.revision += 1
         self.revision += 1
 
@@ -121,6 +124,8 @@ class DraftState:
 
     def value(self, name):
         values = [self.field_value(item, name) for item in self.editable()]
+        if name in ('video_encoder', 'audio_encoder'):
+            values = [value for value in values if value is not None]
         if not values:
             return None
         return values[0] if all(v == values[0] for v in values) else MIXED
@@ -163,7 +168,7 @@ class DraftState:
     def reset(self, ids=None):
         targets = self.editable() if ids is None else tuple(self.items[i] for i in ids if i in self.items and self.items[i].inspected)
         for item in targets:
-            item.options[self.operation] = default_options(item.media, self.operation)
+            item.options[self.operation] = item.defaults.get(self.operation, default_options(item.media, self.operation))
             item.revision += 1
         if targets:
             self.revision += 1

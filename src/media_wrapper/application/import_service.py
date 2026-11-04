@@ -25,6 +25,8 @@ def discover_sources(paths: tuple[Path, ...], event: Event) -> ImportResult:
                         break
                     dirs[:] = sorted(d for d in dirs if not (Path(directory) / d).is_symlink())
                     for name in sorted(files):
+                        if event.is_set():
+                            break
                         candidate = Path(directory) / name
                         try:
                             if candidate.is_file():

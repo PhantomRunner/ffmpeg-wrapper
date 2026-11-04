@@ -36,6 +36,7 @@ class DraftInput:
     options: DraftOptions | None
     probe_error: str = ''
     already_queued: bool = False
+    fingerprint: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -72,7 +73,7 @@ def snapshot_draft(draft) -> DraftSnapshot:
         options = item.options.get(draft.operation)
         error = '' if item.inspected else item.inspection.error or item.inspection.status.value if item.inspection else 'Inspect this source first.'
         inputs.append(DraftInput(item.id, item.path, item.revision, options, error,
-                                 bool(options and item.queued.get(draft.operation) == options)))
+                                 bool(options and item.queued.get(draft.operation) == options), item.fingerprint))
     return DraftSnapshot(draft.revision, draft.operation, tuple(inputs),
                          tuple(item.path for item in draft.items.values()))
 
@@ -85,6 +86,21 @@ def requested_destination(source: DraftInput, operation, index):
     folder = Path(options.folder).expanduser().absolute() if options.folder.strip() else source.path.parent
     suffix = CONTAINERS[options.request.container].extension
     return folder / draft_output_name(options.template, source.path, operation, index, suffix)
+
+
+def draft_size_note(media, options):
+    """Filesystem-free estimate using the same existing execution/size policies."""
+    from media_wrapper.application.size_estimate import (
+        estimate_output,
+        estimate_plan_size,
+    )
+    request = options.request
+    if request.operation != MediaOperation.REMUX:
+        return estimate_output(media, request)
+    plan = OperationPlan(MediaOperation.REMUX, media, tuple(StreamSelection(i) for i, action in request.tracks if action != 'omit'),
+                         OutputTarget(request.destination, request.container))
+    size = estimate_plan_size(plan)
+    return f'Approximate output: {size / 1048576:.1f} MiB; actual muxing size may differ.' if size is not None else 'Size unknown until encoded.'
 
 
 def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved=(), event=None) -> PreparedDraft:
@@ -137,7 +153,11 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
             request = replace(source.options.request, destination=destination)
             require_muxer(binaries.ffmpeg, request.container, event)
             before = source.path.stat()
+            if source.fingerprint is not None and source.fingerprint != (before.st_size, before.st_mtime_ns):
+                raise PlanValidationError(ValidationCode.INPUT, 'Source changed since inspection. Inspect it again before processing.')
             media = MediaService(binaries).inspect(source.path, event)
+            if any(stream.index is None for stream in media.streams):
+                raise PlanValidationError(ValidationCode.STREAM, 'FFprobe returned a stream without an index. Inspect this source with a working FFprobe before processing.')
             after = source.path.stat()
             if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                 raise PlanValidationError(ValidationCode.INPUT, 'Source changed during validation. Inspect it again.')
