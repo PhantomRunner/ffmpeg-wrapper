@@ -83,7 +83,7 @@ def test_bundle_recipe_has_no_ffmpeg_collection():
     assert 'shell=True' not in (root / 'scripts/build_distribution.py').read_text()
 
 
-def test_installation_verifier_waits_for_enqueue_and_checks_playback(video_sample, tmp_path):
+def test_installation_verifier_checks_real_operations_and_history_without_player(video_sample, tmp_path):
     import json
     import subprocess
     import sys
@@ -98,4 +98,5 @@ def test_installation_verifier_waits_for_enqueue_and_checks_playback(video_sampl
     assert result.returncode == 0, result.stdout + result.stderr
     report = json.loads((destination / 'verification.json').read_text())
     assert report['tasks'] == ['Completed'] * 3
-    assert report['playback']['decoded_video'] and report['playback']['position_ms'] >= 100
+    assert report['outputs_verified'] and report['immutable_snapshots'] and report['history_persisted']
+    assert report['player_instantiated'] is False
