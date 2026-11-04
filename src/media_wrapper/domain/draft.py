@@ -39,7 +39,8 @@ def default_options(media: MediaFile, operation: MediaOperation) -> DraftOptions
                    for s in media.streams if s.index is not None)
     request = ConversionRequest(media.path.with_name(f'{media.path.stem}_{operation.value}.mkv'),
                                 Container.MATROSKA, tracks, operation=operation,
-                                mode='quality' if operation == MediaOperation.COMPRESS else 'default')
+                                mode='quality' if operation == MediaOperation.COMPRESS else 'default',
+                                target_size_bytes=104857600 if operation != MediaOperation.REMUX else None)
     return DraftOptions(request)
 
 
