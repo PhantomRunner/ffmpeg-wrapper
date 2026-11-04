@@ -51,6 +51,7 @@ class PreparedItem:
     source: DraftInput
     validation: FileValidation
     plan: OperationPlan | None = None
+    fingerprint: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -151,7 +152,11 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
             candidate = replace(candidate, destination=destination)
             request = replace(source.options.request, destination=destination)
             require_muxer(binaries.ffmpeg, request.container, event)
+            before = source.path.stat()
             media = MediaService(binaries).inspect(source.path, event)
+            after = source.path.stat()
+            if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                raise PlanValidationError(ValidationCode.INPUT, 'Source changed during validation. Inspect it again.')
             if snapshot.operation == MediaOperation.REMUX:
                 if any(action not in ('copy', 'omit') for _, action in request.tracks):
                     raise PlanValidationError(ValidationCode.OPTION, 'Remux must copy every included stream.')
@@ -172,7 +177,7 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
                                         tuple(f'Stream {s.index}: {s.profile.encoder}' for s in validated.streams),
                                         warnings=(validated.hardware_note,) if validated.hardware_note else (),
                                         commands=tuple(tuple(c) for c in commands))
-            results.append(PreparedItem(source, validation, validated))
+            results.append(PreparedItem(source, validation, validated, (after.st_size, after.st_mtime_ns)))
         except Exception as error:  # noqa: BLE001 - per-source isolation is intentional
             results.append(PreparedItem(source, blocked(candidate, error)))
     return PreparedDraft(snapshot, tuple(results))

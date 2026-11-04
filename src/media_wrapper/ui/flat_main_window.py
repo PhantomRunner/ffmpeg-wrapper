@@ -40,7 +40,8 @@ from media_wrapper.ui.workers import CapabilityWorker
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, diagnostic_status='', settings_service=None, layout_settings: QSettings | None = None):
+    def __init__(self, diagnostic_status='', settings_service=None, layout_settings: QSettings | None = None,
+                 history_repository=None):
         super().__init__()
         self.setWindowTitle('FFmpeg Wrapper')
         self.setMinimumSize(760, 600)
@@ -177,6 +178,10 @@ class MainWindow(QMainWindow):
         self.workspace_layout.restore()
         self.shell.set_page(route)
         self.render()
+        self.history_sync = None
+        if history_repository:
+            from media_wrapper.ui.history_sync import HistorySync
+            self.history_sync = HistorySync(self.controller, history_repository)
         QTimer.singleShot(0, self.detect)
 
     @property
@@ -504,13 +509,41 @@ class MainWindow(QMainWindow):
         if not self.binaries:
             self.show_notice('Detect current FFmpeg before retrying.')
             return
-        plans = tuple(cpu_retry_plan(r.plan) if cpu else r.plan for r in records)
+        from media_wrapper.domain.capabilities import GPU_ENCODERS
+        records = tuple(r for r in records if not cpu or any(s.profile.encoder in GPU_ENCODERS for s in r.plan.streams))
         binaries = self.binaries
-        self.controller.service('retry', lambda: tuple(validate_queue_snapshot(binaries, plan) for plan in plans),
-                                lambda validated: self.controller.queue.add_many(validated, binaries))
+        reserved = self.controller.reserved()
+        def prepare_retries():
+            from media_wrapper.application.batch_service import path_key
+            protected = {path_key(path) for path in reserved}
+            plans, errors = [], []
+            for record in records:
+                try:
+                    stat = record.plan.media.path.stat()
+                    if record.source_fingerprint is None or record.source_fingerprint != (stat.st_size, stat.st_mtime_ns):
+                        raise ValueError('Source changed or its original fingerprint is unavailable. Inspect it and create a new draft.')
+                    plan = cpu_retry_plan(record.plan) if cpu else record.plan
+                    if path_key(plan.output.path) in protected:
+                        raise ValueError('Another queued job reserves this destination.')
+                    plans.append(validate_queue_snapshot(binaries, plan))
+                    protected.add(path_key(plan.output.path))
+                except Exception as error:  # noqa: BLE001 - retries are isolated per record
+                    errors.append(f'{record.plan.media.path}: {error}')
+            return tuple(plans), tuple(errors)
+        def ready(result):
+            plans, errors = result
+            current = {str(path.resolve()).casefold() for path in self.controller.reserved()}
+            plans = tuple(p for p in plans if str(p.output.path.resolve()).casefold() not in current)
+            self.controller.queue.add_many(plans, binaries)
+            if errors:
+                self.show_text('Retry needs review', '\n\n'.join(errors))
+        self.controller.service('retry', prepare_retries, ready)
 
     def clear_history(self, ids):
-        self.controller.queue.clear_history(ids)
+        if self.history_sync:
+            self.history_sync.clear(ids, self.controller.queue.clear_history)
+        else:
+            self.controller.queue.clear_history(ids)
 
     def exchange_queue(self, importing):
         from media_wrapper.application.queue_document_service import (

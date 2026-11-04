@@ -15,11 +15,11 @@ def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def read_document(path: Path) -> Any:
+def read_document(path: Path, *, limit: int = LIMIT) -> Any:
     with path.open('rb') as stream:
-        content = stream.read(LIMIT + 1)
-    if len(content) > LIMIT:
-        raise ValueError('Document exceeds the 1 MiB limit')
+        content = stream.read(limit + 1)
+    if len(content) > limit:
+        raise ValueError(f'Document exceeds the {limit // 1048576} MiB limit')
     return json.loads(content.decode('utf-8'), object_pairs_hook=_unique)
 
 

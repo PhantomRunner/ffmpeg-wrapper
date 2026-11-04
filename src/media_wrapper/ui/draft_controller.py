@@ -87,30 +87,32 @@ class DraftController(QObject):
     def state(self):
         return SimpleNamespace(busy=self.busy or self.queue.running, binaries=self.binaries, status=self.status)
 
-    def launch(self, role, worker, callback):
+    def launch(self, role, worker, callback, on_error=None):
         if role in self.calls:
             self.notice.emit(f'{role.title()} is already running.')
             return False
         call = BackgroundCall(role, worker, self, self.generation)
-        self.calls[role], self.callbacks[role] = call, callback
+        self.calls[role], self.callbacks[role] = call, (callback, on_error)
         call.done.connect(self._completed)
         call.progress.connect(self._progress)
         call.thread.start()
         self.changed.emit()
         return True
 
-    def service(self, role, action, callback):
-        return self.launch(role, ServiceWorker(action, role.title()), callback)
+    def service(self, role, action, callback, on_error=None):
+        return self.launch(role, ServiceWorker(action, role.title()), callback, on_error)
 
     @Slot(str, bool, object)
     def _completed(self, role, success, value):
         self.calls.pop(role, None)
-        callback = self.callbacks.pop(role)
+        callback, on_error = self.callbacks.pop(role)
         if success:
             callback(value)
         else:
             self.status = str(value)
             self.notice.emit(str(value))
+            if on_error:
+                on_error(str(value))
         self.changed.emit()
 
     def detect(self, mode='external', directory=None):
@@ -235,6 +237,8 @@ class DraftController(QObject):
             self.invalidate()
             return ()
         records = self.queue.add_many(tuple(i.plan for i in result.ready), self.binaries)
+        for record, item in zip(records, result.ready, strict=True):
+            record.source_fingerprint = item.fingerprint
         for item in result.ready:
             if item.source.id in self.draft.items:
                 self.draft.items[item.source.id].queued[result.snapshot.operation] = item.source.options
