@@ -1,7 +1,7 @@
 """GUI-thread draft coordinator; services and queue execution have separate lifetimes."""
 from threading import Event
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QFileSystemWatcher, QObject, QThread, Signal, Slot
 
 from media_wrapper.application.import_service import discover_sources
 from media_wrapper.application.media_service import MediaService
@@ -56,6 +56,7 @@ class BackgroundCall(QObject):
 class DraftController(QObject):
     changed = Signal()
     notice = Signal(str)
+    prepared = Signal(object, str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +72,11 @@ class DraftController(QObject):
         self.probe_cancel = Event()
         self.pending_probe = []
         self.generation = 0
+        self.preparation = None
+        self.validation_cancel = Event()
+        self.watcher = QFileSystemWatcher(self)
+        self.watcher.fileChanged.connect(self.invalidate)
+        self.watcher.directoryChanged.connect(self.invalidate)
 
     @property
     def busy(self):
@@ -169,3 +175,69 @@ class DraftController(QObject):
     def include(self, item_id, included):
         self.draft.include(item_id, included)
         self.changed.emit()
+
+    def reserved(self):
+        from media_wrapper.domain.tasks import TaskStatus
+        return tuple(r.plan.output.path for r in self.queue.records
+                     if r.status in (TaskStatus.PENDING, TaskStatus.PREPARING, TaskStatus.RUNNING))
+
+    def invalidate(self, *_):
+        self.draft.revision += 1
+        self.preparation = None
+        paths = self.watcher.files() + self.watcher.directories()
+        if paths:
+            self.watcher.removePaths(paths)
+        self.changed.emit()
+
+    def prepare(self, action='validate'):
+        from media_wrapper.application.draft_service import (
+            prepare_draft,
+            snapshot_draft,
+        )
+        if not self.binaries:
+            self.notice.emit('Detect FFmpeg and FFprobe in Settings first.')
+            return
+        snapshot = snapshot_draft(self.draft)
+        if not snapshot.inputs:
+            self.notice.emit('Include at least one source file.')
+            return
+        generation, binaries, capabilities = self.generation, self.binaries, self.capabilities
+        self.validation_cancel = Event()
+        event, reserved = self.validation_cancel, self.reserved()
+        self.service('prepare', lambda: prepare_draft(snapshot, binaries, capabilities, reserved, event),
+                     lambda result: self._prepared(result, action, generation, binaries, capabilities))
+
+    def _prepared(self, result, action, generation, binaries, capabilities):
+        if (result.snapshot.revision != self.draft.revision or generation != self.generation
+                or binaries != self.binaries or capabilities is not self.capabilities):
+            self.notice.emit('The draft changed during validation. Validate the current settings again.')
+            return
+        self.preparation = result
+        paths = {str(i.source.path) for i in result.items if i.source.path.exists()}
+        paths.update(str(i.validation.destination.parent) for i in result.items if i.validation.destination)
+        if paths:
+            self.watcher.addPaths(sorted(paths))
+        self.prepared.emit(result, action)
+
+    def enqueue_prepared(self, result, start=False):
+        from media_wrapper.application.batch_service import path_key
+        if result is not self.preparation or result.snapshot.revision != self.draft.revision:
+            self.notice.emit('Validation is stale. Validate again before adding jobs.')
+            return ()
+        protected = {path_key(p) for p in self.reserved()}
+        if any(path_key(i.plan.output.path) in protected for i in result.ready):
+            self.notice.emit('The queue now reserves an output path. Validate again.')
+            self.invalidate()
+            return ()
+        records = self.queue.add_many(tuple(i.plan for i in result.ready), self.binaries)
+        for item in result.ready:
+            if item.source.id in self.draft.items:
+                self.draft.items[item.source.id].queued[result.snapshot.operation] = item.source.options
+        self.preparation = None
+        self.draft.revision += 1
+        if start and records:
+            self.queue.start()
+        skipped = len(result.items) - len(records)
+        self.notice.emit(f'Added {len(records)} job(s); {skipped} blocked file(s) remain in Workspace.')
+        self.changed.emit()
+        return records
