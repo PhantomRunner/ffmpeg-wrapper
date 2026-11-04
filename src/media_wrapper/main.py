@@ -10,7 +10,7 @@ from media_wrapper.application.settings_service import SettingsService
 from media_wrapper.infrastructure.app_paths import resolve_app_paths
 from media_wrapper.infrastructure.diagnostics import configure_logging
 from media_wrapper.infrastructure.settings_repository import SettingsRepository
-from media_wrapper.ui.main_window import MainWindow
+from media_wrapper.ui.flat_main_window import MainWindow
 
 
 def main() -> int:

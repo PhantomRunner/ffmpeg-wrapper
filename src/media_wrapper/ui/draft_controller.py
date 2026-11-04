@@ -1,5 +1,6 @@
 """GUI-thread draft coordinator; services and queue execution have separate lifetimes."""
 from threading import Event
+from types import SimpleNamespace
 
 from PySide6.QtCore import QFileSystemWatcher, QObject, QThread, Signal, Slot
 
@@ -81,6 +82,10 @@ class DraftController(QObject):
     @property
     def busy(self):
         return bool(self.calls)
+
+    @property
+    def state(self):
+        return SimpleNamespace(busy=self.busy or self.queue.running, binaries=self.binaries, status=self.status)
 
     def launch(self, role, worker, callback):
         if role in self.calls:
