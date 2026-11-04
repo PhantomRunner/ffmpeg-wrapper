@@ -3,7 +3,7 @@ from functools import lru_cache
 from importlib.resources import files
 from string import Template
 
-from PySide6.QtGui import QColor, QFont, QPalette
+from PySide6.QtGui import QColor, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
 from media_wrapper.ui.theme.tokens import (
@@ -42,8 +42,8 @@ def apply_theme(window: QWidget) -> None:
         app.studio_style.setParent(app)
     style = app.studio_style
     window.setStyle(style)
-    font = QFont()
-    font.setFamilies(['Inter', 'Segoe UI', 'Noto Sans', 'DejaVu Sans'])
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+    font.setPointSizeF(max(font.pointSizeF(), BODY_SIZE * 72 / 96))
     window.setFont(font)
     palette = QPalette(window.palette())
     for role, color in ((QPalette.ColorRole.Window, 'background'), (QPalette.ColorRole.WindowText, 'text'),

@@ -7,10 +7,14 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from media_wrapper.application.settings_service import SettingsService
+from media_wrapper.domain.workbench_preferences import WorkbenchPreferences
 from media_wrapper.infrastructure.app_paths import resolve_app_paths
 from media_wrapper.infrastructure.diagnostics import configure_logging
+from media_wrapper.infrastructure.history_repository import HistoryRepository
+from media_wrapper.infrastructure.installation_guard import InstallationGuard
+from media_wrapper.infrastructure.preset_repository import PresetRepository
 from media_wrapper.infrastructure.settings_repository import SettingsRepository
-from media_wrapper.ui.main_window import MainWindow
+from media_wrapper.ui.flat_main_window import MainWindow
 
 
 def main() -> int:
@@ -28,10 +32,14 @@ def main() -> int:
         diagnostics = configure_logging(paths)
     except OSError as error:
         diagnostics = configure_logging(None, str(error))
+    guard = None
     try:
+        guard = InstallationGuard()
         window = MainWindow(diagnostic_status=diagnostics.status,
-                            settings_service=SettingsService(SettingsRepository(paths.settings_file)) if paths else None,
-                            layout_settings=QSettings('MediaWrapper', 'Workspace'))
+                            settings_service=SettingsService(SettingsRepository(paths.settings_file), WorkbenchPreferences) if paths else None,
+                            layout_settings=QSettings('MediaWrapper', 'Workspace'),
+                            history_repository=HistoryRepository(paths.data_dir / 'history.json') if paths else None,
+                            preset_repository=PresetRepository(paths.config_dir / 'presets.json') if paths else None)
         app.aboutToQuit.connect(window.deleteLater)
         window.show()
         if '--smoke-test' in sys.argv:
@@ -44,6 +52,8 @@ def main() -> int:
         return app.exec()
     finally:
         diagnostics.close()
+        if guard:
+            guard.close()
 
 
 if __name__ == "__main__":

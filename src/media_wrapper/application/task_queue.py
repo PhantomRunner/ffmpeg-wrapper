@@ -21,15 +21,22 @@ class TaskQueue(QObject):
         self.running = False
 
     def add(self, plan: OperationPlan, binaries: Binaries) -> TaskRecord:
+        return self.add_many((plan,), binaries)[0]
+
+    def add_many(self, plans: tuple[OperationPlan, ...], binaries: Binaries, *, fingerprints=None) -> tuple[TaskRecord, ...]:
+        """Insert one prepared batch with one notification; plans stay immutable."""
         # Every attempt receives a fresh temporary target at preparation time.
-        plan = replace(plan, output=replace(plan.output, temporary_path=None))
-        record = TaskRecord(plan)
-        self.records.append(record)
-        self._binaries[record.id] = binaries
-        self.changed.emit()
-        if self.running:
+        records = tuple(TaskRecord(replace(plan, output=replace(plan.output, temporary_path=None))) for plan in plans)
+        for record in records:
+            record.binary_version = binaries.version
+            record.source_fingerprint = (fingerprints or {}).get(record.plan.media.path)
+        self.records.extend(records)
+        self._binaries.update((record.id, binaries) for record in records)
+        if records:
+            self.changed.emit()
+        if records and self.running:
             QTimer.singleShot(0, self._next)
-        return record
+        return records
 
     def start(self) -> None:
         if self.running:

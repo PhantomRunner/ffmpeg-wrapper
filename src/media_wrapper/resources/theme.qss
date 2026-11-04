@@ -1,6 +1,6 @@
 /* Media Wrapper studio. Every interactive subcontrol is drawn explicitly. */
 QWidget {
-    color: $text; font-size: ${body_size}px;
+    color: $text;
     selection-background-color: $selection; selection-color: $text;
 }
 QMainWindow, QWidget#workspaceRoot { background: $background; }

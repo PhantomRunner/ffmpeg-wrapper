@@ -50,6 +50,28 @@ class InspectionWorker(QObject):
             self.failed.emit(report_failure('Inspection', exc))
 
 
+class DraftInspectionWorker(QObject):
+    """Pair each inspection result with the fingerprint captured around FFprobe."""
+    finished = Signal(object)
+    failed = Signal(str)
+    progress = Signal(object)
+
+    def __init__(self, binaries, paths, cancel_event):
+        super().__init__()
+        self.binaries, self.paths, self.cancel_event = binaries, paths, cancel_event
+
+    @Slot()
+    def run(self):
+        from media_wrapper.application.draft_inspection import DraftProbeService
+        service = DraftProbeService(self.binaries)
+        try:
+            results = InspectionBatch(service).run(self.paths, self.cancel_event,
+                          lambda record: self.progress.emit((record, service.fingerprints.get(record.path))))
+            self.finished.emit(tuple((record, service.fingerprints.get(record.path)) for record in results))
+        except Exception as error:  # noqa: BLE001 - worker boundary
+            self.failed.emit(report_failure('Draft inspection', error))
+
+
 class RemuxPreparationWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
