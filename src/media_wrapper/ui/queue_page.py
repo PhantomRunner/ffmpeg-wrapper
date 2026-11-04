@@ -52,7 +52,8 @@ class QueueModel(TaskModel):
             if index.column() == 4:
                 return f'{record.progress.speed:.2f}×' if record.progress.speed is not None else 'Unknown'
             if index.column() == 5:
-                return duration_text(getattr(record, 'elapsed', None))
+                elapsed = record.elapsed
+                return f'{elapsed:.1f}s' if elapsed is not None and elapsed < 60 else duration_text(elapsed)
         return super().data(index, role)
 
 
@@ -84,6 +85,7 @@ class QueuePage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.buttons = {}
+        self._detail_record_id = None
         row = QHBoxLayout()
         for name, text in (('start', 'Start queue'), ('cancel', 'Cancel selected'), ('retry', 'Retry failed'),
                            ('clear', 'Clear completed')):
@@ -96,7 +98,8 @@ class QueuePage(QWidget):
         more.setAccessibleName('More queue actions')
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         menu = QMenu(more)
-        for name, text in (('cancel_all', 'Cancel all'), ('cpu', 'Retry on CPU'), ('open', 'Open output folder'),
+        for name, text in (('cancel_all', 'Cancel all'), ('retry_selected', 'Retry selected'),
+                           ('cpu', 'Retry on CPU'), ('open', 'Open output folder'),
                            ('load', 'Load queue…'), ('save', 'Save queue…'), ('history', 'Clear history…')):
             action = menu.addAction(text)
             action.triggered.connect(lambda _checked=False, name=name: self.action.emit(name))
@@ -192,6 +195,7 @@ class QueuePage(QWidget):
         filtered = self.filtered_records()
         self.buttons['cancel'].setEnabled(any(r.status not in TERMINAL for r in selected))
         self.buttons['retry'].setEnabled(any(r.status == TaskStatus.FAILED for r in filtered))
+        self.buttons['retry_selected'].setEnabled(any(r.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) for r in selected))
         self.buttons['clear'].setEnabled(any(r.status == TaskStatus.COMPLETED for r in filtered))
         self.buttons['cpu'].setEnabled(any(r.status in (TaskStatus.FAILED, TaskStatus.CANCELLED)
                                          and any(s.profile.encoder in GPU_ENCODERS for s in r.plan.streams) for r in selected))
@@ -201,7 +205,11 @@ class QueuePage(QWidget):
                 widget.setPlainText(f'{len(selected)} jobs selected.' if selected else 'Select a job to inspect its settings, commands and logs.')
             return
         record = selected[0]
-        settings = json.dumps({'settings': asdict(record.plan), 'created_at': record.created_at,
+        changed_selection = self._detail_record_id != record.id
+        self._detail_record_id = record.id
+        settings = json.dumps({'settings': asdict(record.plan), 'verified_result': asdict(record.result) if record.result else None,
+                               'partial_output': str(record.partial_path) if record.partial_path and record.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) else None,
+                               'created_at': record.created_at,
                                'started_at': record.started_at, 'finished_at': record.finished_at,
                                'elapsed_seconds': record.elapsed, 'ffmpeg_build': record.binary_version},
                               default=str, ensure_ascii=False, indent=2)
@@ -212,6 +220,9 @@ class QueuePage(QWidget):
             if widget.toPlainText() != text:
                 scrollbar = widget.verticalScrollBar()
                 at_end = scrollbar.value() == scrollbar.maximum()
+                position = scrollbar.value()
                 widget.setPlainText(text)
-                if at_end:
+                if widget is self.logs and at_end:
                     scrollbar.setValue(scrollbar.maximum())
+                else:
+                    scrollbar.setValue(0 if changed_selection else position)

@@ -68,7 +68,7 @@ class ParameterField(QWidget):
         self.error.setVisible(bool(text))
 
 
-class SettingsInspector(QScrollArea):
+class SettingsInspector(QWidget):
     field_changed = Signal(str, object)
     scope_changed = Signal(object)
     reset_field = Signal(str)
@@ -82,8 +82,13 @@ class SettingsInspector(QScrollArea):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWidgetResizable(True)
         self.setMinimumWidth(260)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        outer.addWidget(self.scroll, 1)
         self.rendering = False
         self.fields = {}
         self.groups = {}
@@ -91,7 +96,7 @@ class SettingsInspector(QScrollArea):
         self.stream_item = None
         body = QWidget()
         body.setProperty('role', 'formBody')
-        self.setWidget(body)
+        self.scroll.setWidget(body)
         layout = QVBoxLayout(body)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
@@ -138,12 +143,18 @@ class SettingsInspector(QScrollArea):
         self.groups['media'][1].addWidget(self.hardware_note)
 
         self._section('audio', 'Audio')
+        self.audio_toggle = QCheckBox('Audio settings')
+        self.config_layout.insertWidget(self.config_layout.indexOf(self.groups['audio'][0]), self.audio_toggle)
+        self.audio_toggle.toggled.connect(lambda checked: self.groups['audio'][0].setVisible(checked))
         self._combo('audio_encoder', 'Audio codec', [('Copy', 'copy'), ('AAC', 'aac'), ('PCM 16-bit', 'pcm_s16le')], 'audio')
         self._combo('audio_mode', 'AAC control', [('Bitrate', 'bitrate'), ('Quality', 'quality')], 'audio')
         self._spin('audio_bitrate', 'Audio bitrate', 8, 512, 'audio', 1000, ' kb/s')
         self._spin('audio_quality', 'AAC quality', 1, 5, 'audio', hint='Higher = higher quality; variable output size.')
 
         self._section('streams', 'Streams')
+        self.streams_toggle = QCheckBox('Streams and metadata')
+        self.config_layout.insertWidget(self.config_layout.indexOf(self.groups['streams'][0]), self.streams_toggle)
+        self.streams_toggle.toggled.connect(lambda checked: self.groups['streams'][0].setVisible(checked))
         self.stream_note = QLabel('Select one inspected row to map its streams. Stream indices are never copied between files.')
         self.stream_note.setWordWrap(True)
         self.stream_note.setProperty('role', 'fieldHelp')
@@ -162,11 +173,14 @@ class SettingsInspector(QScrollArea):
 
         self._section('output', 'Output')
         self._line('folder', 'Folder', 'output', 'Empty = source folder')
-        browse = ActionButton('Choose folder…')
+        browse = ActionButton('…')
+        browse.setAccessibleName('Choose output folder')
+        browse.setToolTip('Choose output folder')
+        browse.setFixedWidth(30)
         browse.clicked.connect(self._browse)
-        self.groups['output'][1].addWidget(browse)
+        self.fields['folder'].layout().itemAt(0).layout().addWidget(browse)
         self._line('template', 'Name template', 'output', '{name}_{operation}')
-        self.fields['template'].hint.setText('Tokens: {name}, {operation}, {index}, {ext}; {stem} also supported. Extension follows the container.')
+        self.fields['template'].hint.setText('Tokens: {name}, {operation}, {index}, {ext}, {stem}. Extension follows the container.')
         self.fields['template'].hint.show()
         self.auto_number = QCheckBox('Auto-number output conflicts')
         self.auto_number.setToolTip('Choose a new unique filename. Existing files are never replaced.')
@@ -177,8 +191,15 @@ class SettingsInspector(QScrollArea):
         self.output_preview.setWordWrap(True)
         self.output_preview.setProperty('role', 'fieldHelp')
         self.groups['output'][1].addWidget(self.output_preview)
+        self.size_note = QLabel('Size unknown until encoded.')
+        self.size_note.setWordWrap(True)
+        self.size_note.setProperty('role', 'fieldHelp')
+        self.groups['output'][1].addWidget(self.size_note)
 
         self._section('advanced', 'Advanced')
+        self.advanced_toggle = QCheckBox('Advanced settings')
+        self.config_layout.insertWidget(self.config_layout.indexOf(self.groups['advanced'][0]), self.advanced_toggle)
+        self.advanced_toggle.toggled.connect(lambda checked: self.groups['advanced'][0].setVisible(checked))
         self._spin('width', 'Width', 0, 16384, 'advanced', suffix=' px', hint='0 = keep original; provide both even dimensions to resize.')
         self._spin('height', 'Height', 0, 16384, 'advanced', suffix=' px')
         self._line('fps', 'Frame rate', 'advanced', 'Keep original, or 30000/1001')
@@ -190,12 +211,29 @@ class SettingsInspector(QScrollArea):
         self.profile_export.clicked.connect(self.export_profile)
         self.groups['advanced'][1].addWidget(self.profile_import)
         self.groups['advanced'][1].addWidget(self.profile_export)
+        for name in ('preset', 'hardware_mode', 'gpu_encoder'):
+            self.groups['media'][1].removeWidget(self.fields[name])
+            self.groups['advanced'][1].addWidget(self.fields[name])
+        self.groups['media'][1].removeWidget(self.hardware_note)
+        self.groups['advanced'][1].addWidget(self.hardware_note)
         for title, signal in (('Save named preset…', self.save_preset), ('Manage presets…', self.manage_presets),
                               ('Reset overrides', self.reset_all)):
             button = ActionButton(title)
             button.clicked.connect(signal)
             self.config_layout.addWidget(button)
         layout.addStretch()
+        self.config_layout.removeWidget(self.groups['output'][0])
+        outer.addWidget(self.groups['output'][0])
+        self._geometry_location = 'advanced'
+
+    def ensureWidgetVisible(self, widget):
+        if self.groups['output'][0].isAncestorOf(widget):
+            return
+        for name, toggle in (('audio', self.audio_toggle), ('streams', self.streams_toggle), ('advanced', self.advanced_toggle)):
+            if self.groups[name][0].isAncestorOf(widget):
+                toggle.setChecked(True)
+                self.groups[name][0].show()
+        self.scroll.ensureWidgetVisible(widget)
 
     def _section(self, name, title):
         box = QGroupBox(title)
@@ -280,6 +318,7 @@ class SettingsInspector(QScrollArea):
             self.scope_note.setText('Wait for probing in this scope to finish, or use Selected rows.' if waiting else
                                    f'{len(targets)} inspected file(s) in scope. Only the changed field is applied.')
             self.config.setEnabled(bool(targets) and not waiting)
+            self.groups['output'][0].setEnabled(bool(targets) and not waiting)
             self.preset.setEnabled(bool(targets) and not waiting)
             self.preset.clear()
             names = [i.options[draft.operation].preset_name + (' (modified)' if i.options[draft.operation].preset_modified else '') for i in targets]
@@ -294,11 +333,23 @@ class SettingsInspector(QScrollArea):
             gpu.addItem('Auto', 'auto')
             for name in sorted(capabilities.working() if capabilities else ()):
                 gpu.addItem(name, name)
-            has_video = any(s.kind == 'video' for item in targets for s in item.media.streams)
-            has_audio = any(s.kind == 'audio' for item in targets for s in item.media.streams)
+            has_video = any(s.kind == 'video' and dict(item.options[draft.operation].request.tracks).get(s.index, 'omit') != 'omit'
+                            for item in targets for s in item.media.streams)
+            has_audio = any(s.kind == 'audio' and dict(item.options[draft.operation].request.tracks).get(s.index, 'omit') != 'omit'
+                            for item in targets for s in item.media.streams)
             remux = draft.operation == MediaOperation.REMUX
-            self.groups['audio'][0].setVisible(not remux and has_audio)
-            self.groups['advanced'][0].setVisible(not remux)
+            self.audio_toggle.setVisible(not remux and has_audio and has_video)
+            self.groups['audio'][0].setVisible(not remux and has_audio and (not has_video or self.audio_toggle.isChecked()))
+            self.streams_toggle.setVisible(draft.operation == MediaOperation.COMPRESS)
+            self.groups['streams'][0].setVisible(draft.operation != MediaOperation.COMPRESS or self.streams_toggle.isChecked())
+            self.advanced_toggle.setVisible(not remux)
+            self.groups['advanced'][0].setVisible(not remux and self.advanced_toggle.isChecked())
+            location = 'media' if draft.operation == MediaOperation.CONVERT else 'advanced'
+            if location != self._geometry_location:
+                for name in ('width', 'height', 'fps'):
+                    self.groups[self._geometry_location][1].removeWidget(self.fields[name])
+                    self.groups[location][1].addWidget(self.fields[name])
+                self._geometry_location = location
             mode, audio_quality = draft.value('mode'), draft.value('audio_quality')
             for name, field in self.fields.items():
                 value = ('bitrate' if audio_quality is None else MIXED if audio_quality is MIXED else 'quality') if name == 'audio_mode' else draft.value(name)

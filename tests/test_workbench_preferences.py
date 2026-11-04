@@ -16,6 +16,7 @@ def test_legacy_settings_migrate_without_losing_supported_choices(page, route, o
     prefs = WorkbenchPreferences.from_dict(legacy.to_dict())
     assert prefs.version == 2 and (prefs.route, prefs.operation) == (route, operation)
     assert prefs.binary_directory == legacy.binary_directory and prefs.recent_destination == legacy.recent_destination
+    assert prefs.output_folder == legacy.recent_destination
 
 
 def test_preferences_roundtrip_unknown_versions_and_external_edits(tmp_path):

@@ -58,6 +58,9 @@ class MainWindow(QMainWindow):
         self.preferences_loaded = settings_service.load() if settings_service else WorkbenchPreferences()
         preferences = self.preferences_loaded
         self.resize(max(1024, preferences.width), max(680, preferences.height))
+        if not getattr(preferences, 'remember_window', True):
+            self.resize(1280, 800)
+        self.messages = []
         self.controller = DraftController(self)
         self.controller.defaults = {'container': Container(preferences.container),
                                     'folder': getattr(preferences, 'output_folder', ''),
@@ -78,6 +81,7 @@ class MainWindow(QMainWindow):
         self._rendering = False
         self._narrow_inspector = False
         self._capability_key = None
+        self._inspector_key = None
         self._dialogs = []
         self.named_presets = {}
         self.preset_repository = preset_repository
@@ -133,6 +137,12 @@ class MainWindow(QMainWindow):
         workspace.addWidget(footer)
         self.queue_page = QueuePage()
         self.settings_view = SettingsView()
+        self.settings_warning = QLabel(settings_service.warning if settings_service and settings_service.warning else '')
+        self.settings_warning.setTextFormat(Qt.TextFormat.PlainText)
+        self.settings_warning.setWordWrap(True)
+        self.settings_warning.setProperty('validation', 'error')
+        self.settings_warning.setVisible(bool(self.settings_warning.text()))
+        self.settings_view.layout().insertWidget(1, self.settings_warning)
         self.settings_view.mode.setCurrentText(preferences.binary_mode)
         self.settings_view.folder.setText(preferences.binary_directory)
         self.settings_view.log_level.setCurrentText(preferences.log_level)
@@ -239,23 +249,55 @@ class MainWindow(QMainWindow):
             statuses = {item.source.id: 'Error: ' + item.validation.field if not item.validation.ready else
                         'Warning' if item.validation.warnings else 'Ready' for item in result.items} if valid else {}
             for item in self.draft.items.values():
-                if item.options.get(self.draft.operation) and item.queued.get(self.draft.operation) == item.options[self.draft.operation]:
+                if item.inspected and item.options.get(self.draft.operation) and item.queued.get(self.draft.operation) == item.options[self.draft.operation]:
                     statuses[item.id] = 'Added to queue'
             self.sources.model.statuses = statuses
             self.sources.refresh()
             if not self.draft.selected and self.sources.proxy.rowCount():
                 self.sources.table.selectRow(0)
-            self.inspector.render(self.draft, controller.capabilities, self.preset_names())
+            inspector_key = (self.draft.revision, self.draft.operation, self.draft.scope, self.draft.selected,
+                             id(controller.capabilities), self.preset_names())
+            if inspector_key != self._inspector_key:
+                self.inspector.render(self.draft, controller.capabilities, self.preset_names())
+                self._inspector_key = inspector_key
+            if valid:
+                destination = next((i.validation.destination for i in result.items if i.validation.destination), None)
+                self.inspector.output_preview.setText(f'Resolved output: {destination}' if destination else 'Review output issues before processing.')
+            elif len(self.draft.selected) == 1:
+                from media_wrapper.application.draft_service import (
+                    DraftInput,
+                    requested_destination,
+                )
+                item = self.draft.items.get(self.draft.selected[0])
+                if item and item.inspected:
+                    try:
+                        included_ids = tuple(i.id for i in self.draft.items.values() if i.included)
+                        index = included_ids.index(item.id) + 1 if item.id in included_ids else 1
+                        candidate = DraftInput(item.id, item.path, item.revision, item.options[self.draft.operation])
+                        self.inspector.output_preview.setText('Candidate (validate conflicts): ' + str(requested_destination(candidate, self.draft.operation, index)))
+                    except ValueError as error:
+                        self.inspector.output_preview.setText(str(error))
+            if len(self.draft.selected) == 1:
+                from media_wrapper.application.draft_service import draft_size_note
+                item = self.draft.items.get(self.draft.selected[0])
+                if item and item.inspected:
+                    try:
+                        self.inspector.size_note.setText(draft_size_note(item.media, item.options[self.draft.operation]))
+                    except ValueError as error:
+                        self.inspector.size_note.setText(str(error))
+            else:
+                self.inspector.size_note.setText('Select one source for its size estimate. Quality modes have variable output size.')
             included = [i for i in self.draft.items.values() if i.included]
             from media_wrapper.domain.inspection import InspectionStatus
-            probing = sum(not i.inspection or i.inspection.status in (InspectionStatus.PENDING, InspectionStatus.RUNNING) for i in included)
+            probing = sum(bool(i.inspection and i.inspection.status == InspectionStatus.RUNNING) for i in included)
+            waiting = sum(not i.inspection or i.inspection.status == InspectionStatus.PENDING for i in included)
             failed = sum(bool(i.inspection and i.inspection.status == InspectionStatus.FAILED) for i in included)
             if valid:
                 ready = len(result.ready)
                 warnings = sum(bool(i.validation.warnings) for i in result.ready)
-                self.validation_summary.setText(f'{ready} ready · {warnings} warnings · {len(result.items) - ready} errors · {probing} probing')
+                self.validation_summary.setText(f'{ready} ready · {warnings} warnings · {len(result.items) - ready} errors · {probing} probing · {waiting} waiting')
             else:
-                self.validation_summary.setText(f'{len(included)} included · {probing} probing · {failed} failed probe · Not validated' +
+                self.validation_summary.setText(f'{len(included)} included · {probing} probing · {waiting} waiting · {failed} failed probe · Not validated' +
                                                 (' — settings or files changed' if result else ''))
             preparing = 'prepare' in controller.calls
             for button in (self.command, self.validate, self.enqueue, self.start):
@@ -285,6 +327,10 @@ class MainWindow(QMainWindow):
             self._rendering = False
 
     def show_notice(self, text):
+        self.messages = (self.messages + [text])[-100:]
+        if 'preserv' in text.lower() and any(word in text.lower() for word in ('history', 'preset', 'settings')):
+            self.settings_warning.setText(text)
+            self.settings_warning.show()
         self.statusBar().showMessage(text)
         self.statusBar().setToolTip(text)
 
@@ -320,7 +366,7 @@ class MainWindow(QMainWindow):
 
     def reset_field(self, name):
         for item in self.draft.editable():
-            initial = default_options(item.media, self.draft.operation)
+            initial = item.defaults.get(self.draft.operation, default_options(item.media, self.draft.operation))
             target_name = 'audio_quality' if name == 'audio_mode' else name
             if name in ('video_encoder', 'audio_encoder'):
                 kind = name.split('_')[0]
@@ -450,6 +496,9 @@ class MainWindow(QMainWindow):
         menu.exec(table.viewport().mapToGlobal(point))
 
     def reinspect(self, ids):
+        for item_id in ids:
+            if item_id in self.draft.items:
+                self.draft.items[item_id].queued.clear()
         self.controller.pending_probe.extend(self.draft.items[i].path for i in ids if i in self.draft.items)
         self.controller._start_probe()
 
@@ -461,6 +510,7 @@ class MainWindow(QMainWindow):
         self.controller.detect(self.settings_view.mode.currentText(), self.settings_view.folder.text().strip() or None)
 
     def binary_selection_changed(self, *_):
+        self.capability_cancel.set()
         self.controller.binaries = self.controller.capabilities = None
         self.controller.status = 'Binary selection changed. Click Detect FFmpeg.'
         self.controller.generation += 1
@@ -468,6 +518,7 @@ class MainWindow(QMainWindow):
         self.controller.invalidate()
 
     def invalidate_capabilities(self, *_):
+        self.capability_cancel.set()
         self.controller.capabilities = None
         self.controller.invalidate()
 
@@ -486,17 +537,24 @@ class MainWindow(QMainWindow):
 
     def scan_capabilities(self):
         from threading import Event
+        if 'capabilities' in self.controller.calls:
+            self.show_notice('Capability scan is already running.')
+            return
         if self.binaries:
             self.capability_cancel = Event()
             worker = CapabilityWorker(self.binaries, self.capability_cancel, self.settings_view.test_gpu.isChecked(),
                                       self.settings_view.gpu_device.text().strip() or None)
             generation, binaries = self.controller.generation, self.binaries
+            device = self.settings_view.gpu_device.text().strip()
             self.controller.launch('capabilities', worker,
-                                   lambda report: self.capabilities_ready(report, binaries, generation))
+                                   lambda report: self.capabilities_ready(report, binaries, generation, device))
 
-    def capabilities_ready(self, report, binaries, generation):
-        if binaries != self.binaries or generation != self.controller.generation:
+    def capabilities_ready(self, report, binaries, generation, device):
+        if (binaries != self.binaries or generation != self.controller.generation
+                or device != self.settings_view.gpu_device.text().strip()):
             self.show_notice('Discarded capability results for the previous FFmpeg selection.')
+            if self.binaries:
+                self.scan_capabilities()
             return
         self.controller.capabilities = report
         self.controller.invalidate()
@@ -528,10 +586,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.default_auto_number)
         layout.addWidget(self.remember_window)
         layout.addWidget(QLabel('Theme: Flat dark · Processing: one FFmpeg job at a time'))
+        messages = ActionButton('View application messages')
+        messages.clicked.connect(lambda: self.show_text('Application messages', '\n\n'.join(self.messages) or 'No application messages.'))
+        layout.addWidget(messages)
         self.default_folder.editingFinished.connect(self.defaults_changed)
         self.default_template.editingFinished.connect(self.defaults_changed)
         self.default_auto_number.toggled.connect(self.defaults_changed)
-        self.settings_view.layout().insertWidget(2, box)
+        self.settings_view.layout().insertWidget(3, box)
 
     def defaults_changed(self, *_):
         from media_wrapper.domain.output_naming import draft_output_name
@@ -570,9 +631,9 @@ class MainWindow(QMainWindow):
         elif action == 'cancel':
             for record in selected:
                 queue.cancel(record.id)
-        elif action in ('retry', 'cpu'):
+        elif action in ('retry', 'retry_selected', 'cpu'):
             records = tuple(r for r in (filtered if action == 'retry' else selected)
-                            if r.status in (TaskStatus.FAILED, TaskStatus.CANCELLED))
+                            if r.status == TaskStatus.FAILED or action != 'retry' and r.status == TaskStatus.CANCELLED)
             self.retry_records(records, action == 'cpu')
         elif action in ('clear', 'history'):
             ids = tuple(r.id for r in (filtered if action == 'clear' else queue.records)
@@ -616,9 +677,11 @@ class MainWindow(QMainWindow):
             return tuple(plans), tuple(errors)
         def ready(result):
             plans, errors = result
-            current = {str(path.resolve()).casefold() for path in self.controller.reserved()}
-            plans = tuple(p for p in plans if str(p.output.path.resolve()).casefold() not in current)
-            self.controller.queue.add_many(plans, binaries)
+            if binaries != self.binaries or not set(self.controller.reserved()) <= set(reserved):
+                self.show_notice('The build or queue changed during retry validation. Retry again.')
+                return
+            fingerprints = {r.plan.media.path: r.source_fingerprint for r in records}
+            self.controller.queue.add_many(plans, binaries, fingerprints=fingerprints)
             if errors:
                 self.show_text('Retry needs review', '\n\n'.join(errors))
         self.controller.service('retry', prepare_retries, ready)
@@ -643,8 +706,22 @@ class MainWindow(QMainWindow):
             return
         binaries, reserved = self.binaries, self.controller.reserved()
         if importing:
-            self.controller.service('queue document', lambda: load_queue(Path(name), binaries, reserved),
-                                    lambda plans: self.controller.queue.add_many(plans, binaries))
+            def read_queue():
+                from media_wrapper.application.queue_document_service import fingerprint
+                from media_wrapper.domain.queue_document import queue_entries
+                from media_wrapper.infrastructure.json_documents import read_document
+                expected = {Path(entry['source']): tuple(entry['fingerprint']) for entry in queue_entries(read_document(Path(name)))}
+                plans = load_queue(Path(name), binaries, reserved)
+                if any(fingerprint(plan.media.path) != expected.get(plan.media.path) for plan in plans):
+                    raise ValueError('A source or queue document changed during import. Review and load it again.')
+                return plans, expected
+            def imported(result):
+                if binaries != self.binaries or not set(self.controller.reserved()) <= set(reserved):
+                    self.show_notice('The build or queue changed during import. Load the definitions again.')
+                    return
+                plans, fingerprints = result
+                self.controller.queue.add_many(plans, binaries, fingerprints=fingerprints)
+            self.controller.service('queue document', read_queue, imported)
         else:
             plans = tuple(r.plan for r in self.controller.queue.records if r.status != TaskStatus.COMPLETED)
             self.controller.service('queue document', lambda: save_queue(Path(name), plans),
@@ -843,7 +920,8 @@ class MainWindow(QMainWindow):
                      'remember_window': self.remember_window.isChecked(), 'gpu_device': self.settings_view.gpu_device.text()}
         return replace(self.preferences_loaded, log_level=self.settings_view.log_level.currentText(),
                        binary_mode=self.settings_view.mode.currentText(), binary_directory=self.settings_view.folder.text(),
-                       page=page, width=self.width(), height=self.height(), **extra)
+                       page=page, width=self.width() if self.remember_window.isChecked() else 1280,
+                       height=self.height() if self.remember_window.isChecked() else 800, **extra)
 
     def closeEvent(self, event):
         if self.controller.busy or self.controller.queue.running:

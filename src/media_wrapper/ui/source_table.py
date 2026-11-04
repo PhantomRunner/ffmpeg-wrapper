@@ -43,6 +43,8 @@ class SourceModel(QAbstractTableModel):
         self.draft = draft
         self.ids = ()
         self.statuses = {}
+        self._row_cache = ()
+        self._operation = None
 
     def rowCount(self, parent=None):
         return 0 if parent is not None and parent.isValid() else len(self.ids)
@@ -59,7 +61,8 @@ class SourceModel(QAbstractTableModel):
         return flags | Qt.ItemFlag.ItemIsUserCheckable if index.column() == 0 else flags
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        if index.isValid() and index.column() == 0 and role == Qt.ItemDataRole.CheckStateRole:
+        if (index.isValid() and index.column() == 0 and role == Qt.ItemDataRole.CheckStateRole
+                and 0 <= index.row() < len(self.ids) and self.ids[index.row()] in self.draft.items):
             included = value in (Qt.CheckState.Checked, Qt.CheckState.Checked.value)
             self.inclusion_changed.emit(self.ids[index.row()], included)
             self.dataChanged.emit(index, index)
@@ -69,12 +72,16 @@ class SourceModel(QAbstractTableModel):
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < len(self.ids):
             return None
-        item = self.draft.items[self.ids[index.row()]]
-        media = item.media
         if role == self.ID_ROLE:
-            return item.id
+            return self.ids[index.row()]
+        item = self.draft.items.get(self.ids[index.row()])
+        if item is None:
+            return None  # A coalesced structural refresh may still be queued.
+        media = item.media
         if role == Qt.ItemDataRole.CheckStateRole and index.column() == 0:
             return Qt.CheckState.Checked if item.included else Qt.CheckState.Unchecked
+        if role == self.SORT_ROLE and index.column() == 1:
+            return item.path.name.casefold()
         status = self.statuses.get(item.id)
         if not status:
             status = ('Not inspected' if not item.inspection else
@@ -82,7 +89,10 @@ class SourceModel(QAbstractTableModel):
                        InspectionStatus.COMPLETED: 'Not validated', InspectionStatus.FAILED: 'Probe failed',
                        InspectionStatus.CANCELLED: 'Probe cancelled'}[item.inspection.status])
         options = item.options.get(self.draft.operation)
-        modified = bool(options and options != default_options(media, self.draft.operation))
+        baseline = item.defaults.get(self.draft.operation)
+        if baseline is None and media:
+            baseline = default_options(media, self.draft.operation)
+        modified = bool(options and baseline and options != baseline)
         values = ('', item.path.name, media.format_name if media else '—',
                   duration_text(media.duration) if media else '—', size_text(media.size_bytes) if media else '—',
                   ', '.join(dict.fromkeys(s.codec for s in media.streams)) if media else '—', status,
@@ -100,12 +110,19 @@ class SourceModel(QAbstractTableModel):
 
     def refresh(self):
         ids = tuple(self.draft.items)
+        cache = tuple((self.draft.items[item_id].revision, self.statuses.get(item_id)) for item_id in ids)
         if ids != self.ids:
             self.beginResetModel()
             self.ids = ids
             self.endResetModel()
         elif ids:
-            self.dataChanged.emit(self.index(0, 0), self.index(len(ids) - 1, len(self.HEADERS) - 1))
+            if self._operation != self.draft.operation:
+                self.dataChanged.emit(self.index(0, 0), self.index(len(ids) - 1, len(self.HEADERS) - 1))
+            else:
+                for row, value in enumerate(cache):
+                    if row >= len(self._row_cache) or value != self._row_cache[row]:
+                        self.dataChanged.emit(self.index(row, 0), self.index(row, len(self.HEADERS) - 1))
+        self._row_cache, self._operation = cache, self.draft.operation
 
 
 class SourceTable(QWidget):

@@ -29,7 +29,7 @@ jobs:
       - run: python -m pip check
       - run: python -m ruff check .
       - run: python -m pytest -q
-      - name: Workstation high-DPI regressions
+      - name: Flat workbench high-DPI regressions
         env:
           QT_SCALE_FACTOR: '2'
-        run: python -m pytest -q tests/test_workspace.py tests/test_library_inspector.py tests/test_timelines.py tests/test_workstation_polish.py tests/test_ui_theme.py tests/test_ux_remediation.py tests/test_encoding_workflows.py tests/test_playback.py
+        run: python -m pytest -q tests/test_flat_shell.py tests/test_flat_workbench.py tests/test_flat_accessibility.py tests/test_source_table.py tests/test_settings_inspector.py tests/test_persistent_history.py tests/test_named_presets.py tests/test_workbench_preferences.py tests/test_ui_theme.py tests/test_ux_remediation.py tests/test_encoding_workflows.py

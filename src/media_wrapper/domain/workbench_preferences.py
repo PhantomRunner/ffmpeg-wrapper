@@ -32,7 +32,7 @@ class WorkbenchPreferences(Preferences):
             route = 'queue' if legacy.page == 4 else 'settings' if legacy.page == 5 else 'workspace'
             operation = {2: 'convert', 3: 'compress'}.get(legacy.page, 'remux')
             values = legacy.to_dict()
-            values.update(version=2, route=route, operation=operation)
+            values.update(version=2, route=route, operation=operation, output_folder=legacy.recent_destination or '')
             return cls(**values)
         if payload['version'] != 2 or set(payload) - set(asdict(cls())):
             raise ValueError('Unsupported settings version or unknown fields; preserve the original document')
