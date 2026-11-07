@@ -1,0 +1,5 @@
+# Verification tools; intentionally separate from shipped application dependencies.
+pytest==8.3.5
+ruff==0.7.4
+iniconfig==2.0.0
+PyYAML==6.0.2

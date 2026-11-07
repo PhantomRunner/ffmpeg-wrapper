@@ -32,16 +32,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 \
 
 FROM base AS builder
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends git binutils file \
+RUN apt-get update && apt-get install -y --no-install-recommends git binutils file xvfb xauth \
     && rm -rf /var/lib/apt/lists/*
-RUN python -m pip install -r packaging/requirements.txt
-ENV QT_QPA_PLATFORM=offscreen
+RUN python -m pip install -r packaging/requirements.txt -r packaging/test-requirements.txt
+ENV QT_QPA_PLATFORM=offscreen PYTHONPATH=/work/src
 
 FROM base AS test
 COPY tests/ tests/
 COPY scripts/ scripts/
 COPY .github/ .github/
-RUN python -m pip install 'pytest>=8' 'ruff>=0.7'
+RUN python -m pip install -r packaging/test-requirements.txt
 ENV QT_QPA_PLATFORM=offscreen
 USER app
 CMD ["sh", "-c", "python -m ruff check --no-cache . && python -m pytest -q -p no:cacheprovider"]

@@ -24,16 +24,15 @@ if tool == 'docker':
     stage = 'docker:' + arguments[0]
 else:
     stage = {
-        'scripts/build_distribution.py': 'bundle',
-        'scripts/verify_distribution.py': 'verify',
-        'scripts/build_appimage.py': 'tools' if '--tools-only' in arguments else 'appimage',
+        'scripts/build_release.py': 'release',
+        'scripts/verify_linux_runtime.py': 'runtime',
     }[arguments[0]]
 with Path(os.environ['FAKE_LOG']).open('a') as stream:
     stream.write(json.dumps({'stage': stage, 'args': arguments}) + '\\n')
 if stage == os.environ.get('FAIL_STAGE'):
     raise SystemExit(29)
 if stage == 'docker:run':
-    image = arguments.index('media-wrapper-builder:compat')
+    image = next(i for i, arg in enumerate(arguments) if arg.startswith('media-wrapper-'))
     raise SystemExit(subprocess.run(arguments[image + 1:], cwd=os.environ['FAKE_REPOSITORY']).returncode)
 '''
 
@@ -47,14 +46,14 @@ def build_script(tmp_path):
     shutil.copy2(SCRIPT, script)
     binaries = tmp_path / 'fake executables'
     binaries.mkdir()
-    for name in ('cat', 'dirname', 'id', 'sh'):
+    for name in ('cat', 'dirname', 'id', 'sh', 'mkdir', 'mktemp', 'tee'):
         (binaries / name).symlink_to(shutil.which(name))
     uname = binaries / 'uname'
     uname.write_text('#!/bin/sh\ncase "$1" in\n-s) printf "%s\\n" "${FAKE_OS:-Linux}";;\n-m) printf "%s\\n" "${FAKE_ARCH:-x86_64}";;\nesac\n')
     uname.chmod(0o755)
     implementation = tmp_path / 'fake_tool.py'
     implementation.write_text(FAKE_TOOL)
-    for name in ('docker', 'python'):
+    for name in ('docker', 'python', 'python3'):
         executable = binaries / name
         executable.write_text('#!/bin/sh\nexec "$SCRIPT_TEST_PYTHON" "$FAKE_TOOL_IMPLEMENTATION" '
                               + name + ' "$@"\n')
@@ -91,7 +90,8 @@ def test_default_build_runs_every_stage_with_compatible_container(build_script):
     assert result.returncode == 0, result.stderr
     calls = build_script.calls()
     assert [call['stage'] for call in calls] == [
-        'docker:info', 'docker:build', 'docker:run', 'tools', 'bundle', 'verify', 'appimage']
+        'docker:info', 'docker:build', 'docker:run', 'release',
+        'docker:build', 'docker:run', 'runtime', 'docker:build', 'docker:run', 'runtime']
     assert calls[1]['args'] == ['build', '--build-arg', 'BASE_IMAGE=python:3.11-slim-bullseye',
                               '--target', 'builder', '--tag', 'media-wrapper-builder:compat',
                               str(build_script.repository)]
@@ -100,9 +100,11 @@ def test_default_build_runs_every_stage_with_compatible_container(build_script):
     assert invocation[invocation.index('--volume') + 1] == f'{build_script.repository}:/work'
     assert invocation[invocation.index('--workdir') + 1] == '/work'
     assert invocation[invocation.index('--env') + 1] == 'HOME=/tmp'
-    assert calls[3]['args'] == ['scripts/build_appimage.py', '--download-tools', '--tools-only']
-    assert calls[5]['args'] == ['scripts/verify_distribution.py', 'dist/MediaWrapper']
-    assert calls[6]['args'] == ['scripts/build_appimage.py', '--verify']
+    assert calls[3]['args'] == ['scripts/build_release.py', '--output-dir', '/distribution']
+    assert calls[4]['args'][2] == 'BASE_IMAGE=python:3.11-slim-bullseye'
+    assert calls[7]['args'][2] == 'BASE_IMAGE=ubuntu:22.04'
+    report, = (build_script.repository / 'dist/reports').glob('bootstrap-*/release-status.json')
+    assert json.loads(report.read_text()) == {'success': True, 'stage': 'complete'}
 
 
 @pytest.mark.parametrize('skip_image_build', [False, True])
@@ -116,7 +118,10 @@ def test_reuse_verifies_existing_bundle_without_rebuilding(build_script, skip_im
     assert result.returncode == 0, result.stderr
     stages = [call['stage'] for call in build_script.calls()]
     assert stages == ['docker:info'] + ([] if skip_image_build else ['docker:build']) + [
-        'docker:run', 'tools', 'verify', 'appimage']
+        'docker:run', 'release'] + ([] if skip_image_build else ['docker:build']) + [
+        'docker:run', 'runtime'] + ([] if skip_image_build else ['docker:build']) + ['docker:run', 'runtime']
+    release = next(call for call in build_script.calls() if call['stage'] == 'release')
+    assert '--reuse-bundle' in release['args']
     assert marker.read_text() == 'preserve this build'
 
 
@@ -136,7 +141,7 @@ def test_existing_container_image_can_build_a_fresh_bundle(build_script):
     result = build_script.run('--skip-image-build')
     assert result.returncode == 0, result.stderr
     assert [call['stage'] for call in build_script.calls()] == [
-        'docker:info', 'docker:run', 'tools', 'bundle', 'verify', 'appimage']
+        'docker:info', 'docker:run', 'release', 'docker:run', 'runtime', 'docker:run', 'runtime']
 
 
 def test_reuse_requires_existing_bundle(build_script):
@@ -146,12 +151,14 @@ def test_reuse_requires_existing_bundle(build_script):
     assert build_script.calls() == []
 
 
-@pytest.mark.parametrize('stage', ['docker:info', 'docker:build', 'docker:run', 'tools', 'bundle', 'verify', 'appimage'])
+@pytest.mark.parametrize('stage', ['docker:info', 'docker:build', 'docker:run', 'release'])
 def test_failed_stage_stops_the_pipeline(build_script, stage):
     result = build_script.run(FAIL_STAGE=stage)
     assert result.returncode == 29
-    stages = ['docker:info', 'docker:build', 'docker:run', 'tools', 'bundle', 'verify', 'appimage']
+    stages = ['docker:info', 'docker:build', 'docker:run', 'release']
     assert [call['stage'] for call in build_script.calls()] == stages[:stages.index(stage) + 1]
+    report, = (build_script.repository / 'dist/reports').glob('bootstrap-*/release-status.json')
+    assert json.loads(report.read_text())['success'] is False
 
 
 def test_missing_docker_is_reported(build_script):
@@ -166,6 +173,23 @@ def test_unknown_flag_fails_without_starting_tools(build_script):
     result = build_script.run('--unknown')
     assert result.returncode == 2
     assert 'Unknown option' in result.stderr
+    assert build_script.calls() == []
+
+
+def test_custom_absolute_output_and_offline_flags_reach_native_command(build_script, tmp_path):
+    output = tmp_path / 'output with spaces ü'
+    result = build_script.run('--output-dir', str(output), '--offline-tools', '--skip-tests', '--skip-image-build',
+                              '--tools-manifest', 'packaging/explicit.json')
+    assert result.returncode == 0, result.stderr
+    invocation = next(call for call in build_script.calls() if call['stage'] == 'docker:run')['args']
+    assert str(output) + ':/distribution' in invocation
+    release = next(call for call in build_script.calls() if call['stage'] == 'release')['args']
+    assert '--offline-tools' in release and '--skip-tests' in release
+    assert release[-2:] == ['--tools-manifest', '/work/packaging/explicit.json']
+
+
+def test_output_option_requires_value(build_script):
+    assert build_script.run('--output-dir').returncode == 2
     assert build_script.calls() == []
 
 
