@@ -23,7 +23,8 @@ jobs:
       - name: Install Windows FFmpeg
         if: runner.os == 'Windows'
         run: choco install ffmpeg -y --no-progress
-      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -r packaging/requirements.txt -r packaging/test-requirements.txt
+      - run: python -m pip install --no-deps --no-build-isolation -e .
       - name: Require working binaries (integration tests must not silently skip)
         run: python -c "from media_wrapper.infrastructure.ffmpeg.binary_resolver import resolve; print(resolve())"
       - run: python -m pip check
