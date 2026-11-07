@@ -90,8 +90,9 @@ def test_cli_verifies_the_exact_generated_appimage(tmp_path, monkeypatch):
     bundle = root / 'dist/MediaWrapper'
     bundle.mkdir(parents=True)
     (bundle / 'build-info.json').write_text(json.dumps({'commit': 'abcdef0123456789', 'source_dirty': True}))
-    (bundle / 'SHA256SUMS.json').write_text('{}')
     (bundle / 'MediaWrapper').write_text('payload')
+    (bundle / 'SHA256SUMS.json').write_text(json.dumps({
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in bundle.iterdir()}))
     (root / 'pyproject.toml').write_text('[project]\nversion = "1.2.3"\n')
     (root / 'src/media_wrapper/resources').mkdir(parents=True)
     (root / 'src/media_wrapper/resources/icon.svg').write_text('<svg/>')
@@ -121,4 +122,4 @@ def test_cli_verifies_the_exact_generated_appimage(tmp_path, monkeypatch):
     assert output.with_name(output.name + '.sha256').read_text() == f'{module.digest(output)}  {output.name}\n'
     assert calls[-1] == [module.sys.executable, str(root / 'scripts/verify_distribution.py'),
                          str(bundle), '--appimage', str(output)]
-    assert not list((root / 'build').iterdir())
+    assert not list((root / 'dist/.build').iterdir())

@@ -1,0 +1,14 @@
+{
+  "source": "Debian 11 base-files /usr/share/common-licenses",
+  "base_files_version": "11.1+deb11u11",
+  "files_sha256": {
+    "GPL-2.txt": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+    "GPL-3.txt": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "LGPL-3.txt": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+  },
+  "canonical_urls": [
+    "https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt",
+    "https://www.gnu.org/licenses/gpl-3.0.txt",
+    "https://www.gnu.org/licenses/lgpl-3.0.txt"
+  ]
+}

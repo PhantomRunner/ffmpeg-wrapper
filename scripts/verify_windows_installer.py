@@ -25,7 +25,7 @@ def verify(installer):
         run_installer(installer, installation)
         executable = installation / 'MediaWrapper.exe'
         assert executable.is_file()
-        source = root / 'source ü with spaces.mkv'
+        source = root / 'source ü клип with spaces.mkv'
         subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=96x64:r=12:d=0.5',
                         '-f', 'lavfi', '-i', 'sine=duration=0.5', '-c:v', 'ffv1', '-c:a', 'pcm_s16le', '-n', str(source)],
                        check=True, capture_output=True, timeout=30)
@@ -58,9 +58,16 @@ def verify(installer):
         assert (output / 'convert.mp4').is_file() and (output / 'compress.mp4').is_file()
         print(json.dumps({'installer': 'passed', 'upgrade': 'passed', 'uninstall': 'passed',
                           'user_data_preserved': True, **report}))
+        return {'installer': 'passed', 'upgrade': 'passed', 'uninstall': 'passed',
+                'user_data_preserved': True, **report}
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('installer', type=Path)
-    verify(parser.parse_args().installer.resolve())
+    parser.add_argument('--report', type=Path)
+    args = parser.parse_args()
+    report = verify(args.installer.resolve())
+    if args.report:
+        with args.report.open('x', encoding='utf-8') as stream:
+            json.dump(report, stream, indent=2)

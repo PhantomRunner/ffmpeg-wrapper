@@ -8,16 +8,19 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 import urllib.request
 from pathlib import Path
+
+from distribution_common import artifact_name, verify_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def prepare_compiler(directory, pin):
+def prepare_compiler(directory, pin, *, download=True):
     directory.mkdir(parents=True, exist_ok=True)
     installer = directory / pin['name']
+    if not installer.exists() and not download:
+        raise ValueError('Offline mode requires the checksum-pinned Inno Setup installer in build/inno-tools')
     if not installer.exists():
         temporary = None
         try:
@@ -47,14 +50,7 @@ def prepare_compiler(directory, pin):
 def verify_payload(bundle):
     if not (bundle / 'MediaWrapper.exe').is_file():
         raise ValueError('Build and verify the native Windows payload first')
-    manifest = json.loads((bundle / 'SHA256SUMS.json').read_text(encoding='utf-8'))
-    for name, expected in manifest.items():
-        path = bundle / name
-        if not path.resolve().is_relative_to(bundle.resolve()):
-            raise ValueError('Unsafe payload manifest path')
-        with path.open('rb') as stream:
-            if hashlib.file_digest(stream, 'sha256').hexdigest() != expected:
-                raise ValueError(f'Payload checksum mismatch: {name}')
+    verify_manifest(bundle)
     info = json.loads((bundle / 'build-info.json').read_text(encoding='utf-8'))
     if 'Windows' not in info['platform'] or info.get('ffmpeg_bundled') is not False:
         raise ValueError('Expected a native Windows payload without processing FFmpeg executables')
@@ -71,13 +67,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--compiler', type=Path)
     parser.add_argument('--bundle', type=Path, default=ROOT / 'dist/MediaWrapper')
+    parser.add_argument('--output-dir', type=Path, help='Defaults to the portable bundle parent directory')
     parser.add_argument('--prepare-compiler', action='store_true', help='Explicitly download, verify and install pinned build-only compiler into build/inno-tools')
+    parser.add_argument('--offline', action='store_true', help='Prepare the compiler only from checksum-verified cached tools')
     args = parser.parse_args()
     if sys.platform != 'win32':
         raise SystemExit('Build Windows installers on a native Windows runner')
     pin = json.loads((ROOT / 'packaging/windows-installer-tools.json').read_text())
     if args.prepare_compiler:
-        print(prepare_compiler(ROOT / 'build/inno-tools', pin))
+        print(prepare_compiler(ROOT / 'build/inno-tools', pin, download=not args.offline))
         return
     compiler = args.compiler or Path(os.environ.get('INNO_COMPILER') or shutil.which('ISCC.exe') or '')
     if not compiler.is_file():
@@ -86,18 +84,19 @@ def main():
     if not re.search(r'\b' + re.escape(pin['version']) + r'\b', version_check.stdout + version_check.stderr):
         raise SystemExit('Inno Setup compiler version differs from the pinned tool')
     info = verify_payload(args.bundle)
+    import tomllib
     version = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
-    identity = info['commit'][:12] + ('-dirty' if info['source_dirty'] else '')
-    name = f'MediaWrapper-{version}-Windows-x86_64-{identity}-setup'
-    output_dir = ROOT / 'dist'
+    name = artifact_name(ROOT, info) + '-setup'
+    output_dir = (args.output_dir or args.bundle.parent).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
     output = output_dir / (name + '.exe')
     metadata = output.with_suffix('.build.json')
     checksum = output.with_suffix('.exe.sha256')
     if any(path.exists() for path in (output, metadata, checksum)):
         raise SystemExit('Preserve the existing installer and metadata before building again')
-    icon = ROOT / 'build/media-wrapper.ico'
+    icon = args.bundle / 'media-wrapper.ico'
     if not icon.is_file():
-        raise SystemExit('The native payload build must generate build/media-wrapper.ico')
+        raise SystemExit('The native payload build must generate media-wrapper.ico in the payload')
     subprocess.run(compiler_arguments(compiler, args.bundle, output_dir, name, version, icon), check=True)
     if not output.is_file():
         raise SystemExit('Compiler succeeded without producing the expected installer')

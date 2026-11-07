@@ -18,6 +18,9 @@ def test_archive_identity_checksum_and_overwrite_protection(tmp_path, monkeypatc
     bundle.mkdir(parents=True)
     (bundle / 'build-info.json').write_text(json.dumps({'commit': 'a' * 40, 'source_dirty': False}))
     (bundle / 'MediaWrapper').write_bytes(b'executable fixture')
+    (bundle / 'SHA256SUMS.json').write_text(json.dumps({
+        name: hashlib.sha256((bundle / name).read_bytes()).hexdigest()
+        for name in ('build-info.json', 'MediaWrapper')}))
     (tmp_path / 'pyproject.toml').write_text('[project]\nversion = "0.1.0"\n')
     archive = module.archive_distribution(tmp_path)
     assert archive.name == 'MediaWrapper-0.1.0-Linux-x86_64-aaaaaaaaaaaa.tar.gz'

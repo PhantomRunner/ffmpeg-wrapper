@@ -19,9 +19,10 @@ def test_native_payload_checksums_are_checked_before_compiling(tmp_path):
     executable = bundle / 'MediaWrapper.exe'
     executable.write_bytes(b'test payload')
     manifest = {'MediaWrapper.exe': hashlib.sha256(executable.read_bytes()).hexdigest()}
-    (bundle / 'SHA256SUMS.json').write_text(json.dumps(manifest))
     info = {'platform': 'Windows-11', 'ffmpeg_bundled': False}
     (bundle / 'build-info.json').write_text(json.dumps(info))
+    manifest['build-info.json'] = hashlib.sha256((bundle / 'build-info.json').read_bytes()).hexdigest()
+    (bundle / 'SHA256SUMS.json').write_text(json.dumps(manifest))
     assert builder.verify_payload(bundle) == info
     executable.write_bytes(b'tampered')
     with pytest.raises(ValueError, match='checksum'):

@@ -19,4 +19,4 @@ media-wrapper = "media_wrapper.main:main"
 packages = ["src/media_wrapper"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "scripts"]
