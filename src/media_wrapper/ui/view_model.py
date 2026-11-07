@@ -4,7 +4,7 @@ from pathlib import Path
 from threading import Event
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 
 from media_wrapper.application.conversion_service import (
     ConversionRequest,
@@ -55,6 +55,7 @@ class DesktopViewModel(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        self._owner_thread = QThread.currentThread()
         self.state = DesktopState()
         self.thread: QThread | None = None
         self.worker: Worker | None = None
@@ -74,13 +75,13 @@ class DesktopViewModel(QObject):
         self.worker = worker
         worker.moveToThread(self.thread)
         self.thread.started.connect(worker.run)
-        worker.finished.connect(on_success)
-        worker.failed.connect(self._failed)
-        worker.finished.connect(self.thread.quit)
-        worker.failed.connect(self.thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        worker.failed.connect(worker.deleteLater)
-        self.thread.finished.connect(self._cleanup)
+        worker.finished.connect(self._return_worker, Qt.ConnectionType.DirectConnection)
+        worker.failed.connect(self._return_worker, Qt.ConnectionType.DirectConnection)
+        worker.finished.connect(on_success, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(self._failed, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(self.thread.quit, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(self.thread.quit, Qt.ConnectionType.QueuedConnection)
+        self.thread.finished.connect(self._cleanup, Qt.ConnectionType.QueuedConnection)
         self.changed.emit()
         self.thread.start()
 
@@ -196,7 +197,7 @@ class DesktopViewModel(QObject):
         self.state.form_error = 'Inspection running…'
         self.state.output = 'Inspecting…'
         worker = InspectionWorker(MediaService(self.state.binaries), self._inspection_paths, self._inspection_cancel)
-        worker.progress.connect(self._inspection_progress)
+        worker.progress.connect(self._inspection_progress, Qt.ConnectionType.QueuedConnection)
         self._start(worker, self._inspection_finished)
 
     def cancel_inspection(self) -> None:
@@ -533,7 +534,13 @@ class DesktopViewModel(QObject):
         self.changed.emit()
 
     @Slot()
+    def _return_worker(self) -> None:
+        self.worker.moveToThread(self._owner_thread)
+
+    @Slot()
     def _cleanup(self) -> None:
+        if self.worker is not None:
+            self.worker.deleteLater()
         if self.thread is not None:
             self.thread.deleteLater()
         self.worker = None

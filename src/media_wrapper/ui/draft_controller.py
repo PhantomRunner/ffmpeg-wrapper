@@ -3,7 +3,14 @@ from dataclasses import replace
 from threading import Event
 from types import SimpleNamespace
 
-from PySide6.QtCore import QFileSystemWatcher, QObject, QThread, Signal, Slot
+from PySide6.QtCore import (
+    QFileSystemWatcher,
+    QObject,
+    Qt,
+    QThread,
+    Signal,
+    Slot,
+)
 
 from media_wrapper.application.import_service import discover_sources
 from media_wrapper.application.task_queue import TaskQueue
@@ -19,28 +26,39 @@ from media_wrapper.ui.workers import (
 class BackgroundCall(QObject):
     done = Signal(str, bool, object)
     progress = Signal(int, object)
+    delivery_ready = Signal()
 
     def __init__(self, role, worker, parent=None, generation=0):
         super().__init__(parent)
         self.role, self.worker = role, worker
         self.generation = generation
+        self.owner_thread = QThread.currentThread()
         self.thread = QThread(self)
         self.reply = None
+        self.delivery_ready.connect(self._deliver, Qt.ConnectionType.QueuedConnection)
         worker.moveToThread(self.thread)
         self.thread.started.connect(worker.run)
-        worker.finished.connect(self._success)
-        worker.failed.connect(self._failure)
-        worker.finished.connect(self.thread.quit)
-        worker.failed.connect(self.thread.quit)
-        worker.finished.connect(worker.deleteLater)
-        worker.failed.connect(worker.deleteLater)
-        self.thread.finished.connect(self._cleaned)
+        # Python QObject destruction in a worker can invert the Qt connection
+        # mutex/GIL order against GUI accessibility work on PySide6 6.7.
+        worker.finished.connect(self._return_worker, Qt.ConnectionType.DirectConnection)
+        worker.failed.connect(self._return_worker, Qt.ConnectionType.DirectConnection)
+        worker.finished.connect(self._success, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(self._failure, Qt.ConnectionType.QueuedConnection)
+        worker.finished.connect(self.thread.quit, Qt.ConnectionType.QueuedConnection)
+        worker.failed.connect(self.thread.quit, Qt.ConnectionType.QueuedConnection)
+        self.thread.finished.connect(self._cleaned, Qt.ConnectionType.QueuedConnection)
         if hasattr(worker, 'progress'):
-            worker.progress.connect(self._progress)
+            worker.progress.connect(self._progress, Qt.ConnectionType.QueuedConnection)
 
     @Slot(object)
     def _progress(self, value):
         self.progress.emit(self.generation, value)
+
+    @Slot()
+    def _return_worker(self):
+        # Called in the worker's owning thread, the only thread allowed to push
+        # its affinity back. Keep it alive until run() and the thread have ended.
+        self.worker.moveToThread(self.owner_thread)
 
     @Slot(object)
     def _success(self, result):
@@ -52,9 +70,15 @@ class BackgroundCall(QObject):
 
     @Slot()
     def _cleaned(self):
-        self.thread.deleteLater()
-        self.thread, self.worker = None, None
+        self.worker.deleteLater()
+        # Leave finished-signal dispatch before callbacks can start another call.
+        # Retain both wrappers until deferred deletion, including on Qt 6.7.
+        self.delivery_ready.emit()
+
+    @Slot()
+    def _deliver(self):
         self.done.emit(self.role, *self.reply)
+        # The finished QThread is our child and is deleted with this call.
         self.deleteLater()
 
 
@@ -101,8 +125,8 @@ class DraftController(QObject):
             return False
         call = BackgroundCall(role, worker, self, self.generation)
         self.calls[role], self.callbacks[role] = call, (callback, on_error)
-        call.done.connect(self._completed)
-        call.progress.connect(self._progress)
+        call.done.connect(self._completed, Qt.ConnectionType.QueuedConnection)
+        call.progress.connect(self._progress, Qt.ConnectionType.QueuedConnection)
         call.thread.start()
         self.changed.emit()
         return True

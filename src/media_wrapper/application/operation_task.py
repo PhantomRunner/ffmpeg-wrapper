@@ -8,7 +8,7 @@ from pathlib import Path
 from threading import Event
 from typing import Any
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 
 from media_wrapper.application.errors import report_failure
 from media_wrapper.application.media_service import MediaService
@@ -49,6 +49,7 @@ class OperationTask(QObject):
 
     def __init__(self, record: TaskRecord, binaries: Binaries, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        self._owner_thread = QThread.currentThread()
         self.record, self.binaries = record, binaries
         self.cancel_event = Event()
         self.thread: QThread | None = None
@@ -107,10 +108,10 @@ class OperationTask(QObject):
         self.worker = _Work(action)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
-        self.worker.done.connect(self._received)
-        self.worker.done.connect(self.thread.quit)
-        self.worker.done.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self._cleaned)
+        self.worker.done.connect(self._return_worker, Qt.ConnectionType.DirectConnection)
+        self.worker.done.connect(self._received, Qt.ConnectionType.QueuedConnection)
+        self.worker.done.connect(self.thread.quit, Qt.ConnectionType.QueuedConnection)
+        self.thread.finished.connect(self._cleaned, Qt.ConnectionType.QueuedConnection)
         self.thread.start()
 
     @Slot(bool, object)
@@ -118,8 +119,13 @@ class OperationTask(QObject):
         self._reply = success, value
 
     @Slot()
+    def _return_worker(self) -> None:
+        self.worker.moveToThread(self._owner_thread)
+
+    @Slot()
     def _cleaned(self) -> None:
         assert self.thread is not None and self._reply is not None
+        self.worker.deleteLater()
         self.thread.deleteLater()
         self.thread = None
         self.worker = None

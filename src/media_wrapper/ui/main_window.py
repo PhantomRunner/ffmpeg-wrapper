@@ -372,10 +372,12 @@ class MainWindow(QMainWindow):
                                      tuple(StreamSelection(i) for i in state.selected_streams),
                                      OutputTarget(Path(destination).expanduser().absolute(), container),
                                      metadata_policy=state.metadata_policy, chapter_policy=state.chapter_policy)
-                build_plan = lambda: plan
+                def build_plan():
+                    return plan
             else:
                 request = view.request()
-                build_plan = lambda: conversion_plan(media, request, capabilities)
+                def build_plan():
+                    return conversion_plan(media, request, capabilities)
         except ValueError as error:
             revision = presenter.begin()
             presenter.present(revision, ValidationReport((blocked(candidate, error),)))

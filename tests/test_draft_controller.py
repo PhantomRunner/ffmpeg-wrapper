@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QApplication
 
@@ -78,3 +79,59 @@ def test_import_requests_are_not_lost_during_discovery(sample, tmp_path, monkeyp
     assert all(item.inspected for item in controller.draft.items.values())
     controller.deleteLater()
     app.processEvents()
+
+
+def test_completion_leaves_finished_signal_dispatch_before_reentrant_work():
+    from PySide6.QtCore import QObject, Slot
+
+    from media_wrapper.ui.draft_controller import BackgroundCall
+    from media_wrapper.ui.workers import ServiceWorker
+
+    app = QApplication.instance() or QApplication([])
+    order = []
+
+    class Observer(QObject):
+        @Slot()
+        def finished(self):
+            order.append('finished')
+
+    observer = Observer()
+    call = BackgroundCall('service', ServiceWorker(lambda: 'result', 'Test'))
+    call.thread.finished.connect(observer.finished)
+    call.done.connect(lambda role, success, value: order.append((role, success, value)))
+    call.thread.start()
+    wait(app, lambda: len(order) == 2)
+    assert order == ['finished', ('service', True, 'result')]
+
+
+@pytest.mark.parametrize('fail', [False, True])
+def test_worker_runs_in_background_and_is_destroyed_on_the_gui_thread(fail):
+    from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, Slot
+
+    from media_wrapper.ui.draft_controller import BackgroundCall
+    from media_wrapper.ui.workers import ServiceWorker
+
+    app = QApplication.instance() or QApplication([])
+    execution, destruction, completed = [], [], []
+
+    class Observer(QObject):
+        @Slot()
+        def record_destruction(self):
+            destruction.append(QThread.currentThread())
+
+    observer = Observer()
+    def action():
+        execution.append(QThread.currentThread())
+        if fail:
+            raise ValueError('expected test failure')
+
+    worker = ServiceWorker(action, 'Test')
+    worker.destroyed.connect(observer.record_destruction, Qt.ConnectionType.DirectConnection)
+    call = BackgroundCall('service', worker)
+    call.done.connect(lambda _role, success, _value: completed.append(success))
+    call.thread.start()
+    wait(app, lambda: bool(completed))
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert execution and execution[0] != app.thread()
+    assert destruction == [app.thread()]
+    assert completed == [not fail]

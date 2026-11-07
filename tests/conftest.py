@@ -1,5 +1,6 @@
 """Run Qt tests without requiring a display server."""
 import os
+from dataclasses import replace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -31,9 +32,6 @@ def sample(tmp_path):
     plan = OperationPlan(MediaOperation.REMUX, media, (StreamSelection(0),),
                          OutputTarget(tmp_path/'result.mkv', Container.MATROSKA))
     return binaries, plan
-
-
-from dataclasses import replace
 
 
 @pytest.fixture
