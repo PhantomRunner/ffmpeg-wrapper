@@ -88,9 +88,9 @@ class DraftController(QObject):
     prepared = Signal(object, str)
     binaries_ready = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, *, multiple_outputs=False):
         super().__init__(parent)
-        self.draft = DraftState()
+        self.draft = DraftState(multiple_outputs=multiple_outputs)
         self.queue = TaskQueue(self)
         self.queue.changed.connect(self._queue_changed)
         self.binaries = None
@@ -147,9 +147,8 @@ class DraftController(QObject):
             if on_error:
                 on_error(str(value))
         if role == 'import' and self.pending_import:
-            paths = tuple(self.pending_import)
-            self.pending_import.clear()
-            self.import_sources(paths)
+            paths, recursive = self.pending_import.pop(0)
+            self.import_sources(paths, recursive=recursive)
         self.changed.emit()
 
     def detect(self, mode='external', directory=None):
@@ -172,14 +171,15 @@ class DraftController(QObject):
         self._start_probe()
         self.binaries_ready.emit(binaries)
 
-    def import_sources(self, paths):
+    def import_sources(self, paths, recursive=True):
+        paths = tuple(paths)
         if 'import' in self.calls:
-            self.pending_import.extend(paths)
+            self.pending_import.append((paths, recursive))
             self.notice.emit('Additional import paths are queued; current discovery continues.')
             return
         self.import_cancel = Event()
         event = self.import_cancel
-        self.service('import', lambda: discover_sources(tuple(paths), event), self._discovered)
+        self.service('import', lambda: discover_sources(paths, event, recursive=recursive), self._discovered)
 
     def _discovered(self, result):
         self.draft.add(result.paths)
@@ -230,13 +230,16 @@ class DraftController(QObject):
         if fingerprint and item_id in self.draft.items:
             self.draft.items[item_id].fingerprint = fingerprint
         if fresh and item_id in self.draft.items and self.draft.items[item_id].inspected:
-            item = self.draft.items[item_id]
-            for operation, options in item.options.items():
-                item.options[operation] = replace(options,
-                    request=replace(options.request, container=self.defaults.get('container', options.request.container)),
-                    folder=self.defaults.get('folder', ''), template=self.defaults.get('template', options.template),
-                    auto_number=self.defaults.get('auto_number', False))
-            item.defaults = dict(item.options)
+            for output in self.draft.outputs_for(item_id):
+                for operation, options in output.options.items():
+                    template = self.defaults.get('template', options.template) if output.number == 1 else options.template
+                    output.options[operation] = replace(
+                        options, request=replace(options.request,
+                                                 container=self.defaults.get('container', options.request.container)),
+                        folder=self.defaults.get('folder', ''), template=template,
+                        auto_number=self.defaults.get('auto_number', False),
+                    )
+                output.defaults.update(output.options)
 
     def cancel_import(self):
         self.import_cancel.set()
@@ -251,6 +254,9 @@ class DraftController(QObject):
     def include(self, item_id, included):
         if item_id in self.draft.items:
             self.draft.include(item_id, included)
+            self.changed.emit()
+        elif item_id in self.draft.outputs:
+            self.draft.include_output(item_id, included)
             self.changed.emit()
 
     def reserved(self):
@@ -279,7 +285,7 @@ class DraftController(QObject):
             return
         snapshot = snapshot_draft(self.draft)
         if not snapshot.inputs:
-            self.notice.emit('Include at least one source file.')
+            self.notice.emit('Include at least one output.')
             return
         generation, binaries, capabilities = self.generation, self.binaries, self.capabilities
         self.validation_cancel = Event()
@@ -312,15 +318,16 @@ class DraftController(QObject):
         self.preparation = None
         records = self.queue.add_many(tuple(i.plan for i in result.ready), self.binaries,
                                       fingerprints={i.plan.media.path: i.fingerprint for i in result.ready})
-        for item in result.ready:
-            if item.source.id in self.draft.items:
-                self.draft.items[item.source.id].queued[result.snapshot.operation] = item.source.options
+        for item, record in zip(result.ready, records, strict=False):
+            target = self.draft.outputs.get(item.source.id) or self.draft.items.get(item.source.id)
+            if target is not None and record.plan.output.path == item.plan.output.path:
+                target.queued[item.plan.operation] = item.source.options
         self.preparation = None
         self.draft.revision += 1
         if start and records:
             self.queue.start()
         skipped = len(result.items) - len(records)
-        self.notice.emit(f'Added {len(records)} job(s); {skipped} blocked file(s) remain in Workspace.')
+        self.notice.emit(f'Added {len(records)} job(s); {skipped} blocked output(s) remain in Workspace.')
         self.changed.emit()
         return records
 

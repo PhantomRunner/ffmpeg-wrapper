@@ -66,9 +66,9 @@ def test_import_requests_are_not_lost_during_discovery(sample, tmp_path, monkeyp
     second = tmp_path / 'queued-import.wav'
     second.write_bytes(source.read_bytes())
     original = draft_controller.discover_sources
-    def delayed(*args):
+    def delayed(*args, **kwargs):
         time.sleep(.05)
-        return original(*args)
+        return original(*args, **kwargs)
     monkeypatch.setattr(draft_controller, 'discover_sources', delayed)
     controller = DraftController()
     controller.binaries = sample[0]

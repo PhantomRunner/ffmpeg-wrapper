@@ -1,4 +1,4 @@
-"""Per-source, per-operation editable draft. No Qt, filesystem or FFmpeg calls."""
+"""Independent output configurations for inspected media sources."""
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
@@ -12,6 +12,7 @@ from media_wrapper.domain.remux import Container
 
 
 class EditScope(str, Enum):
+    ACTIVE = 'active'
     INCLUDED = 'included'
     SELECTED = 'selected'
 
@@ -56,6 +57,8 @@ class DraftItem:
     queued: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
     revision: int = 0
     fingerprint: tuple[int, int] | None = None
+    output_ids: list[str] = field(default_factory=list)
+    next_output_number: int = 1
 
     @property
     def media(self):
@@ -66,14 +69,128 @@ class DraftItem:
         return bool(self.inspection and self.inspection.status == InspectionStatus.COMPLETED and self.media)
 
 
+@dataclass
+class DraftOutput:
+    source_id: str
+    label: str
+    operation: MediaOperation
+    id: str = field(default_factory=lambda: uuid4().hex)
+    included: bool = True
+    options: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
+    defaults: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
+    queued: dict[MediaOperation, DraftOptions] = field(default_factory=dict)
+    revision: int = 0
+    number: int = 1
+
+
 class DraftState:
-    def __init__(self):
+    def __init__(self, *, multiple_outputs=False):
         self.items: dict[str, DraftItem] = {}
+        self.outputs: dict[str, DraftOutput] = {}
         self._paths: dict[Path, str] = {}
-        self.operation = MediaOperation.REMUX
-        self.scope = EditScope.INCLUDED
+        self.multiple_outputs = multiple_outputs
+        self._operation = MediaOperation.REMUX
+        self.scope = EditScope.ACTIVE if multiple_outputs else EditScope.INCLUDED
         self.selected: tuple[str, ...] = ()
+        self.selected_outputs: tuple[str, ...] = ()
+        self.active_output_id: str | None = None
+        self.inspector_source_id: str | None = None
         self.revision = 0
+
+    @property
+    def operation(self):
+        return self._operation
+
+    @operation.setter
+    def operation(self, operation):
+        self.set_operation(operation)
+
+    def set_operation(self, operation):
+        self._operation = operation
+        if not self.multiple_outputs:
+            return
+        for output in self.output_targets():
+            if output.operation != operation:
+                output.operation = operation
+                output.revision += 1
+                self.revision += 1
+
+    def focus_output(self, output_id):
+        output = self.outputs.get(output_id)
+        self.active_output_id = output.id if output else None
+        if output:
+            self._operation = output.operation
+
+    def outputs_for(self, source_id):
+        item = self.items.get(source_id)
+        return tuple(self.outputs[output_id] for output_id in item.output_ids) if item else ()
+
+    def add_output(self, source_id, label='', operation=None):
+        item = self.items[source_id]
+        number = item.next_output_number
+        item.next_output_number += 1
+        output = DraftOutput(source_id, label.strip() or f'Output {number}',
+                             operation or self._operation, number=number)
+        if not item.output_ids:
+            output.included = item.included
+            output.options, output.defaults, output.queued = item.options, item.defaults, item.queued
+        elif item.inspected:
+            self._initialize_output(item, output)
+        item.output_ids.append(output.id)
+        self.outputs[output.id] = output
+        if self.active_output_id is None:
+            self.focus_output(output.id)
+        item.included = True if output.included else item.included
+        self.revision += 1
+        return output
+
+    def remove_output(self, output_id):
+        output = self.outputs[output_id]
+        item = self.items[output.source_id]
+        if len(item.output_ids) == 1:
+            raise ValueError('Keep at least one output per source or remove the source.')
+        item.output_ids.remove(output_id)
+        self.outputs.pop(output_id)
+        primary = self.outputs[item.output_ids[0]]
+        item.options, item.defaults, item.queued = primary.options, primary.defaults, primary.queued
+        item.included = any(child.included for child in self.outputs_for(item.id))
+        self._clean_selection()
+        self.revision += 1
+
+    def rename_output(self, output_id, label):
+        label = label.strip()
+        if not label:
+            raise ValueError('Enter a name for this output.')
+        self.outputs[output_id].label = label
+
+    def include_output(self, output_id, included):
+        output = self.outputs[output_id]
+        if output.included == included:
+            return
+        output.included = included
+        output.revision += 1
+        item = self.items[output.source_id]
+        item.included = any(child.included for child in self.outputs_for(item.id))
+        item.revision += 1
+        self.revision += 1
+
+    def _clean_selection(self):
+        self.selected = tuple(i for i in self.selected if i in self.items)
+        self.selected_outputs = tuple(i for i in self.selected_outputs if i in self.outputs)
+        if self.active_output_id not in self.outputs:
+            self.focus_output(next(iter(self.outputs), None))
+        if self.inspector_source_id not in self.items:
+            self.inspector_source_id = None
+
+    def _initialize_output(self, item, output):
+        for operation in MediaOperation:
+            options = item.defaults.get(operation) or default_options(item.media, operation)
+            if output.number > 1:
+                template = options.template
+                suffix = f'_{output.number}'
+                template = template.replace('{ext}', f'{suffix}{{ext}}') if '{ext}' in template else template + suffix
+                options = replace(options, template=template, output_override='')
+            output.options[operation] = output.defaults[operation] = options
 
     def add(self, paths: tuple[Path, ...]) -> tuple[DraftItem, ...]:
         additions = []
@@ -83,8 +200,7 @@ class DraftState:
                 self.items[item.id] = item
                 self._paths[path] = item.id
                 additions.append(item)
-        if additions:
-            self.revision += 1
+                self.add_output(item.id)
         return tuple(additions)
 
     def remove(self, ids):
@@ -92,15 +208,15 @@ class DraftState:
             item = self.items.pop(item_id, None)
             if item:
                 self._paths.pop(item.path, None)
-        self.selected = tuple(i for i in self.selected if i in self.items)
+                for output_id in item.output_ids:
+                    self.outputs.pop(output_id)
+        self._clean_selection()
         self.revision += 1
 
     def include(self, item_id, included):
         item = self.items[item_id]
-        if item.included != included:
-            item.included = included
-            item.revision += 1
-            self.revision += 1
+        for output in self.outputs_for(item.id):
+            self.include_output(output.id, included)
 
     def inspected(self, record: InspectionRecord):
         item_id = self._paths.get(record.path)
@@ -108,13 +224,17 @@ class DraftState:
             return  # The source may have been removed while probing.
         item = self.items[item_id]
         item.inspection = record
-        if item.inspected and not item.options:
-            item.options = {op: default_options(item.media, op) for op in MediaOperation}
-            item.defaults = dict(item.options)
+        if item.inspected:
+            for output in self.outputs_for(item_id):
+                if not output.options:
+                    self._initialize_output(item, output)
         item.revision += 1
         self.revision += 1
 
     def targets(self) -> tuple[DraftItem, ...]:
+        if self.multiple_outputs:
+            source_ids = dict.fromkeys(output.source_id for output in self.output_targets())
+            return tuple(self.items[source_id] for source_id in source_ids)
         if self.scope == EditScope.SELECTED:
             return tuple(self.items[i] for i in self.selected if i in self.items)
         return tuple(item for item in self.items.values() if item.included)
@@ -122,16 +242,41 @@ class DraftState:
     def editable(self):
         return tuple(item for item in self.targets() if item.inspected)
 
+    def output_targets(self):
+        if self.scope == EditScope.ACTIVE:
+            output = self.outputs.get(self.active_output_id)
+            return (output,) if output else ()
+        if self.scope == EditScope.SELECTED:
+            ids = self.selected_outputs or tuple(
+                output.id for source_id in self.selected for output in self.outputs_for(source_id))
+            return tuple(self.outputs[output_id] for output_id in dict.fromkeys(ids)
+                         if output_id in self.outputs)
+        return tuple(output for output in self.outputs.values() if output.included)
+
+    def editable_outputs(self):
+        return tuple(output for output in self.output_targets() if self.items[output.source_id].inspected)
+
+    def _configurations(self, ids=None):
+        if not self.multiple_outputs:
+            return self.editable() if ids is None else tuple(
+                self.items[i] for i in ids if i in self.items and self.items[i].inspected)
+        if ids is None:
+            return self.editable_outputs()
+        outputs = dict.fromkeys(output.id for i in ids for output in
+                                ((self.outputs[i],) if i in self.outputs else self.outputs_for(i)))
+        return tuple(self.outputs[i] for i in outputs if self.items[self.outputs[i].source_id].inspected)
+
     def value(self, name):
-        values = [self.field_value(item, name) for item in self.editable()]
+        values = [self.field_value(target, name) for target in self._configurations()]
         if name in ('video_encoder', 'audio_encoder'):
             values = [value for value in values if value is not None]
         if not values:
             return None
         return values[0] if all(v == values[0] for v in values) else MIXED
 
-    def field_value(self, item, name):
-        options = item.options[self.operation]
+    def field_value(self, target, name):
+        item, operation = self._source_operation(target)
+        options = target.options[operation]
         if name in ('video_encoder', 'audio_encoder'):
             kind = name.split('_')[0]
             indices = {s.index for s in item.media.streams if s.kind == kind}
@@ -141,11 +286,16 @@ class DraftState:
             return choices[0] if len(set(choices)) == 1 else MIXED
         return getattr(options, name) if hasattr(options, name) else getattr(options.request, name)
 
+    def _source_operation(self, target):
+        if isinstance(target, DraftOutput):
+            return self.items[target.source_id], target.operation
+        return target, self.operation
+
     def patch(self, name, value, ids=None, *, preset_name=''):
-        targets = self.editable() if ids is None else tuple(self.items[i] for i in ids if i in self.items and self.items[i].inspected)
         changed = False
-        for item in targets:
-            current = item.options[self.operation]
+        for target in self._configurations(ids):
+            item, operation = self._source_operation(target)
+            current = target.options[operation]
             label = preset_name or current.preset_name
             modified = bool(current.preset_name and not preset_name)
             if name in ('video_encoder', 'audio_encoder'):
@@ -159,16 +309,17 @@ class DraftState:
             else:
                 updated = replace(current, request=replace(current.request, **{name: value}), preset_name=label, preset_modified=modified)
             if updated != current:
-                item.options[self.operation] = updated
-                item.revision += 1
+                target.options[operation] = updated
+                target.revision += 1
                 changed = True
         if changed:
             self.revision += 1
 
     def reset(self, ids=None):
-        targets = self.editable() if ids is None else tuple(self.items[i] for i in ids if i in self.items and self.items[i].inspected)
-        for item in targets:
-            item.options[self.operation] = item.defaults.get(self.operation, default_options(item.media, self.operation))
-            item.revision += 1
+        targets = self._configurations(ids)
+        for target in targets:
+            item, operation = self._source_operation(target)
+            target.options[operation] = target.defaults.get(operation) or default_options(item.media, operation)
+            target.revision += 1
         if targets:
             self.revision += 1

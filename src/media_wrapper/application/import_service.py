@@ -11,7 +11,7 @@ class ImportResult:
     errors: tuple[str, ...]
 
 
-def discover_sources(paths: tuple[Path, ...], event: Event) -> ImportResult:
+def discover_sources(paths: tuple[Path, ...], event: Event, *, recursive=True) -> ImportResult:
     found, errors = {}, []
     for path in paths:
         if event.is_set():
@@ -23,7 +23,7 @@ def discover_sources(paths: tuple[Path, ...], event: Event) -> ImportResult:
                                                        onerror=lambda error: errors.append(str(error))):
                     if event.is_set():
                         break
-                    dirs[:] = sorted(d for d in dirs if not (Path(directory) / d).is_symlink())
+                    dirs[:] = sorted(d for d in dirs if not (Path(directory) / d).is_symlink()) if recursive else []
                     for name in sorted(files):
                         if event.is_set():
                             break

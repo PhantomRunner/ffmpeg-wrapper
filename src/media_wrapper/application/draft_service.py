@@ -37,6 +37,8 @@ class DraftInput:
     probe_error: str = ''
     already_queued: bool = False
     fingerprint: tuple[int, int] | None = None
+    source_id: str | None = None
+    operation: MediaOperation | None = None
 
 
 @dataclass(frozen=True)
@@ -67,13 +69,18 @@ class PreparedDraft:
 
 def snapshot_draft(draft) -> DraftSnapshot:
     inputs = []
-    for item in draft.items.values():
-        if not item.included:
-            continue
-        options = item.options.get(draft.operation)
+    configurations = (
+        ((draft.items[output.source_id], output, output.operation)
+         for output in draft.outputs.values() if output.included)
+        if draft.multiple_outputs else
+        ((item, item, draft.operation) for item in draft.items.values() if item.included)
+    )
+    for item, configuration, operation in configurations:
+        options = configuration.options.get(operation)
         error = '' if item.inspected else item.inspection.error or item.inspection.status.value if item.inspection else 'Inspect this source first.'
-        inputs.append(DraftInput(item.id, item.path, item.revision, options, error,
-                                 bool(options and item.queued.get(draft.operation) == options), item.fingerprint))
+        inputs.append(DraftInput(configuration.id, item.path, configuration.revision, options, error,
+                                 bool(options and configuration.queued.get(operation) == options),
+                                 item.fingerprint, item.id, operation))
     return DraftSnapshot(draft.revision, draft.operation, tuple(inputs),
                          tuple(item.path for item in draft.items.values()))
 
@@ -113,7 +120,7 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
                 raise PlanValidationError(ValidationCode.INPUT, source.probe_error or 'Inspect this source first.')
             if source.already_queued:
                 raise ValueError('These settings were already added to the queue. Change settings to create another job.')
-            destinations[source.id] = requested_destination(source, snapshot.operation, index)
+            destinations[source.id] = requested_destination(source, source.operation or snapshot.operation, index)
         except (ValueError, OSError) as error:
             initial_errors[source.id] = error
     fixed = Counter(path_key(destinations[s.id]) for s in snapshot.inputs
@@ -121,13 +128,15 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
     protected = {path_key(path) for path in (*snapshot.sources, *reserved)}
     allocated = protected | set(fixed)
     directory_keys = {}
+    inspections = {}
     results = []
     available = None
     for source in snapshot.inputs:
+        operation = source.operation or snapshot.operation
         destination = destinations.get(source.id)
         candidate = ValidationCandidate(source.path, destination,
                                         source.options.request.container.value if source.options else '',
-                                        snapshot.operation.value, lambda: None)
+                                        operation.value, lambda: None)
         try:
             if event.is_set():
                 raise ValueError('Validation cancelled. Validate again before processing.')
@@ -155,13 +164,17 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
             before = source.path.stat()
             if source.fingerprint is not None and source.fingerprint != (before.st_size, before.st_mtime_ns):
                 raise PlanValidationError(ValidationCode.INPUT, 'Source changed since inspection. Inspect it again before processing.')
-            media = MediaService(binaries).inspect(source.path, event)
+            fingerprint = (before.st_size, before.st_mtime_ns)
+            key = source.path, fingerprint
+            if key not in inspections:
+                inspections[key] = MediaService(binaries).inspect(source.path, event)
+            media = inspections[key]
             if any(stream.index is None for stream in media.streams):
                 raise PlanValidationError(ValidationCode.STREAM, 'FFprobe returned a stream without an index. Inspect this source with a working FFprobe before processing.')
             after = source.path.stat()
             if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
                 raise PlanValidationError(ValidationCode.INPUT, 'Source changed during validation. Inspect it again.')
-            if snapshot.operation == MediaOperation.REMUX:
+            if operation == MediaOperation.REMUX:
                 if any(action not in ('copy', 'omit') for _, action in request.tracks):
                     raise PlanValidationError(ValidationCode.OPTION, 'Remux must copy every included stream.')
                 plan = OperationPlan(MediaOperation.REMUX, media,
@@ -177,7 +190,7 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
             commands = CommandBuilder().build_passes(binaries.ffmpeg, preview, available,
                                                      preview.output.execution_path.with_suffix('.passlog'))
             validation = FileValidation(source.path, destination, request.container.value,
-                                        snapshot.operation.value,
+                                        operation.value,
                                         tuple(f'Stream {s.index}: {s.profile.encoder}' for s in validated.streams),
                                         warnings=(validated.hardware_note,) if validated.hardware_note else (),
                                         commands=tuple(tuple(c) for c in commands))
