@@ -6,9 +6,7 @@ from pathlib import Path
 
 from media_wrapper.domain.media import MediaChapter, MediaFile, MediaStream
 from media_wrapper.domain.queue_document import parse_definition, plan_payload
-from media_wrapper.domain.tasks import TaskRecord, TaskStatus
-
-TERMINAL = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED}
+from media_wrapper.domain.tasks import TERMINAL, TaskRecord, TaskStatus
 
 
 def media_payload(media):
@@ -20,6 +18,10 @@ def media_payload(media):
     data['tags'] = [list(tag) for tag in data['tags']]
     data['chapters'] = list(data['chapters'])
     for stream in data['streams']:
+        stream['tags'] = [list(tag) for tag in stream['tags']]
+        for name in ('dispositions', 'side_data'):
+            if stream[name] is not None:
+                stream[name] = list(stream[name])
         for name in ('average_frame_rate', 'nominal_frame_rate'):
             stream[name] = str(stream[name]) if stream[name] is not None else None
     return data
@@ -42,6 +44,18 @@ def _number(value, integer=False):
     return value
 
 
+def _tags(value):
+    if not isinstance(value, list) or len(value) > 1024 or any(not isinstance(t, list) or len(t) != 2 for t in value):
+        raise ValueError('Invalid history tags')
+    return tuple((_text(key), _text(text)) for key, text in value)
+
+
+def _texts(value, maximum_length=256, maximum_items=256):
+    if not isinstance(value, list) or len(value) > maximum_items:
+        raise ValueError('Invalid history text list')
+    return tuple(_text(item, maximum_length) for item in value)
+
+
 def parse_media(data):
     if data is None:
         return None
@@ -50,23 +64,35 @@ def parse_media(data):
     if not isinstance(data['streams'], list) or len(data['streams']) > 256:
         raise ValueError('Invalid history streams')
     streams = []
+    legacy = {'index', 'kind', 'codec', 'codec_long_name', 'language', 'title', 'bit_rate', 'width',
+              'height', 'average_frame_rate', 'nominal_frame_rate', 'sample_rate', 'channels',
+              'channel_layout', 'codec_tag'}
+    known = {item.name for item in fields(MediaStream)}
     for value in data['streams']:
-        if not isinstance(value, dict) or set(value) != {f.name for f in fields(MediaStream)}:
+        if not isinstance(value, dict) or not legacy <= value.keys() or value.keys() - known:
             raise ValueError('Invalid history stream fields')
         stream = dict(value)
-        for name in ('index', 'bit_rate', 'width', 'height', 'sample_rate', 'channels'):
-            stream[name] = _number(stream[name], True)
+        for name in ('index', 'bit_rate', 'width', 'height', 'sample_rate', 'channels', 'bit_depth'):
+            stream[name] = _number(stream.get(name), True)
         for name in ('kind', 'codec'):
             stream[name] = _text(stream[name])
-        for name in ('codec_long_name', 'language', 'title', 'channel_layout', 'codec_tag'):
-            stream[name] = _text(stream[name], optional=True)
+        for name in ('codec_long_name', 'language', 'title', 'channel_layout', 'codec_tag', 'profile', 'pixel_format',
+                     'sample_aspect_ratio', 'display_aspect_ratio', 'color_space', 'color_transfer', 'color_primaries',
+                     'color_range'):
+            stream[name] = _text(stream.get(name), optional=True)
         for name in ('average_frame_rate', 'nominal_frame_rate'):
             rate = stream[name]
-            stream[name] = Fraction(_text(rate, 64)) if rate is not None else None
+            try:
+                stream[name] = Fraction(_text(rate, 64)) if rate is not None else None
+            except (ValueError, ZeroDivisionError) as error:
+                raise ValueError('Invalid history frame rate') from error
+        if stream.get('dispositions') is not None:
+            stream['dispositions'] = _texts(stream['dispositions'])
+        stream['tags'] = _tags(stream.get('tags', []))
+        stream['side_data'] = _texts(stream.get('side_data', []), 65536)
+        stream['duration'] = _number(stream.get('duration'))
         streams.append(MediaStream(**stream))
-    tags = data['tags']
-    if not isinstance(tags, list) or len(tags) > 1024 or any(not isinstance(t, list) or len(t) != 2 for t in tags):
-        raise ValueError('Invalid history tags')
+    tags = _tags(data['tags'])
     if not isinstance(data['chapters'], list) or len(data['chapters']) > 10000:
         raise ValueError('Invalid history chapters')
     chapters = []
@@ -76,12 +102,16 @@ def parse_media(data):
         chapters.append(MediaChapter(_number(chapter['start']), _number(chapter['end']), _text(chapter['title'], optional=True)))
     return MediaFile(Path(_text(data['path'])), _text(data['format_name']), _number(data['duration']),
                      _number(data['size_bytes'], True), tuple(streams), _number(data['bit_rate'], True),
-                     tuple((_text(k), _text(v)) for k, v in tags), tuple(chapters))
+                     tags, tuple(chapters))
 
 
 def record_payload(record):
     if record.status not in TERMINAL:
         raise ValueError('Only terminal attempts belong to history')
+    return snapshot_payload(record)
+
+
+def snapshot_payload(record):
     return {
         'id': record.id, 'status': record.status.value,
         'intent': plan_payload(record.plan, record.source_fingerprint or (0, 0)),
@@ -102,11 +132,16 @@ KEYS = {'id', 'status', 'intent', 'media', 'result', 'commands', 'log', 'error',
 
 
 def parse_record(data):
+    record = parse_snapshot(data)
+    if record.status not in TERMINAL:
+        raise ValueError('History cannot contain active or pending jobs')
+    return record
+
+
+def parse_snapshot(data):
     if not isinstance(data, dict) or set(data) != KEYS:
         raise ValueError('Missing or unknown history record fields')
     status = TaskStatus(data['status'])
-    if status not in TERMINAL:
-        raise ValueError('History cannot contain active or pending jobs')
     media = parse_media(data['media'])
     if media is None:
         raise ValueError('History needs the frozen source metadata')
@@ -114,7 +149,7 @@ def parse_record(data):
     if str(media.path) != data['intent']['source']:
         raise ValueError('History source metadata does not match its saved intent')
     commands = data['commands']
-    if (not isinstance(commands, list) or len(commands) > 16
+    if (not isinstance(commands, list) or len(commands) > 32
             or any(not isinstance(c, list) or len(c) > 4096 for c in commands)):
         raise ValueError('Invalid history commands')
     commands = tuple(tuple(_text(arg) for arg in command) for command in commands)
@@ -123,7 +158,7 @@ def parse_record(data):
         if not isinstance(fingerprint, list) or len(fingerprint) != 2 or any(type(v) is not int for v in fingerprint) or fingerprint[0] < 0:
             raise ValueError('Invalid history source fingerprint')
         fingerprint = tuple(fingerprint)
-    if any(type(data[n]) is not int or not 0 <= data[n] <= 16 for n in ('pass_index', 'pass_count')):
+    if any(type(data[n]) is not int or not 0 <= data[n] <= 32 for n in ('pass_index', 'pass_count')):
         raise ValueError('Invalid history pass information')
     return TaskRecord(plan, id=_text(data['id'], 128), status=status, command=commands[-1] if commands else (),
                       commands=commands, log=_text(data['log'], 16000), error=_text(data['error'], 16000),

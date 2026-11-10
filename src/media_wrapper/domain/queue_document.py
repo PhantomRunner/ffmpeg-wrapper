@@ -26,13 +26,16 @@ def plan_payload(plan: OperationPlan, fingerprint: tuple[int, int]) -> dict:
             'operation': plan.operation.value, 'streams': streams,
             'target_size_bytes': plan.target_size_bytes, 'two_pass': plan.two_pass,
             'hardware_device': plan.hardware_device, 'metadata_policy': plan.metadata_policy.value,
-            'chapter_policy': plan.chapter_policy.value, 'custom_options': [list(pair) for pair in plan.custom_options]}
+            'chapter_policy': plan.chapter_policy.value, 'custom_options': [list(pair) for pair in plan.custom_options],
+            **({'deep_verify': True} if plan.deep_verify else {}),
+            **({'cpu_fallback': True} if plan.cpu_fallback else {}),
+            **({key: value for key in ('source_id', 'output_id') if (value := getattr(plan, key)) is not None})}
 
 
 def parse_definition(data: object, media: MediaFile) -> OperationPlan:
     keys = {'source', 'fingerprint', 'destination', 'container', 'operation', 'streams',
             'target_size_bytes', 'two_pass', 'hardware_device', 'metadata_policy', 'chapter_policy', 'custom_options'}
-    if not isinstance(data, dict) or set(data) != keys:
+    if not isinstance(data, dict) or not keys <= data.keys() or data.keys() - keys - {'deep_verify', 'cpu_fallback', 'source_id', 'output_id'}:
         raise ValueError('Missing or unknown queue definition fields')
     for key in ('source', 'destination', 'hardware_device'):
         value = data[key]
@@ -47,6 +50,12 @@ def parse_definition(data: object, media: MediaFile) -> OperationPlan:
         raise ValueError('Invalid source fingerprint')
     if type(data['two_pass']) is not bool or (data['target_size_bytes'] is not None and type(data['target_size_bytes']) is not int):
         raise ValueError('Invalid saved rate control')
+    if any(type(data.get(key, False)) is not bool for key in ('deep_verify', 'cpu_fallback')):
+        raise ValueError('Invalid saved verification/fallback option')
+    for key in ('source_id', 'output_id'):
+        value = data.get(key)
+        if value is not None and (not isinstance(value, str) or not 0 < len(value) <= 128 or '\x00' in value):
+            raise ValueError(f'Invalid saved {key}')
     options = data['custom_options']
     if not isinstance(options, list) or any(not isinstance(p, list) or len(p) != 2 or any(not isinstance(v, str) for v in p) for p in options):
         raise ValueError('Invalid custom options')
@@ -58,14 +67,20 @@ def parse_definition(data: object, media: MediaFile) -> OperationPlan:
         if not isinstance(stream, dict) or set(stream) != {'index', 'profile'} or type(stream['index']) is not int:
             raise ValueError('Invalid saved stream')
         profile = stream['profile']
-        if not isinstance(profile, dict) or set(profile) != set(asdict(EncodingProfile())):
+        defaults = asdict(EncodingProfile())
+        required = {'encoder', 'bitrate', 'width', 'height', 'fps', 'crf', 'preset', 'audio_quality'}
+        if not isinstance(profile, dict) or not required <= profile.keys() or profile.keys() - defaults.keys():
             raise ValueError('Invalid saved encoding profile')
-        profile = dict(profile)
-        for key in ('bitrate', 'width', 'height', 'crf', 'audio_quality'):
-            if profile[key] is not None and type(profile[key]) is not int:
-                raise ValueError(f'Invalid encoding {key}')
-        if not isinstance(profile['encoder'], str) or (profile['preset'] is not None and not isinstance(profile['preset'], str)):
-            raise ValueError('Invalid saved encoder/preset')
+        profile = defaults | profile
+        integer_fields = {'bitrate', 'width', 'height', 'crf', 'audio_quality', 'sample_rate', 'channels'}
+        for key, value in profile.items():
+            if value is None or key == 'fps':
+                continue
+            expected = int if key in integer_fields else str
+            if type(value) is not expected or (expected is str and (len(value) > 256 or '\x00' in value)):
+                raise ValueError(f'Invalid saved encoding {key}')
+        if not profile['encoder']:
+            raise ValueError('Missing saved encoder')
         if profile['fps'] is not None:
             if not isinstance(profile['fps'], str) or len(profile['fps']) > 64:
                 raise ValueError('Invalid saved frame rate')
@@ -79,7 +94,8 @@ def parse_definition(data: object, media: MediaFile) -> OperationPlan:
                          data['target_size_bytes'], data['two_pass'], data['hardware_device'],
                          metadata_policy=PreservationPolicy(data['metadata_policy']),
                          chapter_policy=PreservationPolicy(data['chapter_policy']),
-                         custom_options=tuple(tuple(p) for p in options))
+                         custom_options=tuple(tuple(p) for p in options), deep_verify=data.get('deep_verify', False),
+                         cpu_fallback=data.get('cpu_fallback', False), source_id=data.get('source_id'), output_id=data.get('output_id'))
 
 
 def queue_entries(payload: object) -> list[dict]:

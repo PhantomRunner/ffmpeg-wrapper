@@ -1,5 +1,7 @@
 """Translate optional FFprobe metadata into typed domain entities."""
+import json
 import math
+import re
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -71,6 +73,41 @@ def parse_probe(path: Path, payload: Any) -> MediaFile:
                      tuple((str(k), v) for k, v in tags.items() if isinstance(v, str)), tuple(parsed_chapters))
 
 
+def _stream_duration(value: Any, tags: dict[str, Any]) -> float | None:
+    duration = _duration(value)
+    if duration is not None:
+        return duration
+    raw = next((v for k, v in tags.items() if k.lower() == 'duration'), None)
+    if isinstance(raw, str):
+        parts = raw.split(':')
+        if len(parts) == 3:
+            hours, minutes, seconds = map(_duration, parts)
+            if None not in (hours, minutes, seconds):
+                return hours * 3600 + minutes * 60 + seconds
+    return None
+
+
+def _color(value: Any) -> str | None:
+    text = _text(value)
+    return None if text in {'unknown', 'reserved', 'unspecified'} else text
+
+
+def _pixel_depth(payload: dict[str, Any], pixel_format: str | None) -> int | None:
+    bits = _integer(payload.get('bits_per_raw_sample'), 1) or _integer(payload.get('bits_per_sample'), 1)
+    if bits or not pixel_format:
+        return bits
+    high = re.search(r'(9|10|12|14|16)(?:le|be)$', pixel_format)
+    if high:
+        return int(high[1])
+    if pixel_format in {'p010le', 'p010be', 'p210le', 'p410le'}:
+        return 10
+    if pixel_format in {'p012le', 'p012be'}:
+        return 12
+    if pixel_format.startswith(('yuv', 'gbr')) or pixel_format in {'gray', 'rgb24', 'bgr24', 'nv12', 'nv21'}:
+        return 8
+    return None
+
+
 def _stream(payload: Any) -> MediaStream:
     if not isinstance(payload, dict):
         raise ValueError('Invalid FFprobe stream structure')  # noqa: TRY004 - invalid serialized value
@@ -81,12 +118,27 @@ def _stream(payload: Any) -> MediaStream:
     tags = {} if tags is None else tags
     if not isinstance(tags, dict):
         raise ValueError('Invalid FFprobe stream tags')  # noqa: TRY004 - invalid serialized value
+    title = _text(tags.get('title'))
+    handler_name = _text(tags.get('handler_name'))
+    if title is None and handler_name not in {'SoundHandler', 'VideoHandler', 'SubtitleHandler', 'DataHandler'}:
+        title = handler_name
+    pixel_format = _text(payload.get('pix_fmt'))
+    dispositions = payload.get('disposition')
+    side_data = payload.get('side_data_list')
     return MediaStream(
         index=index, kind=_text(payload.get('codec_type')) or 'unknown',
         codec=_text(payload.get('codec_name')) or 'unknown', codec_long_name=_text(payload.get('codec_long_name')),
-        language=_text(tags.get('language')), title=_text(tags.get('title')), bit_rate=_integer(payload.get('bit_rate')),
+        language=_text(tags.get('language')), title=title, bit_rate=_integer(payload.get('bit_rate')),
         width=_integer(payload.get('width'), 1), height=_integer(payload.get('height'), 1),
         average_frame_rate=_rate(payload.get('avg_frame_rate')), nominal_frame_rate=_rate(payload.get('r_frame_rate')),
         sample_rate=_integer(payload.get('sample_rate'), 1), channels=_integer(payload.get('channels'), 1),
         channel_layout=_text(payload.get('channel_layout')), codec_tag=_text(payload.get('codec_tag_string')),
+        profile=_text(payload.get('profile')), pixel_format=pixel_format, bit_depth=_pixel_depth(payload, pixel_format),
+        sample_aspect_ratio=_text(payload.get('sample_aspect_ratio')), display_aspect_ratio=_text(payload.get('display_aspect_ratio')),
+        color_space=_color(payload.get('color_space')), color_transfer=_color(payload.get('color_transfer')),
+        color_primaries=_color(payload.get('color_primaries')), color_range=_color(payload.get('color_range')),
+        dispositions=tuple(key for key, enabled in dispositions.items() if enabled == 1) if isinstance(dispositions, dict) else None,
+        tags=tuple((str(k), v) for k, v in tags.items() if isinstance(v, str)),
+        side_data=tuple(json.dumps(item, sort_keys=True) for item in side_data if isinstance(item, dict)) if isinstance(side_data, list) else (),
+        duration=_stream_duration(payload.get('duration'), tags),
     )

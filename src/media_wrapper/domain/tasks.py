@@ -1,4 +1,5 @@
 """Task lifecycle and legal transitions, independent of Qt."""
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
@@ -18,13 +19,18 @@ class TaskStatus(str, Enum):
     COMPLETED = 'Completed'
     FAILED = 'Failed'
     CANCELLED = 'Cancelled'
+    INTERRUPTED = 'Interrupted'
+
+
+TERMINAL = {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.INTERRUPTED}
+RETRYABLE = {TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.INTERRUPTED}
 
 
 TRANSITIONS = {
     TaskStatus.PENDING: {TaskStatus.PREPARING, TaskStatus.CANCELLED},
-    TaskStatus.PREPARING: {TaskStatus.RUNNING, TaskStatus.FAILED, TaskStatus.CANCELLED},
-    TaskStatus.RUNNING: {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED},
-    TaskStatus.COMPLETED: set(), TaskStatus.FAILED: set(), TaskStatus.CANCELLED: set(),
+    TaskStatus.PREPARING: {TaskStatus.RUNNING, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.INTERRUPTED},
+    TaskStatus.RUNNING: {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED, TaskStatus.INTERRUPTED},
+    **{status: set() for status in TERMINAL},
 }
 
 
@@ -51,6 +57,10 @@ class TaskRecord:
     source_fingerprint: tuple[int, int] | None = None
     binary_version: str = ''
     _started_clock: float | None = field(default=None, repr=False, compare=False)
+    stage: str = ''
+    log_path: Path | None = field(default=None, repr=False, compare=False)
+    log_error: str = field(default='', repr=False, compare=False)
+    before_publication: Callable[[Path, Path, MediaFile], None] | None = field(default=None, repr=False, compare=False)
 
     @property
     def elapsed(self) -> float | None:
@@ -64,10 +74,22 @@ class TaskRecord:
         if status == TaskStatus.PREPARING:
             self.started_at = datetime.now(UTC).isoformat()
             self._started_clock = monotonic()
-        if status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
-            self.elapsed_seconds = self.elapsed if self._started_clock is not None else 0.0
+        if status in TERMINAL:
+            if status != TaskStatus.INTERRUPTED:
+                self.elapsed_seconds = self.elapsed if self._started_clock is not None else 0.0
             self.finished_at = datetime.now(UTC).isoformat()
         self.status = status
+        self.stage = {
+            TaskStatus.PREPARING: 'Preparing sources and encoders',
+            TaskStatus.RUNNING: 'Encoding',
+        }.get(status, '')
 
     def append_log(self, text: str) -> None:
         self.log = (self.log + text)[-16000:]
+        if not text or self.log_path is None or self.log_error:
+            return
+        try:
+            with self.log_path.open('a', encoding='utf-8', errors='replace') as stream:
+                stream.write(text)
+        except OSError as error:
+            self.log_error = f'The full log could not be recorded: {error}'

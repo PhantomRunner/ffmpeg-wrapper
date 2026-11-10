@@ -21,6 +21,23 @@ class MediaStream:
     channels: int | None = None
     channel_layout: str | None = None
     codec_tag: str | None = None
+    profile: str | None = None
+    pixel_format: str | None = None
+    bit_depth: int | None = None
+    sample_aspect_ratio: str | None = None
+    display_aspect_ratio: str | None = None
+    color_space: str | None = None
+    color_transfer: str | None = None
+    color_primaries: str | None = None
+    color_range: str | None = None
+    dispositions: tuple[str, ...] | None = None
+    tags: tuple[tuple[str, str], ...] = ()
+    side_data: tuple[str, ...] = ()
+    duration: float | None = None
+
+    @property
+    def is_artwork(self) -> bool:
+        return self.dispositions is not None and 'attached_pic' in self.dispositions
 
     @property
     def frame_rate(self) -> Fraction | None:

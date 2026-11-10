@@ -43,6 +43,16 @@ class EncodingProfile:
     crf: int | None = None
     preset: str | None = None
     audio_quality: int | None = None
+    sample_rate: int | None = None
+    channels: int | None = None
+    channel_layout: str | None = None
+    codec_profile: str | None = None
+    level: str | None = None
+    pixel_format: str | None = None
+    color_space: str | None = None
+    color_transfer: str | None = None
+    color_primaries: str | None = None
+    color_range: str | None = None
 
 
 @dataclass(frozen=True)
@@ -75,3 +85,7 @@ class OperationPlan:
     metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
     chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE
     custom_options: tuple[tuple[str, str], ...] = ()
+    deep_verify: bool = False
+    cpu_fallback: bool = False
+    source_id: str | None = None
+    output_id: str | None = None
