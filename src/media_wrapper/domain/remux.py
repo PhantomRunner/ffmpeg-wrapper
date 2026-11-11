@@ -13,6 +13,9 @@ class Container(str, Enum):
     WEBM = 'webm'
     WAV = 'wav'
     FLAC = 'flac'
+    M4A = 'm4a'
+    MP3 = 'mp3'
+    OPUS = 'opus'
 
 
 @dataclass(frozen=True)

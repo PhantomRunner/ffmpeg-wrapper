@@ -2,9 +2,8 @@
 import os
 from pathlib import Path
 
-from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.containers import CONTAINERS
-from media_wrapper.domain.operation_policy import validate_plan
+from media_wrapper.domain.operation_policy import validate_plan, video_pixel_format
 from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.remux import Container, RemuxRequest
 
@@ -38,35 +37,50 @@ class CommandBuilder:
             args[4:4] = ['-loglevel', 'error', '-progress', 'pipe:1', '-nostats']
         for selection in plan.streams:
             args.extend(['-map', f'0:{selection.index}'])
+        source = {stream.index: stream for stream in plan.media.streams}
         if all(selection.profile.encoder == 'copy' for selection in plan.streams):
             args.extend(['-c', 'copy'])
         else:
             for position, selection in enumerate(plan.streams):
-                args.extend([f'-c:{position}', selection.profile.encoder])
-                profile = selection.profile
-                if profile.encoder in {'libx264', 'libx265'}:
-                    args.extend([f'-pix_fmt:{position}', 'yuv420p'])
-                if profile.crf is not None:
-                    args.extend([f'-crf:{position}', str(profile.crf)])
-                if profile.preset is not None:
-                    args.extend([f'-preset:{position}', profile.preset])
-                if profile.audio_quality is not None:
-                    args.extend([f'-q:{position}', str(profile.audio_quality)])
+                profile, stream = selection.profile, source[selection.index]
+                args.extend([f'-c:{position}', profile.encoder])
+                if profile.encoder == 'copy':
+                    continue
+                pixel_format = video_pixel_format(stream, profile) if stream.kind == 'video' else None
                 filters = [f'scale={profile.width}:{profile.height}'] if profile.width is not None else []
                 if profile.encoder.endswith('_vaapi'):
-                    filters.extend(['format=nv12', 'hwupload'])
-                elif profile.encoder in GPU_ENCODERS:
-                    args.extend([f'-pix_fmt:{position}', 'nv12'])
+                    filters.extend([f'format={pixel_format}', 'hwupload'])
+                    pixel_format = None
                 if filters:
                     args.extend([f'-filter:{position}', ','.join(filters)])
-                if profile.fps is not None:
-                    args.extend([f'-r:{position}', str(profile.fps)])
-                if selection.profile.bitrate is not None:
-                    args.extend([f'-b:{position}', str(selection.profile.bitrate)])
+                codec_profile = profile.codec_profile
+                if codec_profile is None and profile.encoder == 'dnxhd':
+                    codec_profile = 'dnxhr_sq'
+                bitrate = profile.bitrate
+                if profile.crf is not None and profile.encoder in {'libaom-av1', 'libvpx-vp9'}:
+                    bitrate = 0
+                for flag, value in (
+                    ('pix_fmt', pixel_format), ('crf', profile.crf), ('preset', profile.preset),
+                    ('q', profile.audio_quality), ('r', profile.fps), ('b', bitrate),
+                    ('profile', codec_profile), ('level', profile.level), ('ar', profile.sample_rate),
+                    ('ac', profile.channels), ('channel_layout', profile.channel_layout),
+                    ('colorspace', profile.color_space or (stream.color_space if stream.kind == 'video' else None)),
+                    ('color_trc', profile.color_transfer or (stream.color_transfer if stream.kind == 'video' else None)),
+                    ('color_primaries', profile.color_primaries or (stream.color_primaries if stream.kind == 'video' else None)),
+                    ('color_range', profile.color_range or (stream.color_range if stream.kind == 'video' else None)),
+                ):
+                    if value is not None:
+                        args.extend([f'-{flag}:{position}', str(value)])
         args.extend(['-map_metadata', '0' if plan.metadata_policy == PreservationPolicy.PRESERVE else '-1',
                      '-map_chapters', '0' if plan.chapter_policy == PreservationPolicy.PRESERVE else '-1'])
         for position, selection in enumerate(plan.streams):
-            args.extend([f'-map_metadata:s:{position}', f'0:s:{selection.index}' if plan.metadata_policy == PreservationPolicy.PRESERVE else '-1'])
+            mapped = source[selection.index]
+            keep_metadata = plan.metadata_policy == PreservationPolicy.PRESERVE
+            args.extend([f'-map_metadata:s:{position}', f'0:s:{selection.index}' if keep_metadata else '-1'])
+            if mapped.dispositions is not None:
+                args.extend([f'-disposition:{position}', '+'.join(mapped.dispositions) or '0'])
+            if mapped.title and keep_metadata and plan.output.container in {Container.MOV, Container.MP4, Container.M4A}:
+                args.extend([f'-metadata:s:{position}', f'handler_name={mapped.title}'])
         for flag, value in plan.custom_options:
             args.extend([flag, value])
         args.extend(['-f', CONTAINERS[plan.output.container].muxer, str(plan.output.execution_path)])

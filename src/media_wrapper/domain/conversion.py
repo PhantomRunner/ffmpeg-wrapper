@@ -2,7 +2,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from media_wrapper.domain.operations import MediaOperation, PreservationPolicy
+from media_wrapper.domain.operations import (
+    EncodingProfile,
+    MediaOperation,
+    PreservationPolicy,
+)
 from media_wrapper.domain.remux import Container
 
 
@@ -28,3 +32,8 @@ class ConversionRequest:
     metadata_policy: PreservationPolicy = PreservationPolicy.PRESERVE
     chapter_policy: PreservationPolicy = PreservationPolicy.PRESERVE
     custom_arguments: str = ''
+    codec_profile: str | None = None
+    pixel_format: str | None = None
+    stream_profiles: tuple[tuple[int, EncodingProfile], ...] = ()
+    target_size: tuple[str, str] | None = None
+    deep_verify: bool = False

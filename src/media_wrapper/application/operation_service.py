@@ -4,7 +4,10 @@ from pathlib import Path
 from uuid import uuid4
 
 from media_wrapper.application.operation_validation import validate_paths, validate_plan
-from media_wrapper.domain.operations import OperationPlan
+from media_wrapper.domain.containers import CONTAINERS
+from media_wrapper.domain.operation_policy import COLOR_FIELDS, video_pixel_format
+from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
+from media_wrapper.domain.remux import Container
 from media_wrapper.domain.target_size import apply_target_size
 from media_wrapper.infrastructure.ffmpeg.command_builder import CommandBuilder
 
@@ -34,3 +37,36 @@ def prepare_command(ffmpeg: Path, plan: OperationPlan, *, staged: bool = True,
     if prepared.two_pass:
         raise ValueError('Two-pass plans require CommandBuilder.build_passes and sequential execution')
     return prepared, CommandBuilder().build(ffmpeg, prepared, available_encoders)
+
+
+
+def operation_warnings(plan: OperationPlan) -> tuple[str, ...]:
+    """Report known format changes and planning assumptions before execution."""
+    warnings = []
+    if plan.hardware_note:
+        warnings.append(plan.hardware_note)
+    if plan.target_size_bytes is not None:
+        warnings.append(f'Strict maximum: {plan.target_size_bytes:,} bytes. Only video bitrate may be reduced on retry.')
+    source = {stream.index: stream for stream in plan.media.streams}
+    container = CONTAINERS[plan.output.container]
+    for selected in plan.streams:
+        stream, profile = source[selected.index], selected.profile
+        prefix = f'Stream {stream.index}'
+        if profile.encoder != 'copy' and stream.kind == 'video':
+            pixel_format = video_pixel_format(stream, profile)
+            if stream.pixel_format and pixel_format and stream.pixel_format != pixel_format:
+                warnings.append(f'{prefix} pixel format: {stream.pixel_format} → {pixel_format}.')
+            if any(
+                any(flag in item.lower() for flag in ('hdr', 'mastering display', 'dolby vision', 'content light'))
+                for item in stream.side_data
+            ):
+                warnings.append(f'{prefix} has HDR metadata that may be lost when encoded. Use Copy if it must be preserved.')
+            if any(getattr(profile, field) is not None and getattr(profile, field) != getattr(stream, field) for field in COLOR_FIELDS):
+                warnings.append(f'{prefix} color tags are explicitly changed. This does not apply a color or tone mapping transform.')
+        if profile.sample_rate is not None and profile.sample_rate != stream.sample_rate:
+            warnings.append(f'{prefix} is resampled to {profile.sample_rate:,} Hz.')
+        if plan.metadata_policy == PreservationPolicy.PRESERVE and (stream.title or stream.language) and plan.output.container not in {
+            Container.MATROSKA, Container.MOV, Container.MP4, Container.M4A,
+        }:
+            warnings.append(f'{prefix} title or language may be lost in {container.label}.')
+    return tuple(warnings)
