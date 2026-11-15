@@ -13,7 +13,7 @@ def select_hardware(plan: OperationPlan, report: CapabilityReport | None, mode: 
                     preferred: str = 'auto') -> OperationPlan:
     if mode == 'CPU':
         return plan
-    if mode not in {'GPU', 'Auto'}:
+    if mode not in {'GPU', 'Auto', 'Prefer GPU'}:
         raise ValueError('Unknown hardware mode')
     working = tuple(c for c in report.gpu if c.status == EncoderStatus.WORKING) if report else ()
     streams, decisions, device = [], [], None
@@ -31,7 +31,7 @@ def select_hardware(plan: OperationPlan, report: CapabilityReport | None, mode: 
             if mode == 'GPU':
                 raise ValueError('No matching runtime-tested GPU encoder for these options. Test GPUs in Settings; use default/bitrate mode or choose CPU.')
             streams.append(selection)
-            decisions.append(f'Auto selected CPU {profile.encoder}; no matching tested GPU/options')
+            decisions.append(f'{mode} selected CPU {profile.encoder}: no matching runtime-tested GPU for these options')
             continue
         chosen = candidates[0]
         if chosen.name.endswith('_vaapi'):
@@ -40,7 +40,11 @@ def select_hardware(plan: OperationPlan, report: CapabilityReport | None, mode: 
         decisions.append(f'{mode} selected {chosen.name} (runtime tested; rechecked before execution)')
     if mode == 'GPU' and not any(s.profile.encoder in GPU_ENCODERS for s in streams):
         raise ValueError('Select H.264 or H.265 video encoding to use GPU mode')
-    return replace(plan, streams=tuple(streams), hardware_device=device, hardware_note='; '.join(decisions))
+    fallback = mode == 'Prefer GPU' and any(s.profile.encoder in GPU_ENCODERS for s in streams)
+    if fallback:
+        decisions.append('CPU fallback is authorized if the hardware runtime check fails before encoding')
+    return replace(plan, streams=tuple(streams), hardware_device=device,
+                   hardware_note='; '.join(decisions), cpu_fallback=fallback)
 
 
 def cpu_retry_plan(plan: OperationPlan) -> OperationPlan:
@@ -50,4 +54,5 @@ def cpu_retry_plan(plan: OperationPlan) -> OperationPlan:
                     encoder='libx264' if GPU_ENCODERS[s.profile.encoder] == 'h264' else 'libx265', preset='medium'))
                     if s.profile.encoder in GPU_ENCODERS else s for s in plan.streams)
     return replace(plan, streams=streams, output=replace(plan.output, temporary_path=None), hardware_device=None,
-                   hardware_note='User explicitly requested CPU retry; previous attempt and partial output retained.')
+                   hardware_note='User explicitly requested CPU retry; previous attempt and partial output retained.',
+                   cpu_fallback=False)
