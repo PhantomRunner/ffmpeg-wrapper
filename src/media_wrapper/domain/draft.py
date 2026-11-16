@@ -4,6 +4,7 @@ from enum import Enum
 from pathlib import Path
 from uuid import uuid4
 
+from media_wrapper.domain.capabilities import GPU_ENCODERS
 from media_wrapper.domain.conversion import ConversionRequest
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
 from media_wrapper.domain.media import MediaFile
@@ -162,6 +163,45 @@ class DraftState:
         if not label:
             raise ValueError('Enter a name for this output.')
         self.outputs[output_id].label = label
+
+    def reuse_plan(self, plan, *, label='Reuse', fingerprint=None):
+        path = plan.media.path
+        source_id = self._paths.get(path)
+        if source_id is None:
+            item, = self.add((path,))
+            self.inspected(InspectionRecord(path, InspectionStatus.COMPLETED, plan.media))
+            item.fingerprint = fingerprint
+            output = self.outputs[item.output_ids[0]]
+            output.label = label
+        else:
+            item = self.items[source_id]
+            if not item.inspected:
+                raise ValueError('Inspect this source before reusing a configuration.')
+            if fingerprint and item.fingerprint and fingerprint != item.fingerprint:
+                raise ValueError('The source has changed since that attempt. Configure a fresh output.')
+            output = self.add_output(source_id, label, plan.operation)
+        output.operation = plan.operation
+        options = output.options[plan.operation]
+        profiles = {stream.index: stream.profile for stream in plan.streams}
+        tracks = tuple((stream.index, profiles[stream.index].encoder if stream.index in profiles else 'omit')
+                       for stream in item.media.streams if stream.index is not None)
+        order = tuple(profiles)
+        hardware = next((entry.encoder for entry in profiles.values() if entry.encoder in GPU_ENCODERS), None)
+        request = replace(
+            options.request, container=plan.output.container, tracks=tracks, track_order=order,
+            stream_profiles=tuple((index, profile) for index, profile in profiles.items() if profile.encoder != 'copy'),
+            target_size_bytes=plan.target_size_bytes, mode='target' if plan.target_size_bytes else 'default',
+            hardware_mode='GPU' if hardware else 'CPU', gpu_encoder=hardware or 'auto',
+            metadata_policy=plan.metadata_policy, chapter_policy=plan.chapter_policy, deep_verify=plan.deep_verify,
+            custom_arguments=' '.join(part for option in plan.custom_options for part in option),
+        )
+        output.options[plan.operation] = replace(
+            options, request=request, folder=str(plan.output.path.parent),
+            template=f'{{name}}_{{operation}}_{output.number}', auto_number=True,
+        )
+        output.revision += 1
+        self.revision += 1
+        return output
 
     def include_output(self, output_id, included):
         output = self.outputs[output_id]

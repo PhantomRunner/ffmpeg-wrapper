@@ -7,7 +7,7 @@ from threading import Event
 from media_wrapper.application.batch_service import path_key
 from media_wrapper.application.conversion_service import conversion_plan
 from media_wrapper.application.media_service import MediaService
-from media_wrapper.application.operation_service import prepare_operation
+from media_wrapper.application.operation_service import operation_warnings, prepare_operation
 from media_wrapper.application.validation_preview import (
     FileValidation,
     ValidationCandidate,
@@ -77,7 +77,10 @@ def snapshot_draft(draft) -> DraftSnapshot:
     )
     for item, configuration, operation in configurations:
         options = configuration.options.get(operation)
-        error = '' if item.inspected else item.inspection.error or item.inspection.status.value if item.inspection else 'Inspect this source first.'
+        error = ''
+        if not item.inspected:
+            error = (item.inspection.error or item.inspection.status.value
+                     if item.inspection else 'Inspect this source first.')
         inputs.append(DraftInput(configuration.id, item.path, configuration.revision, options, error,
                                  bool(options and configuration.queued.get(operation) == options),
                                  item.fingerprint, item.id, operation))
@@ -177,22 +180,33 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
             if operation == MediaOperation.REMUX:
                 if any(action not in ('copy', 'omit') for _, action in request.tracks):
                     raise PlanValidationError(ValidationCode.OPTION, 'Remux must copy every included stream.')
+                mapped = tuple(i for i, action in request.tracks if action != 'omit')
+                if request.track_order and (len(request.track_order) != len(mapped)
+                                            or set(request.track_order) != set(mapped)):
+                    raise PlanValidationError(ValidationCode.STREAM, 'Track order must list every copied stream.')
                 plan = OperationPlan(MediaOperation.REMUX, media,
-                                     tuple(StreamSelection(i) for i, action in request.tracks if action != 'omit'),
+                                     tuple(StreamSelection(i) for i in (request.track_order or mapped)),
                                      OutputTarget(destination, request.container),
-                                     metadata_policy=request.metadata_policy, chapter_policy=request.chapter_policy)
+                                     metadata_policy=request.metadata_policy, chapter_policy=request.chapter_policy,
+                                     deep_verify=request.deep_verify)
             else:
                 plan = conversion_plan(media, request, capabilities)
+            plan = replace(plan, source_id=source.source_id, output_id=source.id)
             if available is None:
                 available = list_encoders(binaries.ffmpeg, event)
             validated = prepare_operation(plan, staged=False, available_encoders=available)
             preview = prepare_operation(validated, available_encoders=available)
             commands = CommandBuilder().build_passes(binaries.ffmpeg, preview, available,
                                                      preview.output.execution_path.with_suffix('.passlog'))
+            excluded = {index for index, action in request.tracks if action == 'omit'}
+            warnings = list(operation_warnings(validated))
+            if excluded:
+                warnings.append('Excluded tracks: ' + ', '.join(
+                    f'#{track.index} {track.title or track.kind}' for track in media.streams if track.index in excluded))
             validation = FileValidation(source.path, destination, request.container.value,
                                         operation.value,
                                         tuple(f'Stream {s.index}: {s.profile.encoder}' for s in validated.streams),
-                                        warnings=(validated.hardware_note,) if validated.hardware_note else (),
+                                        warnings=tuple(warnings),
                                         commands=tuple(tuple(c) for c in commands))
             results.append(PreparedItem(source, validation, validated, (after.st_size, after.st_mtime_ns)))
         except Exception as error:  # noqa: BLE001 - per-source isolation is intentional

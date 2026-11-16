@@ -1,0 +1,122 @@
+{
+  "kind": "media-wrapper-presets",
+  "version": 2,
+  "presets": [
+    {
+      "name": "DaVinci Resolve — Linux", "category": "Editing", "operation": "convert",
+      "description": "DNxHR SQ in MOV with separate PCM audio tracks. Confirm import in your Resolve edition.",
+      "settings": {"container": "mov", "codec_profile": "dnxhr_sq"},
+      "streams": {"video": "dnxhd", "audio": "pcm_s24le"}
+    },
+    {
+      "name": "DaVinci Resolve — Windows", "category": "Editing", "operation": "convert",
+      "description": "H.264 in MOV with separate PCM audio tracks. Compatible 8-bit H.264 video can be copied.",
+      "variant": "resolve-windows",
+      "settings": {"container": "mov", "mode": "quality", "crf": 18},
+      "streams": {"video": "libx264", "audio": "pcm_s24le"}
+    },
+    {
+      "name": "Cross-platform Editing", "category": "Editing", "operation": "convert",
+      "description": "DNxHR HQX and separate PCM audio in QuickTime MOV.",
+      "settings": {"container": "mov", "codec_profile": "dnxhr_hqx", "pixel_format": "yuv422p10le"},
+      "streams": {"video": "dnxhd", "audio": "pcm_s24le"}
+    },
+    {
+      "name": "Editing Intermediate", "category": "Editing", "operation": "convert",
+      "description": "A ProRes HQ intermediate with separate PCM audio at source resolution and frame rate.",
+      "settings": {"container": "mov", "codec_profile": "hq", "pixel_format": "yuv422p10le"},
+      "streams": {"video": "prores_ks", "audio": "pcm_s24le"}
+    },
+    {
+      "name": "Archive High Quality", "category": "Archive", "operation": "compress",
+      "description": "High-quality HEVC with source resolution, frame rate and copied audio streams.",
+      "settings": {"container": "matroska", "mode": "quality", "crf": 18, "preset": "slow"},
+      "streams": {"video": "libx265"}
+    },
+    {
+      "name": "Archive Balanced", "category": "Archive", "operation": "compress",
+      "description": "HEVC compression at the source geometry with copied audio tracks.",
+      "settings": {"container": "matroska", "mode": "quality", "crf": 23},
+      "streams": {"video": "libx265"}
+    },
+    {
+      "name": "Match Review", "category": "Archive", "operation": "compress",
+      "description": "1080-line HEVC while retaining source frame rate and independent audio tracks.",
+      "settings": {"container": "matroska", "mode": "quality", "crf": 24, "height": 1080},
+      "streams": {"video": "libx265"}
+    },
+    {
+      "name": "Archive Minimum Size", "category": "Archive", "operation": "compress",
+      "description": "AV1 for storage with a 720-line picture and separate Opus audio.",
+      "settings": {"container": "matroska", "mode": "quality", "crf": 36, "height": 720, "audio_bitrate": 96000},
+      "streams": {"video": "libsvtav1", "audio": "libopus"}
+    },
+    {
+      "name": "High Quality Publication", "category": "Delivery", "operation": "compress",
+      "description": "High-quality H.264 and AAC delivery in MP4.",
+      "settings": {"container": "mp4", "mode": "quality", "crf": 17, "preset": "slow", "audio_bitrate": 256000},
+      "streams": {"video": "libx264", "audio": "aac"}
+    },
+    {
+      "name": "Universal Compatible Video", "category": "Delivery", "operation": "convert",
+      "description": "8-bit H.264 and AAC in MP4 for general-purpose sharing.",
+      "settings": {"container": "mp4", "mode": "quality", "crf": 22, "pixel_format": "yuv420p"},
+      "streams": {"video": "libx264", "audio": "aac"}
+    },
+    {
+      "name": "University Submission", "category": "Delivery", "operation": "compress",
+      "description": "1080-line H.264 and AAC. Adjust size and other settings to your submission requirements.",
+      "settings": {"container": "mp4", "mode": "quality", "crf": 24, "height": 1080, "audio_bitrate": 128000},
+      "streams": {"video": "libx264", "audio": "aac"}
+    },
+    {
+      "name": "Target File Size", "category": "Delivery", "operation": "compress",
+      "description": "Select an absolute maximum and verify the output size before publication.",
+      "settings": {"container": "mp4", "mode": "target", "target_size": ["100", "MiB"]},
+      "streams": {"video": "libx264", "audio": "aac"}
+    },
+    {
+      "name": "Size per Minute", "category": "Delivery", "operation": "compress",
+      "description": "Set a file-size budget based on the full duration of each source.",
+      "settings": {"container": "mp4", "mode": "target", "target_size": ["10", "MiB/min"]},
+      "streams": {"video": "libx264", "audio": "aac"}
+    },
+    {
+      "name": "Extract Selected Audio", "category": "Audio and Utilities", "operation": "convert", "extraction": "selected",
+      "description": "Create one 24-bit PCM WAV for each explicitly selected track.",
+      "settings": {"container": "wav", "chapter_policy": "strip"},
+      "streams": {"audio": "pcm_s24le"}
+    },
+    {
+      "name": "Extract All Audio", "category": "Audio and Utilities", "operation": "convert", "extraction": "all",
+      "description": "Create a separate WAV for every audio track in a source.",
+      "settings": {"container": "wav", "chapter_policy": "strip"},
+      "streams": {"audio": "pcm_s24le"}
+    },
+    {
+      "name": "Extract All Audio — Copy", "category": "Audio and Utilities", "operation": "convert", "extraction": "all",
+      "variant": "extract-copy",
+      "description": "Copy each audio track into a separate file with a compatible container.",
+      "settings": {"chapter_policy": "strip"},
+      "streams": {"audio": "copy"}
+    },
+    {
+      "name": "Lossless Audio Conversion", "category": "Audio and Utilities", "operation": "convert",
+      "description": "Encode audio to FLAC and retain supported metadata and artwork.",
+      "settings": {"container": "flac", "chapter_policy": "strip"},
+      "streams": {"audio": "flac"}
+    },
+    {
+      "name": "Compatible Audio Conversion", "category": "Audio and Utilities", "operation": "convert",
+      "description": "Encode audio to AAC in M4A and retain supported metadata and artwork.",
+      "settings": {"container": "m4a", "chapter_policy": "strip", "audio_bitrate": 192000},
+      "streams": {"audio": "aac"}
+    },
+    {
+      "name": "Lossless Remux", "category": "Audio and Utilities", "operation": "remux",
+      "description": "Copy compatible original streams into Matroska.",
+      "settings": {"container": "matroska"},
+      "streams": {}
+    }
+  ]
+}
