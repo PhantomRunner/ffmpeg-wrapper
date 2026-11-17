@@ -95,6 +95,7 @@ class DraftController(QObject):
         self.queue.changed.connect(self._queue_changed)
         self.binaries = None
         self.capabilities = None
+        self.default_preset = None
         self.status = 'Detect FFmpeg in Settings to inspect and process files.'
         self.calls = {}
         self.callbacks = {}
@@ -157,6 +158,7 @@ class DraftController(QObject):
         self.generation += 1
         self.probe_cancel.set()
         self.binaries = self.capabilities = None
+        self.queue.bind_recovered_binaries(None)
         self.draft.revision += 1
         self.status = 'Detecting FFmpeg and FFprobe…'
         generation = self.generation
@@ -166,6 +168,7 @@ class DraftController(QObject):
         if generation != self.generation:
             return
         self.binaries = binaries
+        self.queue.bind_recovered_binaries(binaries)
         self.status = f'FFmpeg: {binaries.ffmpeg}\nFFprobe: {binaries.ffprobe}\n{binaries.version}'
         self.pending_probe.extend(item.path for item in self.draft.items.values() if not item.inspected)
         self._start_probe()
@@ -240,6 +243,13 @@ class DraftController(QObject):
                         auto_number=self.defaults.get('auto_number', False),
                     )
                 output.defaults.update(output.options)
+            if self.draft.multiple_outputs and self.default_preset:
+                from media_wrapper.domain.named_presets import apply_named_preset
+                primary = self.draft.outputs_for(item_id)[0]
+                try:
+                    apply_named_preset(self.draft, self.default_preset, (primary.id,))
+                except ValueError as error:
+                    self.notice.emit(str(error))
 
     def cancel_import(self):
         self.import_cancel.set()
@@ -318,6 +328,10 @@ class DraftController(QObject):
         self.preparation = None
         records = self.queue.add_many(tuple(i.plan for i in result.ready), self.binaries,
                                       fingerprints={i.plan.media.path: i.fingerprint for i in result.ready})
+        if not records and self.queue.persistence_error:
+            self.notice.emit(f'Unable to save the queue: {self.queue.persistence_error}')
+            self.changed.emit()
+            return ()
         for item, record in zip(result.ready, records, strict=False):
             target = self.draft.outputs.get(item.source.id) or self.draft.items.get(item.source.id)
             if target is not None and record.plan.output.path == item.plan.output.path:

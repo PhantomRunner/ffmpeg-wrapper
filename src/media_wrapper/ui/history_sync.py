@@ -16,6 +16,10 @@ class HistorySync(QObject):
         controller.service('history', repository.read, self._loaded, self._failed)
 
     def _loaded(self, records):
+        if self.controller.queue.persistent:
+            self.controller.queue.import_legacy_history(records)
+            self.loaded = True
+            return
         existing = {r.id for r in self.controller.queue.records}
         self.seen.update(r.id for r in records)
         self.controller.queue.records.extend(r for r in records if r.id not in existing)
@@ -28,7 +32,7 @@ class HistorySync(QObject):
         self.controller.notice.emit('History could not be saved/loaded; its original file is preserved. ' + error)
 
     def observe(self):
-        if self.disabled:
+        if self.disabled or self.controller.queue.persistent:
             return
         eligible = set(self.controller.queue.finished_history_ids())
         for record in self.controller.queue.records:
@@ -38,6 +42,9 @@ class HistorySync(QObject):
         self._drain()
 
     def clear(self, ids, callback):
+        if self.controller.queue.persistent:
+            callback(ids)
+            return
         if self.disabled:
             self.controller.notice.emit('History storage is unavailable. Its existing records are preserved; repair it and restart before clearing.')
             return
