@@ -1,8 +1,11 @@
-"""Nonblocking, single-use Qt process adapter with bounded diagnostics."""
+"""Nonblocking, single-use Qt process adapter with streamed diagnostics."""
+from codecs import getincrementaldecoder
+
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
 from media_wrapper.infrastructure.ffmpeg.progress_parser import ProgressParser
 from media_wrapper.infrastructure.process_environment import external_environment
+from media_wrapper.infrastructure.process_lifetime import owned_command
 
 
 class ProcessRunner(QObject):
@@ -24,6 +27,8 @@ class ProcessRunner(QObject):
         self.kill_timer.timeout.connect(self.process.kill)
         self._tail = ''
         self.error_output = ''
+        self._stdout_decoder = getincrementaldecoder('utf-8')('replace')
+        self._stderr_decoder = getincrementaldecoder('utf-8')('replace')
         self._done = False
         self._used = False
         self.cancelled = False
@@ -41,7 +46,13 @@ class ProcessRunner(QObject):
         for key, value in external_environment().items():
             environment.insert(key, value)
         self.process.setProcessEnvironment(environment)
-        self.process.start(arguments[0], arguments[1:])
+        try:
+            command = owned_command(arguments)
+        except OSError as error:
+            self.error_output = str(error)
+            self._emit(False, self.error_output)
+            return
+        self.process.start(command[0], command[1:])
 
     def cancel(self) -> None:
         if self._done or not self._used:
@@ -61,15 +72,17 @@ class ProcessRunner(QObject):
         self.stdout.emit(data)
         for progress in self.parser.feed(data):
             self.progress.emit(progress)
-        self._append(data)
+        self._append(self._stdout_decoder.decode(data))
 
     def _read_stderr(self) -> None:
         data = bytes(self.process.readAllStandardError())
-        self.error_output = (self.error_output + data.decode('utf-8', errors='replace'))[-16000:]
-        self._append(data)
+        self._append_error(self._stderr_decoder.decode(data))
 
-    def _append(self, data: bytes) -> None:
-        text = data.decode('utf-8', errors='replace')
+    def _append_error(self, text: str) -> None:
+        self.error_output = (self.error_output + text)[-16000:]
+        self._append(text)
+
+    def _append(self, text: str) -> None:
         self._tail = (self._tail + text)[-16000:]
         if text:
             self.diagnostics.emit(text)
@@ -77,6 +90,8 @@ class ProcessRunner(QObject):
     def _finished(self, code: int, status: QProcess.ExitStatus) -> None:
         self._read_stdout()
         self._read_stderr()
+        self._append(self._stdout_decoder.decode(b'', final=True))
+        self._append_error(self._stderr_decoder.decode(b'', final=True))
         self._emit(not self.cancelled and code == 0 and status == QProcess.ExitStatus.NormalExit
                    and 'Error opening output' not in self._tail and 'Not overwriting' not in self._tail,
                    f'FFmpeg exit code: {code}; status: {status.name}\n{self._tail}')
