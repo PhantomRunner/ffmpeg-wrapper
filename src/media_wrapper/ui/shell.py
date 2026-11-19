@@ -49,20 +49,22 @@ class AppShell(QWidget):
     page_changed = Signal(str)
     ROUTES = ('workspace', 'queue', 'settings')
 
-    def __init__(self, workspace, queue, settings, parent=None):
+    def __init__(self, workspace, queue, settings, parent=None, *, results=False):
         super().__init__(parent)
         self.setObjectName('workspaceRoot')
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 10, 16, 12)
         layout.setSpacing(10)
         header = QHBoxLayout()
-        title = QLabel('FFmpeg Wrapper')
+        title = QLabel('MediaWrapper' if results else 'FFmpeg Wrapper')
         title.setObjectName('brandTitle')
         header.addWidget(title)
         header.addSpacing(24)
         self.navigation = QButtonGroup(self)
         self.buttons = {}
-        for route in self.ROUTES:
+        self.routes = ('workspace', 'queue', 'results', 'settings') if results else self.ROUTES
+        self._page = 'workspace'
+        for route in self.routes:
             if route == 'settings':
                 header.addStretch()
             button = ActionButton(route.title())
@@ -81,12 +83,13 @@ class AppShell(QWidget):
 
     @property
     def page(self):
-        return self.ROUTES[self.stack.currentIndex()]
+        return self._page
 
     def set_page(self, route):
-        if route not in self.ROUTES:
+        if route not in self.routes:
             route = 'workspace'
-        self.stack.setCurrentIndex(self.ROUTES.index(route))
+        self._page = route
+        self.stack.setCurrentIndex(self.ROUTES.index('queue' if route == 'results' else route))
         self.buttons[route].setChecked(True)
         self.page_changed.emit(route)
 
@@ -102,12 +105,12 @@ class WorkspaceLayout:
         splitter.setHandleWidth(8)
 
     def restore(self):
-        self.splitter.setSizes([640, 360])
+        self.splitter.setSizes([570, 430])
         if self.settings and str(self.settings.value('flat/version', '')) == self.VERSION:
             saved = self.settings.value('flat/splitter')
             if isinstance(saved, QByteArray) and (not self.splitter.restoreState(saved)
                                                   or any(n <= 0 for n in self.splitter.sizes())):
-                self.splitter.setSizes([640, 360])
+                self.splitter.setSizes([570, 430])
 
     def save(self):
         if self.settings:
