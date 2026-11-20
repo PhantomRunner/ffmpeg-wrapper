@@ -19,6 +19,7 @@ class WorkbenchPreferences(Preferences):
     auto_number: bool = False
     remember_window: bool = True
     gpu_device: str = ''
+    theme: str = 'system'
 
     @classmethod
     def from_dict(cls, payload):
@@ -40,8 +41,10 @@ class WorkbenchPreferences(Preferences):
         values.update(payload)
         legacy_keys = set(asdict(Preferences()))
         Preferences.from_dict({key: 1 if key == 'version' else values[key] for key in legacy_keys})
-        if values['route'] not in ('workspace', 'queue', 'settings'):
+        if values['route'] not in ('workspace', 'queue', 'results', 'settings'):
             raise ValueError('Invalid page route')
+        if values['theme'] not in ('system', 'light', 'dark'):
+            raise ValueError('Invalid theme')
         operation = MediaOperation(values['operation'])
         for key in ('output_folder', 'gpu_device', 'naming_template'):
             if not isinstance(values[key], str) or '\x00' in values[key] or len(values[key]) > (256 if key == 'naming_template' else 32768):

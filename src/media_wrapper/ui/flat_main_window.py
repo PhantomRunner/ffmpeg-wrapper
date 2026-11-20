@@ -1,9 +1,10 @@
 """Flat desktop workbench, bound to existing media services through draft snapshots."""
 import json
+from dataclasses import replace
 from pathlib import Path
 from threading import Event
 
-from PySide6.QtCore import QByteArray, QSettings, Qt, QTimer, QUrl
+from PySide6.QtCore import QByteArray, QSettings, QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -16,8 +17,6 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -37,7 +36,7 @@ from media_wrapper.ui.draft_controller import DraftController
 from media_wrapper.ui.queue_page import TERMINAL, QueuePage
 from media_wrapper.ui.settings_inspector import SettingsInspector
 from media_wrapper.ui.shell import AppShell, WorkspaceLayout, WorkspaceToolbar
-from media_wrapper.ui.source_table import SourceTable
+from media_wrapper.ui.source_tree import SourceTree, SourceTreeModel
 from media_wrapper.ui.theme import apply_theme
 from media_wrapper.ui.theme.dialogs import DialogTheme
 from media_wrapper.ui.views import SettingsView
@@ -48,20 +47,23 @@ from media_wrapper.ui.workers import CapabilityWorker
 
 class MainWindow(QMainWindow):
     def __init__(self, diagnostic_status='', settings_service=None, layout_settings: QSettings | None = None,
-                 history_repository=None, preset_repository=None):
+                 history_repository=None, preset_repository=None, queue_storage=None):
         super().__init__()
-        self.setWindowTitle('FFmpeg Wrapper')
+        self.setWindowTitle('MediaWrapper')
         self.setMinimumSize(760, 600)
-        apply_theme(self)
         self.dialog_theme = DialogTheme(self)
         self.settings_service = settings_service
         self.preferences_loaded = settings_service.load() if settings_service else WorkbenchPreferences()
         preferences = self.preferences_loaded
+        apply_theme(self, getattr(preferences, 'theme', 'system'))
+        QApplication.instance().styleHints().colorSchemeChanged.connect(self.system_theme_changed)
         self.resize(max(1024, preferences.width), max(680, preferences.height))
         if not getattr(preferences, 'remember_window', True):
             self.resize(1280, 800)
         self.messages = []
-        self.controller = DraftController(self)
+        self.controller = DraftController(self, multiple_outputs=True)
+        if queue_storage:
+            self.controller.queue.enable_persistence(*queue_storage)
         self.controller.defaults = {'container': Container(preferences.container),
                                     'folder': getattr(preferences, 'output_folder', ''),
                                     'template': getattr(preferences, 'naming_template', '{name}_{operation}'),
@@ -90,7 +92,12 @@ class MainWindow(QMainWindow):
         workspace = QVBoxLayout(self.workspace_page)
         workspace.setContentsMargins(0, 0, 0, 0)
         self.toolbar = WorkspaceToolbar()
+        for button in self.toolbar.operation_buttons.values():
+            button.hide()
         self.toolbar.set_operation(self.draft.operation)
+        self.include_subfolders = QCheckBox('Include subfolders')
+        self.include_subfolders.setChecked(True)
+        self.toolbar.layout().insertWidget(2, self.include_subfolders)
         workspace.addWidget(self.toolbar)
         tools = QHBoxLayout()
         self.import_status = QLabel()
@@ -99,12 +106,22 @@ class MainWindow(QMainWindow):
         self.inspector_toggle = ActionButton('Show settings')
         self.inspector_toggle.setCheckable(True)
         self.inspector_toggle.toggled.connect(self._toggle_inspector)
+        self.add_version = ActionButton('+ Add output')
+        self.add_version.clicked.connect(self.add_output)
+        self.source_details = ActionButton('Inspect source')
+        self.source_details.clicked.connect(lambda: self.inspect_source())
+        self.ffmpeg_setup = ActionButton('Configure FFmpeg')
+        self.ffmpeg_setup.clicked.connect(lambda: self.shell.set_page('settings'))
         tools.addWidget(self.import_status, 1)
+        tools.addWidget(self.add_version)
+        tools.addWidget(self.source_details)
+        tools.addWidget(self.ffmpeg_setup)
         tools.addWidget(self.cancel_probe)
         tools.addWidget(self.inspector_toggle)
         workspace.addLayout(tools)
-        self.sources = SourceTable(self.draft)
-        self.inspector = SettingsInspector()
+        self.sources = SourceTree(self.draft)
+        self.toolbar.layout().insertWidget(4, self.sources.search, 1)
+        self.inspector = SettingsInspector(progressive=True)
         self.splitter = QSplitter()
         self.splitter.addWidget(self.sources)
         self.splitter.addWidget(self.inspector)
@@ -112,8 +129,7 @@ class MainWindow(QMainWindow):
         workspace.addWidget(self.splitter, 1)
         footer = QFrame()
         footer.setObjectName('operationActions')
-        footer_layout = QVBoxLayout(footer)
-        row = QHBoxLayout()
+        row = QHBoxLayout(footer)
         self.validation_summary = QLabel('Include files, then validate the current settings.')
         self.validation_summary.setWordWrap(True)
         self.validation_summary.setAccessibleName('Draft validation summary')
@@ -121,19 +137,14 @@ class MainWindow(QMainWindow):
         self.review = ActionButton('Review issues')
         self.command = ActionButton('View FFmpeg command')
         self.validate = ActionButton('Validate')
-        for button in (self.review, self.command, self.validate):
+        for button in (self.review, self.validate):
             row.addWidget(button)
-        footer_layout.addLayout(row)
-        actions = QHBoxLayout()
-        self.output_note = QLabel('Sources and existing outputs are never overwritten.')
-        self.output_note.setProperty('role', 'fieldHelp')
-        self.output_note.setWordWrap(True)
-        actions.addWidget(self.output_note, 1)
+        self.command.setParent(footer)
+        self.command.hide()
         self.enqueue = ActionButton('Add to queue')
         self.start = ActionButton('Start processing', primary=True)
-        actions.addWidget(self.enqueue)
-        actions.addWidget(self.start)
-        footer_layout.addLayout(actions)
+        row.addWidget(self.enqueue)
+        row.addWidget(self.start)
         workspace.addWidget(footer)
         self.queue_page = QueuePage()
         self.settings_view = SettingsView()
@@ -151,7 +162,7 @@ class MainWindow(QMainWindow):
         settings_scroll = QScrollArea()
         settings_scroll.setWidgetResizable(True)
         settings_scroll.setWidget(self.settings_view)
-        self.shell = AppShell(self.workspace_page, self.queue_page, settings_scroll)
+        self.shell = AppShell(self.workspace_page, self.queue_page, settings_scroll, results=True)
         self.setCentralWidget(self.shell)
         self.statusBar().showMessage(diagnostic_status)
         self.status_label = QLabel('FFmpeg not detected')
@@ -168,12 +179,17 @@ class MainWindow(QMainWindow):
         self.toolbar.add_folder.clicked.connect(self.choose_folder)
         self.toolbar.remove.clicked.connect(self.remove_selected)
         self.toolbar.operation_changed.connect(self.set_operation)
-        self.sources.files_dropped.connect(self.controller.import_sources)
+        self.sources.files_dropped.connect(lambda paths: self.controller.import_sources(paths, recursive=self.include_subfolders.isChecked()))
         self.sources.model.inclusion_changed.connect(self.controller.include)
         self.sources.selection_changed.connect(self.select_sources)
+        self.sources.output_focused.connect(self.focus_output)
+        self.sources.source_inspected.connect(self.inspect_source)
         self.inspector.field_changed.connect(self.controller.patch)
         self.inspector.scope_changed.connect(self.set_scope)
+        self.inspector.operation_requested.connect(self.set_operation)
+        self.inspector.command_requested.connect(lambda: self.controller.prepare('commands'))
         self.inspector.streams_changed.connect(lambda item_id, tracks: self.controller.patch('tracks', tracks, (item_id,)))
+        self.inspector.stream_profiles_changed.connect(lambda item_id, profiles: self.controller.patch('stream_profiles', profiles, (item_id,)))
         self.inspector.reset_field.connect(self.reset_field)
         self.inspector.reset_all.connect(self.reset_all)
         self.inspector.preset_requested.connect(self.apply_preset)
@@ -203,6 +219,8 @@ class MainWindow(QMainWindow):
                             ('Ctrl+,', lambda: self.shell.set_page('settings')),
                             ('Alt+1', lambda: self.shell.set_page('workspace')),
                             ('Alt+2', lambda: self.shell.set_page('queue')),
+                            ('Alt+3', lambda: self.shell.set_page('results')),
+                            ('Ctrl+I', self.inspect_source),
                             ('Ctrl+Return', self.primary_action)):
             QShortcut(key, self, activated=action)
         delete = QShortcut('Delete', self.sources.table, activated=self.remove_selected)
@@ -218,6 +236,8 @@ class MainWindow(QMainWindow):
                 self.restoreGeometry(geometry)
         self.shell.set_page(route)
         self.render()
+        if queue_storage and self.controller.queue.persistence_error:
+            self.show_notice(self.controller.queue.persistence_error)
         self.history_sync = None
         if history_repository:
             from media_wrapper.ui.history_sync import HistorySync
@@ -248,64 +268,48 @@ class MainWindow(QMainWindow):
             valid = bool(result and result.snapshot.revision == self.draft.revision)
             statuses = {item.source.id: 'Error: ' + item.validation.field if not item.validation.ready else
                         'Warning' if item.validation.warnings else 'Ready' for item in result.items} if valid else {}
-            for item in self.draft.items.values():
-                if item.inspected and item.options.get(self.draft.operation) and item.queued.get(self.draft.operation) == item.options[self.draft.operation]:
-                    statuses[item.id] = 'Added to queue'
+            for output in self.draft.outputs.values():
+                options = output.options.get(output.operation)
+                if options and output.queued.get(output.operation) == options:
+                    statuses[output.id] = 'Added to queue'
             self.sources.model.statuses = statuses
             self.sources.refresh()
-            if not self.draft.selected and self.sources.proxy.rowCount():
-                self.sources.table.selectRow(0)
-            inspector_key = (self.draft.revision, self.draft.operation, self.draft.scope, self.draft.selected,
-                             id(controller.capabilities), self.preset_names())
+            if not self.sources.row_ids() and self.draft.active_output_id and not self.sources.search.text():
+                self.sources.select_id(self.draft.active_output_id)
+            inspector_key = (self.draft.revision, self.draft.operation, self.draft.scope,
+                             self.draft.active_output_id, self.draft.selected_outputs,
+                             id(controller.capabilities), tuple(self.named_presets.items()))
             if inspector_key != self._inspector_key:
-                self.inspector.render(self.draft, controller.capabilities, self.preset_names())
+                self.inspector.render(self.draft, controller.capabilities, self.available_presets())
                 self._inspector_key = inspector_key
-            if valid:
-                destination = next((i.validation.destination for i in result.items if i.validation.destination), None)
-                self.inspector.output_preview.setText(f'Resolved output: {destination}' if destination else 'Review output issues before processing.')
-            elif len(self.draft.selected) == 1:
-                from media_wrapper.application.draft_service import (
-                    DraftInput,
-                    requested_destination,
-                )
-                item = self.draft.items.get(self.draft.selected[0])
-                if item and item.inspected:
-                    try:
-                        included_ids = tuple(i.id for i in self.draft.items.values() if i.included)
-                        index = included_ids.index(item.id) + 1 if item.id in included_ids else 1
-                        candidate = DraftInput(item.id, item.path, item.revision, item.options[self.draft.operation])
-                        self.inspector.output_preview.setText('Candidate (validate conflicts): ' + str(requested_destination(candidate, self.draft.operation, index)))
-                    except ValueError as error:
-                        self.inspector.output_preview.setText(str(error))
-            if len(self.draft.selected) == 1:
-                from media_wrapper.application.draft_service import draft_size_note
-                item = self.draft.items.get(self.draft.selected[0])
-                if item and item.inspected:
-                    try:
-                        self.inspector.size_note.setText(draft_size_note(item.media, item.options[self.draft.operation]))
-                    except ValueError as error:
-                        self.inspector.size_note.setText(str(error))
-            else:
-                self.inspector.size_note.setText('Select one source for its size estimate. Quality modes have variable output size.')
-            included = [i for i in self.draft.items.values() if i.included]
+            self.render_output_preview(result if valid else None)
+            included = [output for output in self.draft.outputs.values() if output.included]
+            source_ids = dict.fromkeys(output.source_id for output in included)
             from media_wrapper.domain.inspection import InspectionStatus
-            probing = sum(bool(i.inspection and i.inspection.status == InspectionStatus.RUNNING) for i in included)
-            waiting = sum(not i.inspection or i.inspection.status == InspectionStatus.PENDING for i in included)
-            failed = sum(bool(i.inspection and i.inspection.status == InspectionStatus.FAILED) for i in included)
+            included_sources = [self.draft.items[source_id] for source_id in source_ids]
+            probing = sum(bool(item.inspection and item.inspection.status == InspectionStatus.RUNNING) for item in included_sources)
+            waiting = sum(not item.inspection or item.inspection.status == InspectionStatus.PENDING for item in included_sources)
+            failed = sum(bool(item.inspection and item.inspection.status == InspectionStatus.FAILED) for item in included_sources)
             if valid:
                 ready = len(result.ready)
                 warnings = sum(bool(i.validation.warnings) for i in result.ready)
-                self.validation_summary.setText(f'{ready} ready · {warnings} warnings · {len(result.items) - ready} errors · {probing} probing · {waiting} waiting')
+                self.validation_summary.setText(f'{ready} ready · {warnings} warnings · {len(result.items) - ready} errors')
             else:
-                self.validation_summary.setText(f'{len(included)} included · {probing} probing · {waiting} waiting · {failed} failed probe · Not validated' +
-                                                (' — settings or files changed' if result else ''))
+                details = [f'{len(included)} outputs included']
+                if probing or waiting or failed:
+                    details.extend(f'{count} {name}' for count, name in
+                                   ((probing, 'probing'), (waiting, 'waiting'), (failed, 'failed probe')) if count)
+                self.validation_summary.setText(' · '.join(details))
             preparing = 'prepare' in controller.calls
             for button in (self.command, self.validate, self.enqueue, self.start):
                 button.setEnabled(bool(included) and bool(self.binaries) and not preparing)
                 button.setToolTip('Include files and detect FFmpeg first.' if not included or not self.binaries else
                                   'Validating…' if preparing else 'Validate current settings and resolve destinations.')
             self.review.setEnabled(bool(result))
-            self.toolbar.remove.setEnabled(bool(self.draft.selected))
+            self.toolbar.remove.setEnabled(bool(self.sources.row_ids()))
+            self.add_version.setEnabled(bool(self.sources.current_source_id()))
+            self.source_details.setEnabled(bool(self.sources.current_source_id() or self.draft.inspector_source_id))
+            self.ffmpeg_setup.setVisible(not self.binaries and 'binaries' not in controller.calls)
             self.cancel_probe.setVisible('probe' in controller.calls or 'import' in controller.calls)
             self.import_status.setText(f'{len(self.draft.items)} input file(s)' + (' · Probing…' if 'probe' in controller.calls else ''))
             self.queue_page.render(controller.queue, controller.busy)
@@ -326,6 +330,35 @@ class MainWindow(QMainWindow):
         finally:
             self._rendering = False
 
+    def render_output_preview(self, result):
+        from media_wrapper.application.draft_service import (
+            DraftInput,
+            draft_size_note,
+            requested_destination,
+        )
+        output = self.draft.outputs.get(self.draft.active_output_id)
+        options = output.options.get(output.operation) if output else None
+        if not options:
+            self.inspector.output_preview.setText('Choose an inspected output to preview its destination.')
+            self.inspector.size_note.clear()
+            return
+        item = self.draft.items[output.source_id]
+        if not item.inspected:
+            self.inspector.output_preview.setText('Inspect the source before choosing output settings.')
+            self.inspector.size_note.clear()
+            return
+        try:
+            prepared = next((i for i in result.items if i.source.id == output.id), None) if result else None
+            index = next((i for i, entry in enumerate((o for o in self.draft.outputs.values() if o.included), 1)
+                          if entry.id == output.id), 1)
+            candidate = DraftInput(output.id, item.path, output.revision, options)
+            destination = prepared.validation.destination if prepared else requested_destination(candidate, output.operation, index)
+            self.inspector.output_preview.setText(str(destination) if destination else 'Review output issues before processing.')
+            self.inspector.size_note.setText(draft_size_note(item.media, options))
+        except ValueError as error:
+            self.inspector.output_preview.setText(str(error))
+            self.inspector.size_note.clear()
+
     def show_notice(self, text):
         self.messages = (self.messages + [text])[-100:]
         if 'preserv' in text.lower() and any(word in text.lower() for word in ('history', 'preset', 'settings')):
@@ -341,22 +374,86 @@ class MainWindow(QMainWindow):
             self.controller.import_sources(tuple(Path(p) for p in paths))
 
     def choose_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, 'Add folder recursively')
+        folder = QFileDialog.getExistingDirectory(self, 'Add media folder')
         if folder:
-            self.controller.import_sources((Path(folder),))
+            self.controller.import_sources((Path(folder),), recursive=self.include_subfolders.isChecked())
 
     def remove_selected(self):
-        if self.shell.page == 'workspace' and not isinstance(QApplication.focusWidget(), QTextEdit):
-            self.draft.remove(self.sources.selected_ids())
-            self.controller.changed.emit()
+        if self.shell.page != 'workspace' or isinstance(QApplication.focusWidget(), QTextEdit):
+            return
+        rows = self.sources.row_ids()
+        sources = tuple(row for row in rows if row in self.draft.items)
+        for row in rows:
+            output = self.draft.outputs.get(row)
+            if output and output.source_id not in sources:
+                try:
+                    self.draft.remove_output(row)
+                except ValueError as error:
+                    self.show_notice(str(error))
+        if sources:
+            self.draft.remove(sources)
+        self.controller.changed.emit()
 
     def select_sources(self, ids):
         self.draft.selected = ids
+        self.draft.selected_outputs = self.sources.selected_output_ids()
         if not self._rendering:
-            self.inspector.render(self.draft, self.controller.capabilities, self.preset_names())
+            self.schedule_render()
+
+    def focus_output(self, output_id):
+        self.draft.focus_output(output_id)
+        self.toolbar.set_operation(self.draft.operation)
+        self.schedule_render()
+
+    def add_output(self):
+        source_id = self.sources.current_source_id()
+        if source_id is None:
+            return
+        output = self.draft.add_output(source_id)
+        self.draft.focus_output(output.id)
+        self.render()
+        self.sources.select_id(output.id)
+        self._toggle_inspector(True)
+
+    def rename_output(self, output_id):
+        output = self.draft.outputs[output_id]
+        label, ok = QInputDialog.getText(self, 'Rename output', 'Output label', text=output.label)
+        if ok:
+            try:
+                self.draft.rename_output(output.id, label)
+                self._inspector_key = None
+                self.render()
+            except ValueError as error:
+                self.show_notice(str(error))
+
+    def inspect_source(self, source_id=None):
+        if self.shell.page != 'workspace':
+            return
+        source_id = source_id or self.sources.current_source_id() or self.draft.inspector_source_id
+        item = self.draft.items.get(source_id)
+        if item is None:
+            return
+        from media_wrapper.ui.inspection_presenter import format_inspection
+        self.draft.inspector_source_id = item.id
+        details = format_inspection(item.media) if item.inspected else (
+            item.inspection.error or item.inspection.status.value if item.inspection else 'Waiting for media inspection.')
+        dialog = self.show_text(f'Inspect source · {item.path.name}', details)
+        export = ActionButton('Export text…')
+        export.clicked.connect(lambda: self.export_inspection(item.path.stem, details))
+        dialog.layout().addWidget(export)
+
+    def export_inspection(self, source_name, details):
+        name, _ = QFileDialog.getSaveFileName(self, 'Export source inspection', f'{source_name}-inspection.txt', 'Text (*.txt)',
+                                              options=QFileDialog.Option.DontConfirmOverwrite)
+        if name:
+            def save():
+                with Path(name).open('x', encoding='utf-8') as stream:
+                    stream.write(details + '\n')
+                return name
+            self.controller.service('inspection export', save, lambda path: self.show_notice(f'Saved inspection: {path}'))
 
     def set_operation(self, operation):
-        self.draft.operation = operation
+        self.draft.set_operation(operation)
         self.controller.invalidate()
         self.toolbar.set_operation(operation)
 
@@ -365,16 +462,17 @@ class MainWindow(QMainWindow):
         self.render()
 
     def reset_field(self, name):
-        for item in self.draft.editable():
-            initial = item.defaults.get(self.draft.operation, default_options(item.media, self.draft.operation))
-            target_name = 'audio_quality' if name == 'audio_mode' else name
+        target_name = 'audio_quality' if name == 'audio_mode' else name
+        for output in self.draft.editable_outputs():
+            item = self.draft.items[output.source_id]
+            initial = output.defaults.get(output.operation) or default_options(item.media, output.operation)
             if name in ('video_encoder', 'audio_encoder'):
                 kind = name.split('_')[0]
                 indices = {s.index for s in item.media.streams if s.kind == kind}
                 value = next((encoder for index, encoder in initial.request.tracks if index in indices), 'copy')
             else:
                 value = getattr(initial, target_name) if hasattr(initial, target_name) else getattr(initial.request, target_name)
-            self.draft.patch(target_name, value, (item.id,))
+            self.draft.patch(target_name, value, (output.id,))
         self.controller.changed.emit()
 
     def reset_all(self):
@@ -390,18 +488,10 @@ class MainWindow(QMainWindow):
     def prepared(self, result, action):
         self.render()
         if action in ('enqueue', 'start'):
-            if not result.ready:
-                self.show_issues()
+            if len(result.ready) != len(result.items) or any(i.validation.warnings for i in result.ready):
+                self.show_issues(action)
                 return
-            warnings = [w for item in result.ready for w in item.validation.warnings]
-            if warnings and QMessageBox.question(self, 'Review warnings', '\n'.join(dict.fromkeys(warnings)) +
-                                                 '\n\nProcess the ready files with these settings?',
-                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                                 QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
-                return
-            records = self.controller.enqueue_prepared(result, action == 'start')
-            if records and action == 'start':
-                self.shell.set_page('queue')
+            self.start_prepared(result, action)
         elif action == 'commands':
             commands = [{'source': str(i.source.path), 'output': str(i.validation.destination),
                          'commands': i.validation.commands, 'error': i.validation.error} for i in result.items]
@@ -411,11 +501,16 @@ class MainWindow(QMainWindow):
         else:
             self.show_issues()
 
+    def start_prepared(self, result, action):
+        records = self.controller.enqueue_prepared(result, action == 'start')
+        if records and action == 'start':
+            self.shell.set_page('queue')
+
     def show_text(self, title, text):
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
         dialog.resize(760, 500)
-        apply_theme(dialog)
+        apply_theme(dialog, self.theme_mode())
         layout = QVBoxLayout(dialog)
         editor = QTextEdit()
         editor.setReadOnly(True)
@@ -429,7 +524,7 @@ class MainWindow(QMainWindow):
         dialog.show()
         return dialog
 
-    def show_issues(self):
+    def show_issues(self, action=None):
         result = self.controller.preparation
         if not result:
             self.controller.prepare('validate')
@@ -452,17 +547,21 @@ class MainWindow(QMainWindow):
             row.addWidget(picker, 1)
             row.addWidget(go)
             dialog.layout().addLayout(row)
+        if action in ('enqueue', 'start') and result.ready:
+            ready = len(result.ready)
+            label = f'Start {ready} ready output(s)' if action == 'start' else f'Queue {ready} ready output(s)'
+            confirm = ActionButton(label, primary=True)
+            def proceed():
+                self.start_prepared(result, action)
+                dialog.close()
+            confirm.clicked.connect(proceed)
+            dialog.layout().addWidget(confirm)
 
     def locate_issue(self, item, dialog):
-        from media_wrapper.ui.source_table import SourceModel
         self.shell.set_page('workspace')
         self.sources.search.clear()
-        for row in range(self.sources.proxy.rowCount()):
-            index = self.sources.proxy.index(row, 0)
-            if index.data(SourceModel.ID_ROLE) == item.source.id:
-                self.sources.table.selectRow(row)
-                self.sources.table.scrollTo(index)
-                break
+        self.sources.select_id(item.source.id)
+        self.render()
         name = {'output': 'folder', 'compatibility': 'container', 'option': 'mode', 'settings': 'container'}.get(item.validation.field)
         if name:
             self._toggle_inspector(True)
@@ -482,23 +581,29 @@ class MainWindow(QMainWindow):
         table = self.sources.table
         index = table.indexAt(point)
         if index.isValid() and not table.selectionModel().isSelected(index):
-            table.selectRow(index.row())
+            self.sources.select_id(index.data(SourceTreeModel.ID_ROLE))
         ids = self.sources.selected_ids()
         if not ids:
             return
         item = self.draft.items[ids[0]]
         menu = QMenu(self)
+        menu.addAction('Inspect source', lambda: self.inspect_source(item.id))
         menu.addAction('Copy source path', lambda: QApplication.clipboard().setText(str(item.path)))
         menu.addAction('Open containing folder', lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(item.path.parent))))
-        menu.addAction('Inspect selected again', lambda: self.reinspect(ids))
-        menu.addAction('Reset selected overrides', lambda: self.reset_selected(ids))
-        menu.addAction('Remove from draft', self.remove_selected)
+        menu.addAction('Probe selected sources again', lambda: self.reinspect(ids))
+        menu.addSeparator()
+        menu.addAction('Add an output', self.add_output)
+        if output_id := index.data(SourceTreeModel.OUTPUT_ROLE):
+            menu.addAction('Rename output…', lambda: self.rename_output(output_id))
+        menu.addAction('Reset selected overrides', lambda: self.reset_selected(self.sources.selected_output_ids()))
+        menu.addAction('Remove from workspace', self.remove_selected)
         menu.exec(table.viewport().mapToGlobal(point))
 
     def reinspect(self, ids):
         for item_id in ids:
             if item_id in self.draft.items:
-                self.draft.items[item_id].queued.clear()
+                for output in self.draft.outputs_for(item_id):
+                    output.queued.clear()
         self.controller.pending_probe.extend(self.draft.items[i].path for i in ids if i in self.draft.items)
         self.controller._start_probe()
 
@@ -585,7 +690,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(FieldRow('Default naming template', self.default_template))
         layout.addWidget(self.default_auto_number)
         layout.addWidget(self.remember_window)
-        layout.addWidget(QLabel('Theme: Flat dark · Processing: one FFmpeg job at a time'))
+        self.theme_picker = ReadableComboBox()
+        for label, mode in (('System', 'system'), ('Light', 'light'), ('Dark', 'dark')):
+            self.theme_picker.addItem(label, mode)
+        self.theme_picker.setCurrentIndex(self.theme_picker.findData(getattr(preferences, 'theme', 'system')))
+        self.theme_picker.currentIndexChanged.connect(self.change_theme)
+        layout.addWidget(FieldRow('Theme', self.theme_picker))
         messages = ActionButton('View application messages')
         messages.clicked.connect(lambda: self.show_text('Application messages', '\n\n'.join(self.messages) or 'No application messages.'))
         layout.addWidget(messages)
@@ -593,6 +703,18 @@ class MainWindow(QMainWindow):
         self.default_template.editingFinished.connect(self.defaults_changed)
         self.default_auto_number.toggled.connect(self.defaults_changed)
         self.settings_view.layout().insertWidget(3, box)
+
+    def theme_mode(self):
+        return self.theme_picker.currentData() if hasattr(self, 'theme_picker') else self.property('themeMode') or 'system'
+
+    def change_theme(self, *_):
+        apply_theme(self, self.theme_mode())
+        for dialog in self._dialogs:
+            apply_theme(dialog, self.theme_mode())
+
+    def system_theme_changed(self, *_):
+        if self.theme_mode() == 'system':
+            self.change_theme()
 
     def defaults_changed(self, *_):
         from media_wrapper.domain.output_naming import draft_output_name
@@ -728,33 +850,61 @@ class MainWindow(QMainWindow):
                                     lambda path: self.show_notice(f'Saved queue: {path}'))
 
     def apply_preset(self, name):
-        from media_wrapper.domain.encoding_presets import PRESETS
-        if name.startswith('builtin:'):
-            preset = PRESETS[int(name.split(':')[1])]
-            for item in self.draft.editable():
-                tracks = tuple((s.index, preset.video_encoder if s.kind == 'video' and preset.video_encoder else
-                                'aac' if s.kind == 'audio' else 'omit' if preset.video_encoder is None else 'copy')
-                               for s in item.media.streams if s.index is not None)
-                patch = {'container': preset.container, 'tracks': tracks, 'mode': 'quality' if preset.video_encoder else 'default',
-                         'crf': preset.crf, 'preset': preset.speed, 'audio_bitrate': preset.audio_bitrate,
-                         'audio_quality': None, 'width': None, 'height': None, 'fps': ''}
-                for field, value in patch.items():
-                    self.draft.patch(field, value, (item.id,), preset_name=preset.name)
-            self.controller.changed.emit()
-        elif name.startswith('named:'):
-            from media_wrapper.domain.named_presets import apply_named_preset
-            preset = self.named_presets.get(name.removeprefix('named:'))
-            if preset:
-                apply_named_preset(self.draft, preset)
-                self.controller.changed.emit()
+        from media_wrapper.domain.named_presets import apply_named_preset
+
+        preset = self.available_presets().get(name.removeprefix('named:'))
+        if not preset:
+            return
+        targets = self.draft.editable_outputs()
+        selected_streams = ()
+        if preset.extraction == 'selected':
+            if len(targets) != 1:
+                self.show_notice('Choose one output to select its audio tracks, or use Extract All Audio for a batch.')
+                return
+            source = self.draft.items[targets[0].source_id]
+            selected_streams = self.choose_audio_tracks(source.media)
+            if not selected_streams:
+                return
+        try:
+            outputs = apply_named_preset(self.draft, preset, selected_streams=selected_streams)
+        except ValueError as error:
+            self.show_text('Preset needs review', str(error))
+            return
+        if outputs and self.draft.active_output_id is None:
+            self.draft.focus_output(outputs[0].id)
+        self.controller.changed.emit()
+
+    def choose_audio_tracks(self, media):
+        tracks = [stream for stream in media.streams if stream.kind == 'audio' and stream.index is not None]
+        if not tracks:
+            self.show_notice('This source has no audio tracks.')
+            return ()
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Choose audio tracks')
+        apply_theme(dialog, self.theme_mode())
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel('A separate file will be created for each checked track.'))
+        picks = []
+        for track in tracks:
+            parts = (str(track.index), track.title or 'Audio', track.codec, track.language)
+            box = QCheckBox(' · '.join(part for part in parts if part))
+            layout.addWidget(box)
+            picks.append((track.index, box))
+        from PySide6.QtWidgets import QDialogButtonBox
+        actions = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        actions.accepted.connect(dialog.accept)
+        actions.rejected.connect(dialog.reject)
+        layout.addWidget(actions)
+        return tuple(index for index, button in picks if button.isChecked()) if dialog.exec() else ()
 
     def exchange_profile(self, importing):
         from media_wrapper.application.profile_service import (
             export_profile,
             import_profile,
         )
-        targets = self.draft.editable()
-        if not targets or not self.binaries or self.draft.operation == MediaOperation.REMUX:
+        targets = self.draft.editable_outputs()
+        operations = {target.operation for target in targets}
+        if not targets or not self.binaries or len(operations) != 1 or MediaOperation.REMUX in operations:
             self.show_notice('Select inspected Convert/Compress sources and detect FFmpeg first.')
             return
         name, _ = (QFileDialog.getOpenFileName(self, 'Import encoding profile', '', 'JSON (*.json)') if importing else
@@ -765,25 +915,25 @@ class MainWindow(QMainWindow):
             self.show_notice('Use Selected rows scope with one file to export its profile.')
             return
         binaries, report = self.binaries, self.controller.capabilities
-        operation, revision = self.draft.operation, self.draft.revision
-        snapshots = tuple((item.id, item.media, item.options[operation].request) for item in targets)
+        operation, revision = next(iter(operations)), self.draft.revision
+        snapshots = tuple((output.id, self.draft.items[output.source_id].media, output.options[operation].request)
+                          for output in targets)
         if importing:
             def read():
                 return tuple((item_id, import_profile(Path(name), request.destination, media, binaries, report))
                              for item_id, media, request in snapshots)
             def apply(requests):
-                if self.draft.revision != revision or self.draft.operation != operation:
+                if self.draft.revision != revision:
                     self.show_notice('Draft changed. Import the profile again.')
                     return
-                from dataclasses import replace
                 for item_id, request in requests:
                     if request.operation != operation:
                         self.show_notice('Switch to the operation stored in the profile before applying it.')
                         return
                 for item_id, request in requests:
-                    item = self.draft.items[item_id]
-                    item.options[operation] = replace(item.options[operation], request=request, preset_name=Path(name).stem)
-                    item.revision += 1
+                    output = self.draft.outputs[item_id]
+                    output.options[operation] = replace(output.options[operation], request=request, preset_name=Path(name).stem)
+                    output.revision += 1
                 self.draft.revision += 1
                 self.controller.changed.emit()
             self.controller.service('profile', read, apply)
@@ -805,11 +955,16 @@ class MainWindow(QMainWindow):
         except ValueError as error:
             self.show_text('Preset needs review', str(error))
             return
-        overwrite = preset.name in self.named_presets
+        by_name = self.available_presets()
+        overwrite = preset.name in by_name
         if overwrite and QMessageBox.question(self, 'Replace named preset', f'Replace "{preset.name}"?',
                                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                                QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
+        if overwrite:
+            previous = by_name[preset.name]
+            preset = replace(preset, category=previous.category, description=previous.description,
+                             favorite=previous.favorite, default=previous.default)
         if self.preset_repository:
             self.controller.service('presets', lambda: self.preset_repository.save(preset, overwrite), self.presets_loaded, self.presets_failed)
         else:
@@ -884,11 +1039,13 @@ class MainWindow(QMainWindow):
         self._dialogs.append(dialog)
         dialog.show()
 
-    def preset_names(self):
-        return tuple(name for name, preset in self.named_presets.items() if preset.operation == self.draft.operation)
+    def available_presets(self):
+        from media_wrapper.domain.named_presets import factory_presets
+        return factory_presets() | self.named_presets
 
     def presets_loaded(self, presets):
         self.named_presets = presets
+        self.controller.default_preset = next((preset for preset in self.available_presets().values() if preset.default), None)
         self.controller.changed.emit()
 
     def presets_failed(self, error):
@@ -897,19 +1054,23 @@ class MainWindow(QMainWindow):
 
     def _toggle_inspector(self, visible):
         self._narrow_inspector = visible
-        self.inspector.setVisible(visible or self.width() >= 1024)
-        self.inspector_toggle.setText('Hide settings' if visible else 'Show settings')
+        narrow = self.width() < 1024
+        with QSignalBlocker(self.inspector_toggle):
+            self.inspector_toggle.setChecked(visible)
+        self.sources.setVisible(not narrow or not visible)
+        self.sources.search.setVisible(not narrow or not visible)
+        self.inspector.setVisible(visible or not narrow)
+        self.inspector_toggle.setText('Back to sources' if visible else 'Show settings')
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, 'inspector'):
             narrow = self.width() < 1024
             self.inspector_toggle.setVisible(narrow)
-            self.inspector.setVisible(not narrow or self._narrow_inspector)
+            self._toggle_inspector(self._narrow_inspector)
 
     def preferences(self):
-        from dataclasses import replace
-        page = 4 if self.shell.page == 'queue' else 5 if self.shell.page == 'settings' else {
+        page = 4 if self.shell.page in ('queue', 'results') else 5 if self.shell.page == 'settings' else {
             MediaOperation.REMUX: 1, MediaOperation.CONVERT: 2, MediaOperation.COMPRESS: 3}[self.draft.operation]
         extra = {}
         if isinstance(self.preferences_loaded, WorkbenchPreferences):
@@ -917,7 +1078,8 @@ class MainWindow(QMainWindow):
                      'output_folder': self.controller.defaults.get('folder', ''),
                      'naming_template': self.controller.defaults.get('template', '{name}_{operation}'),
                      'auto_number': self.default_auto_number.isChecked(),
-                     'remember_window': self.remember_window.isChecked(), 'gpu_device': self.settings_view.gpu_device.text()}
+                     'remember_window': self.remember_window.isChecked(), 'gpu_device': self.settings_view.gpu_device.text(),
+                     'theme': self.theme_mode()}
         return replace(self.preferences_loaded, log_level=self.settings_view.log_level.currentText(),
                        binary_mode=self.settings_view.mode.currentText(), binary_directory=self.settings_view.folder.text(),
                        page=page, width=self.width() if self.remember_window.isChecked() else 1280,

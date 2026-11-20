@@ -1,4 +1,5 @@
 """Platform-independent fallback rendering and matching dialog icons."""
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QProxyStyle, QStyle, QStyleFactory
 
 from media_wrapper.ui.theme.icons import icon
@@ -40,5 +41,6 @@ class StudioStyle(QProxyStyle):
             QStyle.StandardPixmap.SP_MediaPause: 'pause',
         }
         if name := names.get(standard_icon):
-            return icon(name)
+            color = widget.palette().color(QPalette.ColorRole.Text).name() if widget else None
+            return icon(name, color=color)
         return super().standardIcon(standard_icon, option, widget)

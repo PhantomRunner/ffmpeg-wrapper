@@ -12,12 +12,15 @@ from PySide6.QtWidgets import (
     QPushButton,
 )
 
-from media_wrapper.ui.theme import apply_theme
+from media_wrapper.ui.theme import apply_theme, theme_colors
 from media_wrapper.ui.theme.icons import icon
-from media_wrapper.ui.theme.tokens import COLORS
 
 
 class FileIcons(QFileIconProvider):
+    def __init__(self, scheme):
+        super().__init__()
+        self.colors = theme_colors(scheme)
+
     def icon(self, entry):
         if isinstance(entry, QFileInfo):
             name = 'folder' if entry.isDir() else 'file'
@@ -27,7 +30,7 @@ class FileIcons(QFileIconProvider):
                 QFileIconProvider.IconType.File: 'file',
                 QFileIconProvider.IconType.Trashcan: 'trash',
             }.get(entry, 'media')
-        return icon(name, color=COLORS['secondary'])
+        return icon(name, color=self.colors['secondary'])
 
 
 class DialogHeader(QFrame):
@@ -47,7 +50,7 @@ class DialogHeader(QFrame):
         self.close_button.setObjectName('windowClose')
         self.close_button.setProperty('variant', 'windowControl')
         self.close_button.setAutoDefault(False)
-        self.close_button.setIcon(icon('close', 14))
+        self.close_button.setIcon(icon('close', 14, theme_colors(dialog.property('themeResolved'))['text']))
         self.close_button.setIconSize(QSize(14, 14))
         self.close_button.setFixedSize(32, 32)
         self.close_button.setAccessibleName('Close dialog')
@@ -113,7 +116,7 @@ class DialogTheme(QObject):
 
         dialog.setProperty('studioDialog', True)
         dialog.setWindowFlag(Qt.WindowType.FramelessWindowHint)
-        apply_theme(dialog)
+        apply_theme(dialog, self.parent().property('themeMode') or 'dark')
         # QWidget margins reserve space for the overlay independently of the
         # layout margins rebuilt by QMessageBox when its icon or text changes.
         margins = dialog.contentsMargins()
@@ -125,7 +128,7 @@ class DialogTheme(QObject):
         dialog.installEventFilter(self)
         header.show()
         if isinstance(dialog, QFileDialog):
-            header.file_icons = FileIcons()
+            header.file_icons = FileIcons(dialog.property('themeResolved'))
             dialog.setIconProvider(header.file_icons)
         if isinstance(dialog, QMessageBox):
             names = {QMessageBox.Icon.Information: ('info', 'accent'),
@@ -134,4 +137,4 @@ class DialogTheme(QObject):
                      QMessageBox.Icon.Critical: ('warning', 'error')}
             if presentation := names.get(dialog.icon()):
                 name, color = presentation
-                dialog.setIconPixmap(icon(name, 36, COLORS[color]).pixmap(36, 36))
+                dialog.setIconPixmap(icon(name, 36, theme_colors(dialog.property('themeResolved'))[color]).pixmap(36, 36))
