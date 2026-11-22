@@ -71,8 +71,11 @@ def _verify_video(source: MediaStream, profile: EncodingProfile, actual: MediaSt
         delta = abs(actual.frame_rate - fps)
         if delta > max(0.1, float(fps) * 0.015):
             raise ValueError('Output frame rate verification failed')
-    if profile.pixel_format and not profile.encoder.endswith('_vaapi') and actual.pixel_format != profile.pixel_format:
-        raise ValueError('Output pixel format verification failed')
+    if profile.pixel_format and not profile.encoder.endswith('_vaapi'):
+        requested = profile.pixel_format.replace('yuvj', 'yuv', 1)
+        measured = (actual.pixel_format or '').replace('yuvj', 'yuv', 1)
+        if measured != requested:
+            raise ValueError('Output pixel format verification failed')
     if not profile.pixel_format and (source.bit_depth or 0) > (actual.bit_depth or source.bit_depth or 0):
         raise ValueError('Output bit depth verification failed')
     for field in COLOR_FIELDS:

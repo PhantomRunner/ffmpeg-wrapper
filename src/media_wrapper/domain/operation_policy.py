@@ -40,6 +40,12 @@ CODEC_PROFILES = {
     'libx265': frozenset({'main', 'main10', 'mainstillpicture'}),
 }
 COLOR_FIELDS = ('color_space', 'color_transfer', 'color_primaries', 'color_range')
+_SDR_COLOR_VALUES = (
+    ('space', {'bt709', 'fcc', 'bt470bg', 'smpte170m', 'smpte240m', 'ycgco', 'gbr', 'bt2020nc'}),
+    ('trc', {'bt709', 'gamma22', 'gamma28', 'smpte170m', 'smpte240m', 'linear', 'iec61966-2-1', 'bt2020-10', 'bt2020-12'}),
+    ('primaries', {'bt709', 'bt470m', 'bt470bg', 'smpte170m', 'smpte240m', 'film', 'bt2020', 'smpte431', 'smpte432'}),
+    ('range', {'tv', 'pc'}),
+)
 
 
 def video_pixel_format(stream: MediaStream, profile: EncodingProfile) -> str | None:
@@ -59,6 +65,22 @@ def video_pixel_format(stream: MediaStream, profile: EncodingProfile) -> str | N
     if profile.encoder in QUALITY_MAX or profile.encoder == 'ffv1':
         return stream.pixel_format
     return None
+
+
+def color_conversion_filter(stream: MediaStream, profile: EncodingProfile) -> str | None:
+    if not any(
+        (value := getattr(profile, field)) is not None and value != getattr(stream, field)
+        for field in COLOR_FIELDS
+    ):
+        return None
+    pairs = []
+    for field, (flag, supported) in zip(COLOR_FIELDS, _SDR_COLOR_VALUES, strict=True):
+        input_value = getattr(stream, field)
+        output_value = getattr(profile, field) or input_value
+        if input_value not in supported or output_value not in supported:
+            fail(ValidationCode.OPTION, 'Color conversion needs known, supported SDR color metadata. HDR tone mapping is unavailable.')
+        pairs.append(f'{flag}={output_value}')
+    return 'colorspace=' + ':'.join(pairs)
 
 
 def _valid_token(value: str) -> bool:
@@ -117,6 +139,8 @@ def _validate_profile(stream: MediaStream, profile: EncodingProfile) -> None:
         for value in (profile.pixel_format, *(getattr(profile, field) for field in COLOR_FIELDS))
     ):
         fail(ValidationCode.OPTION, 'Invalid video pixel format or color setting')
+    if stream.kind == 'video':
+        color_conversion_filter(stream, profile)
     if (stream.bit_depth or 8) > 8 and profile.encoder == 'dnxhd' and profile.pixel_format is None and video_pixel_format(stream, profile) == 'yuv422p':
         fail(ValidationCode.OPTION, 'This DNxHR profile uses 8-bit video. Use HQX or explicitly choose 8-bit video.')
     if (stream.bit_depth or 8) > 12 and profile.encoder in {'dnxhd', 'prores_ks', *GPU_ENCODERS} and profile.pixel_format is None:

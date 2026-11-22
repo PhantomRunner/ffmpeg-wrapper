@@ -3,7 +3,11 @@ import os
 from pathlib import Path
 
 from media_wrapper.domain.containers import CONTAINERS
-from media_wrapper.domain.operation_policy import validate_plan, video_pixel_format
+from media_wrapper.domain.operation_policy import (
+    color_conversion_filter,
+    validate_plan,
+    video_pixel_format,
+)
 from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.remux import Container, RemuxRequest
 
@@ -48,6 +52,8 @@ class CommandBuilder:
                     continue
                 pixel_format = video_pixel_format(stream, profile) if stream.kind == 'video' else None
                 filters = [f'scale={profile.width}:{profile.height}'] if profile.width is not None else []
+                if stream.kind == 'video' and (conversion := color_conversion_filter(stream, profile)):
+                    filters.append(conversion)
                 if profile.encoder.endswith('_vaapi'):
                     filters.extend([f'format={pixel_format}', 'hwupload'])
                     pixel_format = None

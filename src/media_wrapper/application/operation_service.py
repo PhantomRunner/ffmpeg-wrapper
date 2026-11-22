@@ -5,7 +5,10 @@ from uuid import uuid4
 
 from media_wrapper.application.operation_validation import validate_paths, validate_plan
 from media_wrapper.domain.containers import CONTAINERS
-from media_wrapper.domain.operation_policy import COLOR_FIELDS, video_pixel_format
+from media_wrapper.domain.operation_policy import (
+    color_conversion_filter,
+    video_pixel_format,
+)
 from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.target_size import apply_target_size
@@ -61,8 +64,8 @@ def operation_warnings(plan: OperationPlan) -> tuple[str, ...]:
                 for item in stream.side_data
             ):
                 warnings.append(f'{prefix} has HDR metadata that may be lost when encoded. Use Copy if it must be preserved.')
-            if any(getattr(profile, field) is not None and getattr(profile, field) != getattr(stream, field) for field in COLOR_FIELDS):
-                warnings.append(f'{prefix} color tags are explicitly changed. This does not apply a color or tone mapping transform.')
+            if color_conversion_filter(stream, profile):
+                warnings.append(f'{prefix} will be converted to the selected SDR color properties.')
         if profile.sample_rate is not None and profile.sample_rate != stream.sample_rate:
             warnings.append(f'{prefix} is resampled to {profile.sample_rate:,} Hz.')
         if plan.metadata_policy == PreservationPolicy.PRESERVE and (stream.title or stream.language) and plan.output.container not in {

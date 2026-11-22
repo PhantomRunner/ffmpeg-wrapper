@@ -7,7 +7,10 @@ from threading import Event
 from media_wrapper.application.batch_service import path_key
 from media_wrapper.application.conversion_service import conversion_plan
 from media_wrapper.application.media_service import MediaService
-from media_wrapper.application.operation_service import operation_warnings, prepare_operation
+from media_wrapper.application.operation_service import (
+    operation_warnings,
+    prepare_operation,
+)
 from media_wrapper.application.validation_preview import (
     FileValidation,
     ValidationCandidate,

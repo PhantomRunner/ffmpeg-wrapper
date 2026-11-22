@@ -972,70 +972,10 @@ class MainWindow(QMainWindow):
             self.controller.changed.emit()
 
     def manage_presets(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle('Named presets')
-        dialog.resize(480, 340)
-        apply_theme(dialog)
-        layout = QVBoxLayout(dialog)
-        listing = QListWidget()
-        listing.setAccessibleName('Saved named presets')
-        layout.addWidget(listing)
-        def refresh():
-            listing.clear()
-            for preset in self.named_presets.values():
-                item = QListWidgetItem(f'{preset.name} · {preset.operation.value}')
-                item.setData(Qt.ItemDataRole.UserRole, preset.name)
-                listing.addItem(item)
-        def updated(presets):
-            self.presets_loaded(presets)
-            refresh()
-        def remove():
-            item = listing.currentItem()
-            if not item or not self.presets_writable:
-                return
-            name = item.data(Qt.ItemDataRole.UserRole)
-            if QMessageBox.question(dialog, 'Delete preset', f'Delete "{name}"? Existing drafts and jobs are preserved.',
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                    QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
-                return
-            if self.preset_repository:
-                self.controller.service('presets', lambda: self.preset_repository.delete((name,)), updated, self.presets_failed)
-            else:
-                self.named_presets.pop(name, None)
-                updated(self.named_presets)
-        def rename():
-            item = listing.currentItem()
-            if not item or not self.presets_writable:
-                return
-            old = item.data(Qt.ItemDataRole.UserRole)
-            new, accepted = QInputDialog.getText(dialog, 'Rename preset', 'New name', text=old)
-            if accepted:
-                if self.preset_repository:
-                    self.controller.service('presets', lambda: self.preset_repository.rename(old, new), updated, self.presets_failed)
-                else:
-                    from dataclasses import replace
+        from media_wrapper.ui.preset_dialog import PresetDialog
 
-                    from media_wrapper.domain.named_presets import (
-                        parse_named_preset,
-                        preset_payload,
-                    )
-                    try:
-                        if new in self.named_presets:
-                            raise ValueError('A preset with this name already exists')
-                        preset = parse_named_preset(preset_payload(replace(self.named_presets[old], name=new)))
-                    except ValueError as error:
-                        self.show_notice(str(error))
-                        return
-                    self.named_presets.pop(old)
-                    self.named_presets[preset.name] = preset
-                    updated(self.named_presets)
-        row = QHBoxLayout()
-        for title, action in (('Rename…', rename), ('Delete', remove), ('Close', dialog.close)):
-            button = ActionButton(title)
-            button.clicked.connect(action)
-            row.addWidget(button)
-        layout.addLayout(row)
-        refresh()
+        dialog = PresetDialog(self)
+        apply_theme(dialog, self.theme_mode())
         self._dialogs.append(dialog)
         dialog.show()
 
