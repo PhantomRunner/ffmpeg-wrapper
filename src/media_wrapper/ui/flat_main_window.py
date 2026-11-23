@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
         settings_scroll.setWidgetResizable(True)
         settings_scroll.setWidget(self.settings_view)
         self.shell = AppShell(self.workspace_page, self.queue_page, settings_scroll, results=True)
+        self.shell.page_changed.connect(lambda route: self.queue_page.set_results_mode(route == 'results'))
         self.setCentralWidget(self.shell)
         self.statusBar().showMessage(diagnostic_status)
         self.status_label = QLabel('FFmpeg not detected')
@@ -743,6 +744,10 @@ class MainWindow(QMainWindow):
                                     lambda path: self.show_notice(f'Saved diagnostics: {path}'))
 
     def queue_action(self, action):
+        from media_wrapper.ui.queue_actions import handle_queue_action
+
+        if handle_queue_action(self, action):
+            return
         queue = self.controller.queue
         selected = self.queue_page.selected_records()
         filtered = self.queue_page.filtered_records()
@@ -755,8 +760,22 @@ class MainWindow(QMainWindow):
                 queue.cancel(record.id)
         elif action in ('retry', 'retry_selected', 'cpu'):
             records = tuple(r for r in (filtered if action == 'retry' else selected)
-                            if r.status == TaskStatus.FAILED or action != 'retry' and r.status == TaskStatus.CANCELLED)
+                            if r.status in (TaskStatus.FAILED, TaskStatus.INTERRUPTED) or
+                            action != 'retry' and r.status == TaskStatus.CANCELLED)
             self.retry_records(records, action == 'cpu')
+        elif action in ('reuse', 'duplicate') and selected:
+            for record in selected:
+                try:
+                    output = self.draft.reuse_plan(record.plan, label='Retry' if action == 'reuse' else 'Copy',
+                                                   fingerprint=record.source_fingerprint)
+                except (ValueError, OSError) as error:
+                    self.show_notice(str(error))
+                    continue
+                self.draft.focus_output(output.id)
+                self.shell.set_page('workspace')
+                self.render()
+                self.sources.select_id(output.id)
+                self._toggle_inspector(True)
         elif action in ('clear', 'history'):
             ids = tuple(r.id for r in (filtered if action == 'clear' else queue.records)
                         if r.status == TaskStatus.COMPLETED or action == 'history' and r.status in TERMINAL)

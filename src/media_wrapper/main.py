@@ -39,7 +39,9 @@ def main() -> int:
                             settings_service=SettingsService(SettingsRepository(paths.settings_file), WorkbenchPreferences) if paths else None,
                             layout_settings=QSettings('MediaWrapper', 'Workspace'),
                             history_repository=HistoryRepository(paths.data_dir / 'history.json') if paths else None,
-                            preset_repository=PresetRepository(paths.config_dir / 'presets.json') if paths else None)
+                            preset_repository=PresetRepository(paths.config_dir / 'presets.json') if paths else None,
+                            queue_storage=(paths.data_dir / 'queue.sqlite3', paths.data_dir / 'logs' / 'attempts') if paths else None)
+        app.aboutToQuit.connect(window.controller.queue.close_store)
         app.aboutToQuit.connect(window.deleteLater)
         window.show()
         if '--smoke-test' in sys.argv:
