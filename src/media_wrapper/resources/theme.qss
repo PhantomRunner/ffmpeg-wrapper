@@ -120,6 +120,7 @@ QTextEdit, QPlainTextEdit, QAbstractItemView {
 QTextEdit:focus, QPlainTextEdit:focus, QAbstractItemView:focus { border-color: $accent; }
 QTextEdit[role="code"], QTextEdit[role="console"] { font-family: "JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace; font-size: 11px; color: $secondary; padding: 8px; }
 QListView::item, QTreeView::item { min-height: ${control_height}px; padding: 2px 8px; border-radius: 5px; }
+QTreeView#workspaceOutputTree::item { border-radius: 0; }
 QListView::item:hover, QTreeView::item:hover, QTableView::item:hover { background: $control; }
 QListView::item:selected, QTreeView::item:selected, QTableView::item:selected { background: $selection; color: $text; }
 QTableView::item { padding: 4px 6px; border-bottom: 1px solid $subtle; }
@@ -138,6 +139,11 @@ QTreeView::branch:open:has-children { image: url("$chevron_down"); }
 
 QGroupBox { background: $subtle; border: 1px solid $border; border-radius: ${radius}px; margin-top: 16px; padding: 12px; }
 QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0px 6px; color: $secondary; font-weight: 600; }
+QWidget#processingInspector QGroupBox {
+    background: transparent; border: none; border-top: 1px solid $border; border-radius: 0;
+    padding: 7px 2px 2px;
+}
+QWidget#processingInspector QGroupBox::title { left: 0; padding: 0 6px 0 2px; }
 QCheckBox, QRadioButton { spacing: 8px; min-height: 26px; background: transparent; }
 QCheckBox:hover, QRadioButton:hover { color: $accent; }
 QCheckBox:disabled, QRadioButton:disabled { color: $secondary; }
@@ -149,7 +155,9 @@ QCheckBox::indicator:hover, QAbstractItemView::indicator:hover { border-color: $
 QCheckBox::indicator:checked, QAbstractItemView::indicator:checked {
     background: $accent; image: url("$check_icon"); border-color: $accent;
 }
-QCheckBox::indicator:indeterminate { background: $selection; image: url("$minus_icon"); border-color: $accent; }
+QCheckBox::indicator:indeterminate, QAbstractItemView::indicator:indeterminate {
+    background: $selection; image: url("$minus_icon"); border-color: $accent;
+}
 QCheckBox::indicator:disabled { background: $control; border-color: $border; }
 QCheckBox::indicator:focus { border-color: $accent; }
 QCheckBox[role="disclosure"] { color: $secondary; font-weight: 500; padding: 4px 0px; }

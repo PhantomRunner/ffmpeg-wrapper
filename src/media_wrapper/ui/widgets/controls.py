@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from media_wrapper.ui.theme import theme_colors
 from media_wrapper.ui.theme.icons import icon
 from media_wrapper.ui.theme.tokens import COLORS, PADDING, SPACING
 
@@ -62,13 +63,14 @@ class ActionButton(QPushButton):
 
     def _refresh_icon(self) -> None:
         if self._icon_name:
-            foreground = COLORS['on_accent'] if self.property('variant') == 'primary' else COLORS['text']
+            colors = theme_colors(self.window().property('themeResolved'))
+            foreground = colors['on_accent'] if self.property('variant') == 'primary' else colors['text']
             self.setIcon(icon(self._icon_name, color=foreground))
 
     def event(self, event: QEvent) -> bool:
         result = super().event(event)
-        if (event.type() == QEvent.Type.DynamicPropertyChange
-                and event.propertyName() == b'variant' and hasattr(self, '_icon_name')):
+        if (hasattr(self, '_icon_name') and (event.type() in (QEvent.Type.PaletteChange, QEvent.Type.ParentChange)
+                or event.type() == QEvent.Type.DynamicPropertyChange and event.propertyName() == b'variant')):
             self._refresh_icon()
         return result
 
