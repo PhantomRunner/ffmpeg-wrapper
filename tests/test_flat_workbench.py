@@ -64,7 +64,7 @@ def test_scope_does_not_follow_table_selection_and_pages_hide_workspace_actions(
     window.render()
     window.sources.table.selectRow(0)
     app.processEvents()
-    assert window.draft.scope is EditScope.INCLUDED
+    assert window.draft.scope is EditScope.ACTIVE
     assert len(window.draft.selected) == 1
     assert window.inspector.tracks.rowCount() == 1
     for route in ('settings', 'queue'):

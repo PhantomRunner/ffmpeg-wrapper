@@ -59,6 +59,7 @@ def test_omitted_video_does_not_show_irrelevant_video_controls(flat_window, vide
     tracks = tuple((s.index, 'omit' if s.kind == 'video' else 'aac') for s in item.media.streams)
     window.controller.patch('tracks', tracks)
     window.render()
+    window.inspector.tabs.setCurrentIndex(1)
     assert window.inspector.fields['video_encoder'].isHidden()
     assert window.inspector.fields['crf'].isHidden()
     assert not window.inspector.groups['audio'][0].isHidden()

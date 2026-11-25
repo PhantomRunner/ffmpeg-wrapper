@@ -161,6 +161,7 @@ class QueuePage(QWidget):
         menu = QMenu(more)
         for name, text in (('cancel_all', 'Cancel all'), ('retry_selected', 'Retry selected'),
                            ('cpu', 'Retry on CPU'), ('reuse', 'Edit as new output'), ('duplicate', 'Duplicate to workspace'),
+                           ('save_preset', 'Save as preset…'),
                            ('up', 'Move pending up'), ('down', 'Move pending down'), ('remove', 'Remove pending'),
                            ('open', 'Open output folder'), ('open_file', 'Open output'), ('log', 'Open full log'),
                            ('load', 'Load queue…'), ('save', 'Save queue…'), ('history', 'Clear history…')):
@@ -344,6 +345,7 @@ class QueuePage(QWidget):
         self.buttons['remove'].setEnabled(any(r.status == TaskStatus.PENDING for r in selected))
         self.buttons['reuse'].setEnabled(single is not None and single.status in RETRYABLE)
         self.buttons['duplicate'].setEnabled(single is not None and single.status in TERMINAL)
+        self.buttons['save_preset'].setEnabled(self.buttons['duplicate'].isEnabled())
         self.buttons['open'].setEnabled(single is not None and single.status == TaskStatus.COMPLETED and single.result is not None)
         self.buttons['open_file'].setEnabled(self.buttons['open'].isEnabled())
         self.buttons['log'].setEnabled(single is not None and single.log_path is not None and single.log_path.is_file())

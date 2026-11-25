@@ -210,7 +210,8 @@ class _SourceView(QTreeView):
                                               QItemSelectionModel.SelectionFlag.Rows)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Space and (index := self.currentIndex()).isValid():
+        if (event.key() == Qt.Key.Key_Space and event.modifiers() == Qt.KeyboardModifier.NoModifier
+                and (index := self.currentIndex()).isValid()):
             check = index.siblingAtColumn(0)
             state = check.data(Qt.ItemDataRole.CheckStateRole)
             value = Qt.CheckState.Unchecked if state == Qt.CheckState.Checked else Qt.CheckState.Checked

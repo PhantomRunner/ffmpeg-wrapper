@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from media_wrapper.domain.draft import default_options
+from media_wrapper.domain.draft import DraftState, default_options
 from media_wrapper.domain.operations import MediaOperation
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
@@ -776,6 +776,8 @@ class MainWindow(QMainWindow):
                 self.render()
                 self.sources.select_id(output.id)
                 self._toggle_inspector(True)
+        elif action == 'save_preset' and len(selected) == 1 and selected[0].status in TERMINAL:
+            self.save_preset(selected[0].plan)
         elif action in ('clear', 'history'):
             ids = tuple(r.id for r in (filtered if action == 'clear' else queue.records)
                         if r.status == TaskStatus.COMPLETED or action == 'history' and r.status in TERMINAL)
@@ -961,7 +963,7 @@ class MainWindow(QMainWindow):
             self.controller.service('profile', lambda: export_profile(Path(name), request, media, binaries, report),
                                     lambda path: self.show_notice(f'Saved profile: {path}'))
 
-    def save_preset(self):
+    def save_preset(self, plan=None):
         from media_wrapper.domain.named_presets import capture_preset
         if not self.presets_writable:
             self.show_notice('Preset storage is unavailable. Its original file is preserved; repair it and restart.')
@@ -970,7 +972,12 @@ class MainWindow(QMainWindow):
         if not accepted:
             return
         try:
-            preset = capture_preset(self.draft, name)
+            draft = self.draft
+            if plan is not None:
+                draft = DraftState(multiple_outputs=True)
+                output = draft.reuse_plan(plan)
+                draft.focus_output(output.id)
+            preset = capture_preset(draft, name)
         except ValueError as error:
             self.show_text('Preset needs review', str(error))
             return
@@ -987,8 +994,7 @@ class MainWindow(QMainWindow):
         if self.preset_repository:
             self.controller.service('presets', lambda: self.preset_repository.save(preset, overwrite), self.presets_loaded, self.presets_failed)
         else:
-            self.named_presets[preset.name] = preset
-            self.controller.changed.emit()
+            self.presets_loaded(self.named_presets | {preset.name: preset})
 
     def manage_presets(self):
         from media_wrapper.ui.preset_dialog import PresetDialog
