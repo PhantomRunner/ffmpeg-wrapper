@@ -12,6 +12,11 @@ from media_wrapper.domain.inspection import OperationCancelled
 from media_wrapper.infrastructure.ffmpeg.probe_service import run_cancellable_probe
 
 
+# Some hardware encoders reject thumbnail-sized video before testing the driver.
+_PROBE_WIDTH = 640
+_PROBE_HEIGHT = 360
+
+
 def gpu_probe_command(ffmpeg: Path, encoder: str, device: str | None = None) -> list[str]:
     if encoder not in GPU_ENCODERS:
         raise ValueError('Unsupported GPU encoder candidate')
@@ -20,7 +25,8 @@ def gpu_probe_command(ffmpeg: Path, encoder: str, device: str | None = None) -> 
         if not device:
             raise ValueError('Select a VAAPI render device before testing')
         command.extend(['-vaapi_device', device])
-    command.extend(['-f', 'lavfi', '-i', 'color=c=black:s=128x128:r=25:d=0.2', '-frames:v', '3', '-an'])
+    command.extend(['-f', 'lavfi', '-i', f'color=c=black:s={_PROBE_WIDTH}x{_PROBE_HEIGHT}:r=25:d=0.2',
+                    '-frames:v', '3', '-an'])
     if encoder.endswith('_vaapi'):
         command.extend(['-vf', 'format=nv12,hwupload'])
     else:
@@ -38,7 +44,7 @@ def test_gpu_encoder(ffmpeg: Path, encoder: str, event: Event, device: str | Non
             return EncoderCapability(encoder, True, EncoderStatus.UNAVAILABLE,
                                      result.stderr[-4000:] or f'Runtime test exited {result.returncode}', device)
         return EncoderCapability(encoder, True, EncoderStatus.WORKING,
-                                 'Synthetic 128×128 encode passed; real jobs may still fail', device)
+                                 f'Synthetic {_PROBE_WIDTH}×{_PROBE_HEIGHT} encode passed. Actual media limits vary.', device)
     except OperationCancelled:
         raise
     except (OSError, RuntimeError, TimeoutError, TimeoutExpired) as error:

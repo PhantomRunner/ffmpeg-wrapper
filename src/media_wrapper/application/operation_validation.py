@@ -25,6 +25,8 @@ def validate_paths(plan: OperationPlan) -> None:
             fail(ValidationCode.OUTPUT, 'Destination already exists; choose a new filename')
         if not target.parent.is_dir():
             fail(ValidationCode.OUTPUT, 'Destination directory does not exist or the drive is disconnected')
+        if plan.output.directory_identity is not None and path_identity(target.parent) != plan.output.directory_identity:
+            fail(ValidationCode.OUTPUT, 'Destination directory changed. Reconnect the intended drive and validate a new job.')
         if not os.access(target.parent, os.W_OK):
             fail(ValidationCode.OUTPUT, 'Destination directory is not writable')
         # Reject names invalid on Windows even when planning on Linux.
@@ -33,7 +35,6 @@ def validate_paths(plan: OperationPlan) -> None:
             fail(ValidationCode.OUTPUT, 'Destination filename is not portable')
         if name.split('.')[0].upper() in {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}:
             fail(ValidationCode.OUTPUT, 'Destination filename is reserved on Windows')
-
 
     minimum = _estimate_bytes(plan)
     if minimum is not None and shutil.disk_usage(plan.output.path.parent).free < minimum:

@@ -17,6 +17,7 @@ media-wrapper = "media_wrapper.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/media_wrapper"]
+dev-mode-dirs = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "scripts"]

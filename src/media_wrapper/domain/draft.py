@@ -182,16 +182,24 @@ class DraftState:
             output = self.add_output(source_id, label, plan.operation)
         output.operation = plan.operation
         options = output.options[plan.operation]
-        profiles = {stream.index: stream.profile for stream in plan.streams}
+        profiles = {}
+        hardware = None
+        for stream in plan.streams:
+            profile = stream.profile
+            codec = GPU_ENCODERS.get(profile.encoder)
+            if codec is not None:
+                hardware = hardware or profile.encoder
+                profile = replace(profile, encoder='libx264' if codec == 'h264' else 'libx265')
+            profiles[stream.index] = profile
         tracks = tuple((stream.index, profiles[stream.index].encoder if stream.index in profiles else 'omit')
                        for stream in item.media.streams if stream.index is not None)
         order = tuple(profiles)
-        hardware = next((entry.encoder for entry in profiles.values() if entry.encoder in GPU_ENCODERS), None)
+        hardware_mode = ('Prefer GPU' if plan.cpu_fallback else 'GPU') if hardware else 'CPU'
         request = replace(
             options.request, container=plan.output.container, tracks=tracks, track_order=order,
             stream_profiles=tuple((index, profile) for index, profile in profiles.items() if profile.encoder != 'copy'),
             target_size_bytes=plan.target_size_bytes, mode='target' if plan.target_size_bytes else 'default',
-            hardware_mode='GPU' if hardware else 'CPU', gpu_encoder=hardware or 'auto',
+            hardware_mode=hardware_mode, gpu_encoder=hardware or 'auto',
             metadata_policy=plan.metadata_policy, chapter_policy=plan.chapter_policy, deep_verify=plan.deep_verify,
             custom_arguments=' '.join(part for option in plan.custom_options for part in option),
         )
@@ -346,6 +354,10 @@ class DraftState:
                 updated = replace(current, request=replace(current.request, tracks=tracks), preset_name=label, preset_modified=modified)
             elif name in {'folder', 'template', 'auto_number', 'output_override'}:
                 updated = replace(current, **{name: value}, preset_name=label, preset_modified=modified)
+            elif name in {'target_size', 'target_size_bytes'} and value is not None:
+                limits = {'target_size': None, 'target_size_bytes': None, name: value}
+                updated = replace(current, request=replace(current.request, **limits),
+                                  preset_name=label, preset_modified=modified)
             else:
                 updated = replace(current, request=replace(current.request, **{name: value}), preset_name=label, preset_modified=modified)
             if updated != current:

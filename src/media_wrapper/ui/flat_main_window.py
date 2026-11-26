@@ -238,7 +238,8 @@ class MainWindow(QMainWindow):
         self.shell.set_page(route)
         self.render()
         if queue_storage and self.controller.queue.persistence_error:
-            self.show_notice(self.controller.queue.persistence_error)
+            queue_error = self.controller.queue.persistence_error
+            self.show_notice(f'{diagnostic_status} {queue_error}'.strip())
         self.history_sync = None
         if history_repository:
             from media_wrapper.ui.history_sync import HistorySync
@@ -471,6 +472,9 @@ class MainWindow(QMainWindow):
                 kind = name.split('_')[0]
                 indices = {s.index for s in item.media.streams if s.kind == kind}
                 value = next((encoder for index, encoder in initial.request.tracks if index in indices), 'copy')
+            elif name == 'target_size' and initial.request.target_size is None:
+                self.draft.patch('target_size_bytes', initial.request.target_size_bytes, (output.id,))
+                continue
             else:
                 value = getattr(initial, target_name) if hasattr(initial, target_name) else getattr(initial.request, target_name)
             self.draft.patch(target_name, value, (output.id,))

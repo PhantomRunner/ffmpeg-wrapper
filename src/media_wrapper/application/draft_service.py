@@ -11,6 +11,7 @@ from media_wrapper.application.operation_service import (
     operation_warnings,
     prepare_operation,
 )
+from media_wrapper.application.operation_validation import path_identity
 from media_wrapper.application.validation_preview import (
     FileValidation,
     ValidationCandidate,
@@ -152,8 +153,8 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
             if directory not in directory_keys:
                 if not directory.is_dir():
                     raise PlanValidationError(ValidationCode.OUTPUT, 'Choose an existing output folder.')
-                directory_keys[directory] = {path_key(path) for path in directory.iterdir()}
-            existing = directory_keys[directory]
+                directory_keys[directory] = (path_identity(directory), {path_key(path) for path in directory.iterdir()})
+            directory_identity, existing = directory_keys[directory]
             key = path_key(destination)
             if source.options.auto_number:
                 original, number = destination, 1
@@ -194,7 +195,8 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
                                      deep_verify=request.deep_verify)
             else:
                 plan = conversion_plan(media, request, capabilities)
-            plan = replace(plan, source_id=source.source_id, output_id=source.id)
+            target = replace(plan.output, directory_identity=directory_identity)
+            plan = replace(plan, output=target, source_id=source.source_id, output_id=source.id)
             if available is None:
                 available = list_encoders(binaries.ffmpeg, event)
             validated = prepare_operation(plan, staged=False, available_encoders=available)

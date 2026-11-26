@@ -1,10 +1,12 @@
 """Explicit installation check of the normal flat UI and real FFmpeg pipeline."""
 from pathlib import Path
+from sqlite3 import Error as SQLiteError
 
 from PySide6.QtCore import QObject, QSettings, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from media_wrapper.domain.draft import EditScope
 from media_wrapper.domain.operations import MediaOperation
 from media_wrapper.domain.remux import Container
 from media_wrapper.domain.tasks import TaskStatus
@@ -19,6 +21,7 @@ def verify_installation(source: Path, directory: Path) -> int:
     from media_wrapper.infrastructure.diagnostics import configure_logging
     from media_wrapper.infrastructure.history_repository import HistoryRepository
     from media_wrapper.infrastructure.installation_guard import InstallationGuard
+    from media_wrapper.infrastructure.queue_store import QueueStore
     from media_wrapper.infrastructure.settings_repository import SettingsRepository
     from media_wrapper.ui.flat_main_window import MainWindow
     if not source.is_file() or not directory.is_dir() or any(directory.iterdir()):
@@ -37,13 +40,14 @@ def verify_installation(source: Path, directory: Path) -> int:
     paths = AppPaths(directory / 'config', directory / 'data')
     diagnostics = configure_logging(paths)
     history = HistoryRepository(paths.data_dir / 'history.json')
+    queue_storage = paths.data_dir / 'queue.sqlite3', paths.data_dir / 'logs' / 'attempts'
     window = MainWindow(diagnostics.status,
                         SettingsService(SettingsRepository(paths.settings_file), WorkbenchPreferences),
                         QSettings(str(paths.config_dir / 'layout.ini'), QSettings.Format.IniFormat),
-                        history_repository=history)
+                        history_repository=history, queue_storage=queue_storage)
     app.aboutToQuit.connect(window.deleteLater)
     window.show()
-    stage, index, immutable = 'detect', 0, False
+    stage, immutable = 'detect', False
     operations = (MediaOperation.REMUX, MediaOperation.CONVERT, MediaOperation.COMPRESS)
 
     def finish(code, detail):
@@ -57,25 +61,41 @@ def verify_installation(source: Path, directory: Path) -> int:
             return
         records = controller.queue.records
         window.close()
+        controller.queue.close_store()
+        persisted = False
+        if code == 0:
+            try:
+                store = QueueStore(*queue_storage)
+                try:
+                    restored = store.restore()
+                    persisted = (len(restored) == len(operations)
+                                 and all(record.status == TaskStatus.COMPLETED for record in restored)
+                                 and {r.id for r in records} == {r.id for r in restored})
+                finally:
+                    store.close()
+            except (OSError, SQLiteError, ValueError) as error:
+                detail = str(error)
+            if not persisted:
+                code = 5
         write_document(directory / 'verification.json', {
             'success': code == 0, 'detail': detail, 'tasks': [r.status.value for r in records],
             'outputs_verified': len(records) == 3 and all(r.result is not None for r in records),
             'immutable_snapshots': immutable,
             'player_instantiated': any(child.metaObject().className() in ('QMediaPlayer', 'QVideoWidget')
                                        or child.objectName() == 'playbackPanel' for child in window.findChildren(QObject)),
-            'history_persisted': len(history.read()) == 3 if code == 0 else False,
+            'history_persisted': persisted,
         })
         app.exit(code)
 
     def advance():
-        nonlocal stage, index, immutable
+        nonlocal stage, immutable
         controller = window.controller
         if controller.busy or controller.queue.running:
             QTimer.singleShot(25, advance)
             return
         if stage == 'detect':
-            if not window.binaries:
-                finish(2, controller.status)
+            if not window.binaries or not controller.queue.persistent:
+                finish(2, controller.queue.persistence_error or controller.status)
                 return
             controller.import_sources((source,))
             stage = 'inspect'
@@ -84,38 +104,44 @@ def verify_installation(source: Path, directory: Path) -> int:
             if len(items) != 1 or not items[0].inspected or {s.kind for s in items[0].media.streams} != {'audio', 'video'}:
                 finish(3, 'Inspection did not produce the expected audio/video source')
                 return
-            stage = 'configure'
-        elif stage == 'configure':
-            operation = operations[index]
-            window.set_operation(operation)
-            controller.patch('folder', str(directory))
-            controller.patch('template', operation.value)
-            controller.patch('container', Container.MATROSKA if operation == MediaOperation.REMUX else Container.MP4)
-            if operation != MediaOperation.REMUX:
-                controller.patch('mode', 'quality')
-                controller.patch('preset', 'ultrafast')
-                controller.patch('crf', 28)
+            item = items[0]
+            draft = controller.draft
+            draft.scope = EditScope.ACTIVE
+            primary, = draft.outputs_for(item.id)
+            for number, operation in enumerate(operations):
+                target = primary if number == 0 else draft.add_output(item.id, operation.value, operation)
+                draft.focus_output(target.id)
+                window.set_operation(operation)
+                controller.patch('folder', str(directory))
+                controller.patch('template', operation.value)
+                controller.patch('container', Container.MATROSKA if operation == MediaOperation.REMUX else Container.MP4)
+                if operation != MediaOperation.REMUX:
+                    controller.patch('mode', 'quality')
+                    controller.patch('preset', 'ultrafast')
+                    controller.patch('crf', 28)
             controller.prepare('enqueue')
             stage = 'enqueued'
         elif stage == 'enqueued':
-            if len(controller.queue.records) != index + 1:
+            if controller.preparation and len(controller.preparation.ready) == len(operations):
+                # The generated fixture is owned by this check. Accept any
+                # warnings through the same action offered by the workbench.
+                window.start_prepared(controller.preparation, 'enqueue')
+            if len(controller.queue.records) != len(operations):
                 errors = '\n'.join(i.validation.error for i in controller.preparation.items) if controller.preparation else controller.status
                 finish(4, 'Queue preparation failed: ' + errors)
                 return
-            index += 1
-            if index < len(operations):
-                stage = 'configure'
-            else:
-                frozen = tuple(r.plan for r in controller.queue.records)
-                controller.queue.start()
-                controller.patch('audio_bitrate', 192000)
-                immutable = frozen == tuple(r.plan for r in controller.queue.records)
-                stage = 'execute'
+            frozen = tuple(r.plan for r in controller.queue.records)
+            controller.queue.start()
+            controller.patch('audio_bitrate', 192000)
+            immutable = (frozen == tuple(r.plan for r in controller.queue.records)
+                         and len({plan.output_id for plan in frozen}) == len(operations)
+                         and len({plan.source_id for plan in frozen}) == 1 and frozen[0].source_id is not None)
+            stage = 'execute'
         elif stage == 'execute':
             records = controller.queue.records
             successful = len(records) == 3 and all(r.status == TaskStatus.COMPLETED and r.result for r in records)
             finish(0 if successful and immutable else 4,
-                   'Verified inspect/remux/convert/compress, immutable jobs and persisted history without a player'
+                   'Verified three independent outputs, immutable jobs and durable results'
                    if successful and immutable else '\n'.join(r.error for r in records))
             return
         QTimer.singleShot(25, advance)

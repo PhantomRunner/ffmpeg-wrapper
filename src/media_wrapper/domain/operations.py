@@ -66,6 +66,7 @@ class OutputTarget:
     path: Path
     container: Container
     temporary_path: Path | None = None
+    directory_identity: tuple[int, int] | None = None
 
     @property
     def execution_path(self) -> Path:

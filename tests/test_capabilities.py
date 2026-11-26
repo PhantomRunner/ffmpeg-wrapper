@@ -56,6 +56,7 @@ def test_gpu_smoke_reports_failure_success_and_missing_device(monkeypatch):
         test_gpu_encoder,
     )
     command = gpu_probe_command(Path('ffmpeg'), 'h264_vaapi', '/dev/dri/renderD129')
+    assert command[command.index('-i') + 1] == 'color=c=black:s=640x360:r=25:d=0.2'
     assert 'format=nv12,hwupload' in command and command[-1] == '-'
     assert test_gpu_encoder(Path('ffmpeg'), 'h264_vaapi', Event()).status == EncoderStatus.UNKNOWN
     monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.gpu_probe.run_cancellable_probe',
@@ -64,7 +65,8 @@ def test_gpu_smoke_reports_failure_success_and_missing_device(monkeypatch):
     assert failed.status == EncoderStatus.UNAVAILABLE and 'driver unavailable' in failed.detail
     monkeypatch.setattr('media_wrapper.infrastructure.ffmpeg.gpu_probe.run_cancellable_probe',
                         lambda *a, **k: subprocess.CompletedProcess([], 0, '', ''))
-    assert test_gpu_encoder(Path('ffmpeg'), 'h264_nvenc', Event()).status == EncoderStatus.WORKING
+    working = test_gpu_encoder(Path('ffmpeg'), 'h264_nvenc', Event())
+    assert working.status == EncoderStatus.WORKING and '640×360' in working.detail
 
 
 def test_gpu_probe_cancellation_is_not_a_failure(monkeypatch):

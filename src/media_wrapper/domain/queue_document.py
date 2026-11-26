@@ -29,13 +29,15 @@ def plan_payload(plan: OperationPlan, fingerprint: tuple[int, int]) -> dict:
             'chapter_policy': plan.chapter_policy.value, 'custom_options': [list(pair) for pair in plan.custom_options],
             **({'deep_verify': True} if plan.deep_verify else {}),
             **({'cpu_fallback': True} if plan.cpu_fallback else {}),
+            **({'directory_identity': list(plan.output.directory_identity)} if plan.output.directory_identity else {}),
             **({key: value for key in ('source_id', 'output_id') if (value := getattr(plan, key)) is not None})}
 
 
 def parse_definition(data: object, media: MediaFile) -> OperationPlan:
     keys = {'source', 'fingerprint', 'destination', 'container', 'operation', 'streams',
             'target_size_bytes', 'two_pass', 'hardware_device', 'metadata_policy', 'chapter_policy', 'custom_options'}
-    if not isinstance(data, dict) or not keys <= data.keys() or data.keys() - keys - {'deep_verify', 'cpu_fallback', 'source_id', 'output_id'}:
+    optional = {'deep_verify', 'cpu_fallback', 'source_id', 'output_id', 'directory_identity'}
+    if not isinstance(data, dict) or not keys <= data.keys() or data.keys() - keys - optional:
         raise ValueError('Missing or unknown queue definition fields')
     for key in ('source', 'destination', 'hardware_device'):
         value = data[key]
@@ -48,6 +50,11 @@ def parse_definition(data: object, media: MediaFile) -> OperationPlan:
     fingerprint = data['fingerprint']
     if not isinstance(fingerprint, list) or len(fingerprint) != 2 or any(type(v) is not int for v in fingerprint) or fingerprint[0] < 0:
         raise ValueError('Invalid source fingerprint')
+    directory_identity = data.get('directory_identity')
+    if (directory_identity is not None
+            and (not isinstance(directory_identity, list) or len(directory_identity) != 2
+                 or any(type(item) is not int or item < 0 for item in directory_identity))):
+        raise ValueError('Invalid destination directory identity')
     if type(data['two_pass']) is not bool or (data['target_size_bytes'] is not None and type(data['target_size_bytes']) is not int):
         raise ValueError('Invalid saved rate control')
     if any(type(data.get(key, False)) is not bool for key in ('deep_verify', 'cpu_fallback')):
@@ -90,7 +97,8 @@ def parse_definition(data: object, media: MediaFile) -> OperationPlan:
                 raise ValueError('Invalid saved frame rate') from error
         selections.append(StreamSelection(stream['index'], EncodingProfile(**profile)))
     return OperationPlan(MediaOperation(data['operation']), media, tuple(selections),
-                         OutputTarget(Path(data['destination']), Container(data['container'])),
+                         OutputTarget(Path(data['destination']), Container(data['container']),
+                                      directory_identity=tuple(directory_identity) if directory_identity else None),
                          data['target_size_bytes'], data['two_pass'], data['hardware_device'],
                          metadata_policy=PreservationPolicy(data['metadata_policy']),
                          chapter_policy=PreservationPolicy(data['chapter_policy']),

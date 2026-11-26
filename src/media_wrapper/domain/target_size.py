@@ -77,7 +77,7 @@ def apply_target_size(plan: OperationPlan) -> OperationPlan:
     source = {s.index: s for s in plan.media.streams}
     video = [s for s in plan.streams if source[s.index].kind == 'video']
     if len(video) != 1 or video[0].profile.encoder != 'libx264':
-        raise PlanValidationError(ValidationCode.OPTION, 'Target size requires one selected libx264 two-pass video')
+        raise PlanValidationError(ValidationCode.OPTION, 'Target size requires libx264 two-pass encoding and exactly one selected video')
     if rate < MIN_VIDEO_RATE:
         raise PlanValidationError(ValidationCode.OPTION, 'Target size is too small for the duration and audio bitrate')
     return _set_video_rate(plan, rate)
