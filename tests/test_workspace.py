@@ -173,8 +173,13 @@ def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, 
                     app.processEvents()
                 assert view.tabs.tabText(tab) == page
                 assert view.width() == width
-                assert view.scroll.horizontalScrollBar().maximum() == 0
-                assert view.scroll.widget().width() <= view.scroll.viewport().width()
+                body, viewport = view.scroll.widget(), view.scroll.viewport()
+                context = f'{page}, {mode}: body {body.width()} px, viewport {viewport.width()} px'
+                if view.scroll.horizontalScrollBar().maximum():
+                    sections = {name: box.minimumSizeHint().width() for name, (box, _) in view.groups.items()
+                                if box.isVisible()}
+                    pytest.fail(f'{context}; visible section minimum widths {sections}')
+                assert body.width() <= viewport.width(), context
                 assert view.output_preview.isVisible()
                 assert view.output_preview.toolTip() == str(source_path.with_suffix('.mp4'))
                 fields = [view.intent_field, view.preset_field, *view.fields.values(), view.size_limit]

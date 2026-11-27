@@ -178,7 +178,7 @@ class SettingsInspector(QWidget):
             self.tabs.addTab(name)
         self.tabs.setVisible(progressive)
         layout.addWidget(self.tabs)
-        self.scope = ReadableComboBox()
+        self.scope = self._form_combo()
         self.scope.setAccessibleName('Edit scope')
         self.scope.currentIndexChanged.connect(self._scope_changed)
         layout.addWidget(self.scope)
@@ -186,13 +186,13 @@ class SettingsInspector(QWidget):
         self.scope_note.setProperty('role', 'fieldHelp')
         self.scope_note.setWordWrap(True)
         layout.addWidget(self.scope_note)
-        self.intent = ReadableComboBox()
+        self.intent = self._form_combo()
         self.intent_field = ParameterField('Goal', self.intent)
         self.intent_field.reset_requested.connect(lambda: self.intent.setCurrentIndex(0))
         self.intent.currentIndexChanged.connect(self._render_preset_choices)
         self.intent_field.setVisible(progressive)
         layout.addWidget(self.intent_field)
-        self.preset = ReadableComboBox()
+        self.preset = self._form_combo()
         self.preset.setAccessibleName('Operation preset')
         self.preset.currentIndexChanged.connect(self._preset_changed)
         self.preset_field = ParameterField('Preset', self.preset)
@@ -210,7 +210,7 @@ class SettingsInspector(QWidget):
 
         self._section('media', 'Media')
         if progressive:
-            self.operation = ReadableComboBox()
+            self.operation = self._form_combo()
             self.operation.setAccessibleName('Processing operation')
             for operation in MediaOperation:
                 self.operation.addItem(operation.value.title(), operation.value)
@@ -283,7 +283,7 @@ class SettingsInspector(QWidget):
         self.fields['template'].hint.setVisible(not progressive)
         if progressive:
             self.fields['template'].control.setToolTip(self.fields['template'].hint.text())
-        self.auto_number = QCheckBox('Auto-number output conflicts')
+        self.auto_number = QCheckBox('Auto-number conflicts')
         self.auto_number.setToolTip('Choose a new unique filename. Existing files are never replaced.')
         self.auto_number.toggled.connect(lambda value: self._emit('auto_number', value))
         self.groups['output'][1].addWidget(self.auto_number)
@@ -311,7 +311,8 @@ class SettingsInspector(QWidget):
             self.verify_decode.setToolTip('Decode the entire output to check media integrity.')
             self.verify_decode.toggled.connect(lambda enabled: self._emit('deep_verify', enabled))
             self.groups['advanced'][1].addWidget(self.verify_decode)
-            command = ActionButton('View FFmpeg command')
+            command = ActionButton('FFmpeg command')
+            command.setAccessibleName('View FFmpeg command')
             command.clicked.connect(self.command_requested)
             self.groups['advanced'][1].addWidget(command)
         self.profile_import = ActionButton('Import profile…')
@@ -351,8 +352,19 @@ class SettingsInspector(QWidget):
 
     def eventFilter(self, watched, event):
         if watched is self.scroll.viewport() and event.type() == QEvent.Type.Resize:
-            margins = self._body_layout.contentsMargins()
-            available = event.size().width() - margins.left() - margins.right()
+            width = event.size().width()
+            compact = width < 330
+            gutter = 8 if compact else 12
+            self._body_layout.setContentsMargins(gutter, 12, gutter, 12)
+            for _, layout in self.groups.values():
+                if compact:
+                    margins = layout.contentsMargins()
+                    layout.setContentsMargins(4, margins.top(), 4, margins.bottom())
+                else:
+                    layout.unsetContentsMargins()
+            self._limit_row.setDirection(QBoxLayout.Direction.TopToBottom if compact
+                                         else QBoxLayout.Direction.LeftToRight)
+            available = width - 2 * gutter
             actions = self._preset_actions
             needed = sum(actions.itemAt(i).widget().minimumSizeHint().width() for i in range(actions.count()))
             needed += actions.spacing() * (actions.count() - 1)
@@ -392,8 +404,14 @@ class SettingsInspector(QWidget):
         self.groups[section][1].addWidget(field)
         return control
 
+    def _form_combo(self):
+        control = ReadableComboBox()
+        if self.progressive:
+            control.setMinimumContentsLength(5)
+        return control
+
     def _combo(self, name, title, choices, section):
-        control = self._field(name, title, ReadableComboBox(), section)
+        control = self._field(name, title, self._form_combo(), section)
         for label, value in choices:
             control.addItem(label, value)
         control.currentIndexChanged.connect(lambda: self._emit(name, control.currentData()))
@@ -464,10 +482,10 @@ class SettingsInspector(QWidget):
         for unit in ('MiB', 'MB', 'MiB/min', 'MB/min', '%'):
             self.limit_unit.addItem(unit, unit)
         box = QWidget()
-        row = QHBoxLayout(box)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self.limit_value, 2)
-        row.addWidget(self.limit_unit, 1)
+        self._limit_row = QBoxLayout(QBoxLayout.Direction.LeftToRight, box)
+        self._limit_row.setContentsMargins(0, 0, 0, 0)
+        self._limit_row.addWidget(self.limit_value, 2)
+        self._limit_row.addWidget(self.limit_unit, 1)
         self.size_limit = ParameterField('Maximum size', box, 'A percentage is the reduction from the source size.')
         self.size_limit.reset_requested.connect(lambda: self.reset_field.emit('target_size'))
         self.groups['media'][1].addWidget(self.size_limit)
