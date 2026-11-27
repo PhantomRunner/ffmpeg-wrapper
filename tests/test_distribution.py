@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from media_wrapper.infrastructure import process_environment as environment
+from media_wrapper.infrastructure import process_lifetime
 from media_wrapper.infrastructure.ffmpeg import binary_resolver
 
 
@@ -36,6 +37,29 @@ def test_frozen_linux_children_restore_library_environment(monkeypatch, original
     result = environment.external_environment()
     assert result.get('LD_LIBRARY_PATH') == original
     assert os.environ['LD_LIBRARY_PATH'] == '/frozen/lib'
+
+
+@pytest.mark.parametrize('original', [None, '/host/lib'])
+def test_frozen_watchdog_preserves_bundled_loader_until_external_exec(monkeypatch, original):
+    monkeypatch.setattr(process_lifetime.sys, 'frozen', True, raising=False)
+    monkeypatch.setattr(process_lifetime.sys, 'platform', 'linux')
+    monkeypatch.setenv('LD_LIBRARY_PATH', '/bundle/_internal')
+    monkeypatch.delenv('LD_LIBRARY_PATH_ORIG', raising=False)
+    if original:
+        monkeypatch.setenv('LD_LIBRARY_PATH_ORIG', original)
+    media_command = ['/usr/bin/ffprobe', '-version']
+    arguments, watchdog_environment = process_lifetime.owned_process(media_command)
+    assert arguments[0] == process_lifetime.sys.executable
+    assert watchdog_environment['LD_LIBRARY_PATH'] == '/bundle/_internal'
+
+    calls = []
+    monkeypatch.setattr(process_lifetime, '_linux_run', lambda *args: calls.append(args))
+    process_lifetime.child_entry(arguments)
+    (parent, command, external), = calls
+    assert parent == str(os.getpid())
+    assert command == media_command
+    assert external.get('LD_LIBRARY_PATH') == original
+    assert os.environ['LD_LIBRARY_PATH'] == '/bundle/_internal'
 
 
 def test_nonfrozen_environment_is_unchanged_copy(monkeypatch):

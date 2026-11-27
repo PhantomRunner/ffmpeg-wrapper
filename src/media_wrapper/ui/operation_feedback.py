@@ -90,6 +90,7 @@ class OperationFeedback(QWidget):
                 TaskStatus.COMPLETED: 'Completed — output verified' if output else 'Completion awaiting verification',
                 TaskStatus.FAILED: 'Failed',
                 TaskStatus.CANCELLED: 'Cancelled',
+                TaskStatus.INTERRUPTED: 'Interrupted — retry as a new attempt',
             }[status]
             if status == TaskStatus.RUNNING and record.progress.percent is not None:
                 text += f' · {record.progress.percent:.1f}%'

@@ -8,25 +8,28 @@ from pathlib import Path
 _CHILD = '--media-wrapper-owned-child'
 
 
-def owned_command(arguments: list[str]) -> list[str]:
+def owned_process(arguments: list[str]) -> tuple[list[str], dict[str, str]]:
+    # A frozen watchdog first needs the bundle's loader paths to import its
+    # own Python libraries. It cleans the environment before starting media tools.
+    environment = dict(os.environ)
     if not arguments or not (sys.platform.startswith('linux') or sys.platform == 'win32'):
-        return arguments
+        return arguments, environment
     entry = [] if getattr(sys, 'frozen', False) else ['-I', '-S', str(Path(__file__).resolve())]
     identity = str(os.getpid())
     if sys.platform == 'win32':
         kernel = _windows_kernel()
         identity += ':' + str(_creation_time(kernel, kernel.GetCurrentProcess()))
-    return [sys.executable, *entry, _CHILD, identity, *arguments]
+    return [sys.executable, *entry, _CHILD, identity, *arguments], environment
 
 
-def _linux_run(parent: str, arguments: list[str]) -> None:
+def _linux_run(parent: str, arguments: list[str], environment: dict[str, str]) -> None:
     libc = ctypes.CDLL(None, use_errno=True)
     # Set the death signal first to cover the race with the parent already exiting.
     if libc.prctl(1, int(signal.SIGKILL), 0, 0, 0) != 0:  # PR_SET_PDEATHSIG
         raise OSError(ctypes.get_errno(), 'Cannot attach the child to the application')
     if os.getppid() != int(parent):
         raise ProcessLookupError('The application exited before the media process started')
-    os.execvp(arguments[0], arguments)
+    os.execvpe(arguments[0], arguments, environment)
 
 
 def _windows_kernel():
@@ -92,7 +95,7 @@ def _windows_job(kernel):
     return handle
 
 
-def _windows_run(parent: str, arguments: list[str]) -> int:
+def _windows_run(parent: str, arguments: list[str], environment: dict[str, str]) -> int:
     import subprocess
     from ctypes import wintypes
 
@@ -105,7 +108,8 @@ def _windows_run(parent: str, arguments: list[str]) -> int:
         if _creation_time(kernel, parent_process) != created:
             raise ProcessLookupError('The application exited before the media process started')
         _windows_job(kernel)
-        process = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, creationflags=subprocess.CREATE_NO_WINDOW)
+        process = subprocess.Popen(arguments, stdin=subprocess.DEVNULL, env=environment,
+                                   creationflags=subprocess.CREATE_NO_WINDOW)
         child = kernel.OpenProcess(0x100000, False, process.pid)  # SYNCHRONIZE
         if not child:
             if process.poll() is not None:
@@ -138,11 +142,11 @@ def child_entry(argv: list[str]) -> int | None:
             )
             initialize_external_processes()
             environment = external_environment()
-            os.environ.clear()
-            os.environ.update(environment)
+        else:
+            environment = dict(os.environ)
         if sys.platform == 'win32':
-            return _windows_run(argv[2], argv[3:])
-        _linux_run(argv[2], argv[3:])
+            return _windows_run(argv[2], argv[3:], environment)
+        _linux_run(argv[2], argv[3:], environment)
     except (OSError, ValueError) as error:
         message = f'Could not run the managed media process: {error}'
         if sys.stderr is not None:

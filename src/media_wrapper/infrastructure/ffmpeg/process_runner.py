@@ -4,8 +4,7 @@ from codecs import getincrementaldecoder
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
 
 from media_wrapper.infrastructure.ffmpeg.progress_parser import ProgressParser
-from media_wrapper.infrastructure.process_environment import external_environment
-from media_wrapper.infrastructure.process_lifetime import owned_command
+from media_wrapper.infrastructure.process_lifetime import owned_process
 
 
 class ProcessRunner(QObject):
@@ -42,16 +41,16 @@ class ProcessRunner(QObject):
         if not arguments or not arguments[0]:
             self._emit(False, 'No executable was supplied')
             return
-        environment = QProcessEnvironment()
-        for key, value in external_environment().items():
-            environment.insert(key, value)
-        self.process.setProcessEnvironment(environment)
         try:
-            command = owned_command(arguments)
+            command, variables = owned_process(arguments)
         except OSError as error:
             self.error_output = str(error)
             self._emit(False, self.error_output)
             return
+        environment = QProcessEnvironment()
+        for key, value in variables.items():
+            environment.insert(key, value)
+        self.process.setProcessEnvironment(environment)
         self.process.start(command[0], command[1:])
 
     def cancel(self) -> None:
