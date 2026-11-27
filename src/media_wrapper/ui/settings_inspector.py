@@ -107,13 +107,11 @@ class ParameterField(QWidget):
         self.add_action(reset)
         form.addRow(self.label, actions)
         layout.addLayout(form)
-        self.hint = QLabel(hint)
-        self.hint.setWordWrap(True)
+        self.hint = InspectorLabel(hint)
         self.hint.setProperty('role', 'fieldHelp')
         self.hint.setVisible(bool(hint))
         layout.addWidget(self.hint)
-        self.error = QLabel()
-        self.error.setWordWrap(True)
+        self.error = InspectorLabel()
         self.error.setProperty('validation', 'error')
         self.error.hide()
         layout.addWidget(self.error)
@@ -126,7 +124,7 @@ class ParameterField(QWidget):
         self._actions.addWidget(button)
 
     def show_error(self, text):
-        self.error.setText(text)
+        self.error.set_content(text)
         self.error.setVisible(bool(text))
 
 
@@ -187,9 +185,8 @@ class SettingsInspector(QWidget):
         self.scope.setAccessibleName('Edit scope')
         self.scope.currentIndexChanged.connect(self._scope_changed)
         layout.addWidget(self.scope)
-        self.scope_note = QLabel()
+        self.scope_note = InspectorLabel()
         self.scope_note.setProperty('role', 'fieldHelp')
-        self.scope_note.setWordWrap(True)
         layout.addWidget(self.scope_note)
         self.intent = self._form_combo()
         self.intent_field = ParameterField('Goal', self.intent)
@@ -240,8 +237,7 @@ class SettingsInspector(QWidget):
         self._combo('hardware_mode', 'Processing', [('Software only', 'CPU'), ('Require GPU', 'GPU'),
                     ('Automatic', 'Auto'), ('Prefer GPU, allow software', 'Prefer GPU')], 'media')
         self._combo('gpu_encoder', 'Tested encoder', [('Auto', 'auto')], 'media')
-        self.hardware_note = QLabel('GPU requires a successful runtime test in Settings. Quality and target size use CPU.')
-        self.hardware_note.setWordWrap(True)
+        self.hardware_note = InspectorLabel('GPU requires a successful runtime test in Settings. Quality and target size use CPU.')
         self.hardware_note.setProperty('role', 'fieldHelp')
         self.groups['media'][1].addWidget(self.hardware_note)
 
@@ -284,7 +280,7 @@ class SettingsInspector(QWidget):
         browse.clicked.connect(self._browse)
         self.fields['folder'].add_action(browse)
         self._line('template', 'Name template', 'output', '{name}_{operation}')
-        self.fields['template'].hint.setText('Tokens: {name}, {operation}, {index}, {ext}, {stem}. Extension follows the container.')
+        self.fields['template'].hint.set_content('Tokens: {name}, {operation}, {index}, {ext}, {stem}. Extension follows the container.')
         self.fields['template'].hint.setVisible(not progressive)
         if progressive:
             self.fields['template'].control.setToolTip(self.fields['template'].hint.text())
@@ -314,6 +310,7 @@ class SettingsInspector(QWidget):
             self._line('codec_profile', 'Video profile', 'advanced', 'Encoder default')
             self._line('pixel_format', 'Pixel format', 'advanced', 'Preserve when possible')
             self.verify_decode = QCheckBox('Verify by decoding')
+            self.verify_decode.setAccessibleName('Verify by decoding')
             self.verify_decode.setToolTip('Decode the entire output to check media integrity.')
             self.verify_decode.toggled.connect(lambda enabled: self._emit('deep_verify', enabled))
             self.groups['advanced'][1].addWidget(self.verify_decode)
@@ -325,6 +322,17 @@ class SettingsInspector(QWidget):
         self.profile_export = ActionButton('Export profile…')
         self.profile_import.clicked.connect(self.import_profile)
         self.profile_export.clicked.connect(self.export_profile)
+        if progressive:
+            self._advanced_actions = (
+                (self.verify_decode, 'Verify by decoding', 'Decode check'),
+                (command, 'FFmpeg command', 'Command…'),
+                (self.profile_import, 'Import profile…', 'Import…'),
+                (self.profile_export, 'Export profile…', 'Export…'),
+            )
+            for action, label, _ in self._advanced_actions:
+                action.setMinimumWidth(112)
+                if not action.toolTip():
+                    action.setToolTip(label)
         self.groups['advanced'][1].addWidget(self.profile_import)
         self.groups['advanced'][1].addWidget(self.profile_export)
         for name in ('preset', 'hardware_mode', 'gpu_encoder'):
@@ -372,6 +380,8 @@ class SettingsInspector(QWidget):
                         layout.unsetContentsMargins()
                 for field in self.findChildren(ParameterField):
                     field.set_compact(compact)
+                for action, full_label, compact_label in self._advanced_actions:
+                    action.setText(compact_label if compact else full_label)
                 self._limit_row.setDirection(QBoxLayout.Direction.TopToBottom if compact
                                              else QBoxLayout.Direction.LeftToRight)
             available = width - 2 * gutter
@@ -418,6 +428,7 @@ class SettingsInspector(QWidget):
         control = ReadableComboBox()
         if self.progressive:
             control.setMinimumContentsLength(5)
+            control.setMinimumWidth(112)
         return control
 
     def _combo(self, name, title, choices, section):
@@ -594,7 +605,7 @@ class SettingsInspector(QWidget):
                           for source in draft.targets())
             count = len(targets)
             count_text = noun.rstrip('s') if count == 1 else noun
-            self.scope_note.setText('Wait for probing in this scope, or choose a different scope.' if waiting else
+            self.scope_note.set_content('Wait for probing in this scope, or choose a different scope.' if waiting else
                                     f'{count} {count_text} editable · Changes apply to this scope')
             self.config.setEnabled(bool(targets) and not waiting)
             self.groups['output'][0].setEnabled(bool(targets) and not waiting)

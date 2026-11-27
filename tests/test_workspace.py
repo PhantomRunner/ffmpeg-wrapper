@@ -148,7 +148,7 @@ def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, 
     from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
     from media_wrapper.domain.media import MediaFile, MediaStream
     from media_wrapper.domain.operations import MediaOperation
-    from media_wrapper.ui.settings_inspector import SettingsInspector
+    from media_wrapper.ui.settings_inspector import ParameterField, SettingsInspector
     from media_wrapper.ui.theme import apply_theme
     from media_wrapper.ui.widgets.controls import ActionButton
 
@@ -177,9 +177,18 @@ def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, 
                 body, viewport = view.scroll.widget(), view.scroll.viewport()
                 context = f'{page}, {mode}: body {body.width()} px, viewport {viewport.width()} px'
                 if view.scroll.horizontalScrollBar().maximum():
-                    sections = {name: box.minimumSizeHint().width() for name, (box, _) in view.groups.items()
-                                if box.isVisible()}
-                    pytest.fail(f'{context}; visible section minimum widths {sections}')
+                    sections = {}
+                    for name, (box, layout) in view.groups.items():
+                        if not box.isVisible():
+                            continue
+                        children = [layout.itemAt(index).widget() for index in range(layout.count())]
+                        widths = {}
+                        for child in (child for child in children if child and child.isVisible()):
+                            label = (child.label.text() if isinstance(child, ParameterField) else
+                                     child.accessibleName() or child.metaObject().className())
+                            widths[label] = (child.minimumSizeHint().width(), child.minimumWidth())
+                        sections[name] = (box.minimumSizeHint().width(), widths)
+                    pytest.fail(f'{context}; visible minimum widths {sections}')
                 assert body.width() <= viewport.width(), context
                 assert view.output_preview.isVisible()
                 assert view.output_preview.toolTip() == str(source_path.with_suffix('.mp4'))
@@ -189,6 +198,9 @@ def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, 
                     assert field.control.geometry().right() < field.control.parentWidget().width()
                     for action in field.findChildren(ActionButton):
                         assert action.isVisible()
+                        assert action.geometry().right() < action.parentWidget().width(), action.accessibleName()
+                for action, _, _ in view._advanced_actions:
+                    if action.isVisible():
                         assert action.geometry().right() < action.parentWidget().width(), action.accessibleName()
                 output = view.groups['output'][0]
                 assert output.geometry().right() < output.parentWidget().width()
