@@ -150,6 +150,7 @@ def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, 
     from media_wrapper.domain.operations import MediaOperation
     from media_wrapper.ui.settings_inspector import SettingsInspector
     from media_wrapper.ui.theme import apply_theme
+    from media_wrapper.ui.widgets.controls import ActionButton
 
     draft = DraftState(multiple_outputs=True)
     source_path = tmp_path / ('Long-recording-name-' * 9 + '.mkv')
@@ -186,5 +187,10 @@ def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, 
                 for field in (field for field in fields if field.isVisible()):
                     assert field.geometry().right() < field.parentWidget().width()
                     assert field.control.geometry().right() < field.control.parentWidget().width()
+                    for action in field.findChildren(ActionButton):
+                        assert action.isVisible()
+                        assert action.geometry().right() < action.parentWidget().width(), action.accessibleName()
+                output = view.groups['output'][0]
+                assert output.geometry().right() < output.parentWidget().width()
     finally:
         view.close()

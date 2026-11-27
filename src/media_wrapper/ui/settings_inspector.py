@@ -84,7 +84,7 @@ class ParameterField(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
-        form = QFormLayout()
+        form = self._form = QFormLayout()
         form.setContentsMargins(0, 0, 0, 0)
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
@@ -118,6 +118,10 @@ class ParameterField(QWidget):
         self.error.hide()
         layout.addWidget(self.error)
 
+    def set_compact(self, compact):
+        self._form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows if compact
+                                    else QFormLayout.RowWrapPolicy.WrapLongRows)
+
     def add_action(self, button):
         self._actions.addWidget(button)
 
@@ -144,6 +148,7 @@ class SettingsInspector(QWidget):
     def __init__(self, parent=None, *, progressive=False):
         super().__init__(parent)
         self.progressive = progressive
+        self._compact = None
         if progressive:
             self.setObjectName('processingInspector')
         self.setMinimumWidth(260)
@@ -283,7 +288,8 @@ class SettingsInspector(QWidget):
         self.fields['template'].hint.setVisible(not progressive)
         if progressive:
             self.fields['template'].control.setToolTip(self.fields['template'].hint.text())
-        self.auto_number = QCheckBox('Auto-number conflicts')
+        self.auto_number = QCheckBox('Auto-number')
+        self.auto_number.setAccessibleName('Auto-number output conflicts')
         self.auto_number.setToolTip('Choose a new unique filename. Existing files are never replaced.')
         self.auto_number.toggled.connect(lambda value: self._emit('auto_number', value))
         self.groups['output'][1].addWidget(self.auto_number)
@@ -355,15 +361,19 @@ class SettingsInspector(QWidget):
             width = event.size().width()
             compact = width < 330
             gutter = 8 if compact else 12
-            self._body_layout.setContentsMargins(gutter, 12, gutter, 12)
-            for _, layout in self.groups.values():
-                if compact:
-                    margins = layout.contentsMargins()
-                    layout.setContentsMargins(4, margins.top(), 4, margins.bottom())
-                else:
-                    layout.unsetContentsMargins()
-            self._limit_row.setDirection(QBoxLayout.Direction.TopToBottom if compact
-                                         else QBoxLayout.Direction.LeftToRight)
+            if compact != self._compact:
+                self._compact = compact
+                self._body_layout.setContentsMargins(gutter, 12, gutter, 12)
+                for _, layout in self.groups.values():
+                    if compact:
+                        margins = layout.contentsMargins()
+                        layout.setContentsMargins(4, margins.top(), 4, margins.bottom())
+                    else:
+                        layout.unsetContentsMargins()
+                for field in self.findChildren(ParameterField):
+                    field.set_compact(compact)
+                self._limit_row.setDirection(QBoxLayout.Direction.TopToBottom if compact
+                                             else QBoxLayout.Direction.LeftToRight)
             available = width - 2 * gutter
             actions = self._preset_actions
             needed = sum(actions.itemAt(i).widget().minimumSizeHint().width() for i in range(actions.count()))
@@ -418,6 +428,10 @@ class SettingsInspector(QWidget):
 
     def _spin(self, name, title, low, high, section, multiplier=1, suffix='', hint=''):
         control = self._field(name, title, QSpinBox(), section, hint)
+        if self.progressive:
+            # Each field grows to fill the row. The native spinbox hint includes its
+            # largest formatted value and desktop style padding, even at narrow widths.
+            control.setMinimumWidth(116)
         control.setRange(low - 1, high)
         control.setSpecialValueText('Mixed')
         control.setSuffix(suffix)
@@ -428,6 +442,8 @@ class SettingsInspector(QWidget):
 
     def _line(self, name, title, section, placeholder):
         control = self._field(name, title, QLineEdit(), section)
+        if self.progressive:
+            control.setMinimumWidth(64)
         control.setPlaceholderText(placeholder)
         control.setProperty('defaultPlaceholder', placeholder)
         control.editingFinished.connect(lambda: self._emit(name, control.text()))
