@@ -101,7 +101,8 @@ def test_popup_content_geometry_tooltips_and_keyboard(app):
     app.processEvents()
     view = combo.view()
     assert view.isVisible()
-    assert view.viewport().width() >= view.sizeHintForColumn(0)
+    # On a small logical screen at high DPI, overflow must stay reachable by scrolling.
+    assert view.viewport().width() + view.horizontalScrollBar().maximum() >= view.sizeHintForColumn(0)
     assert view.visualRect(combo.model().index(1, 0)).height() >= combo.fontMetrics().height()
     assert combo.itemData(1, Qt.ItemDataRole.ToolTipRole) == combo.itemText(1)
     assert combo.screen().availableGeometry().contains(view.window().geometry())
