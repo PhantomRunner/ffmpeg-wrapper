@@ -8,7 +8,11 @@ from media_wrapper.domain.operation_policy import (
     validate_plan,
     video_pixel_format,
 )
-from media_wrapper.domain.operations import OperationPlan, PreservationPolicy
+from media_wrapper.domain.operations import (
+    OperationPlan,
+    OutputTarget,
+    PreservationPolicy,
+)
 from media_wrapper.domain.remux import Container, RemuxRequest
 
 
@@ -25,6 +29,15 @@ def build_remux_command(ffmpeg: Path, request: RemuxRequest) -> list[str]:
     for stream in request.streams:
         args.extend(['-map', f'0:{stream.index}'])
     args.extend(['-c', 'copy', '-f', CONTAINERS[request.container].muxer, str(request.destination.absolute())])
+    return args
+
+
+def _output_args(output: OutputTarget) -> list[str]:
+    args = []
+    if output.container in {Container.MATROSKA, Container.WEBM}:
+        # Older FFmpeg muxers infer a default track even when its disposition is explicitly cleared.
+        args.extend(['-default_mode', 'passthrough'])
+    args.extend(['-f', CONTAINERS[output.container].muxer, str(output.execution_path)])
     return args
 
 
@@ -89,7 +102,7 @@ class CommandBuilder:
                 args.extend([f'-metadata:s:{position}', f'handler_name={mapped.title}'])
         for flag, value in plan.custom_options:
             args.extend([flag, value])
-        args.extend(['-f', CONTAINERS[plan.output.container].muxer, str(plan.output.execution_path)])
+        args.extend(_output_args(plan.output))
         return args
 
     def build_passes(self, ffmpeg: Path, plan: OperationPlan, available_encoders: frozenset[str],
@@ -98,6 +111,8 @@ class CommandBuilder:
         if not plan.two_pass:
             return [command]
         position = next(i for i, s in enumerate(plan.streams) if s.profile.encoder == 'libx264')
-        first = command[:-3] + [f'-pass:{position}', '1', f'-passlogfile:{position}', str(passlog), '-f', 'null', os.devnull]
-        second = command[:-3] + [f'-pass:{position}', '2', f'-passlogfile:{position}', str(passlog)] + command[-3:]
+        output_args = _output_args(plan.output)
+        common = command[:-len(output_args)]
+        first = common + [f'-pass:{position}', '1', f'-passlogfile:{position}', str(passlog), '-f', 'null', os.devnull]
+        second = common + [f'-pass:{position}', '2', f'-passlogfile:{position}', str(passlog)] + output_args
         return [first, second]

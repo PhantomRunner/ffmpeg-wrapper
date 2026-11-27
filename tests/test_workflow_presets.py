@@ -29,7 +29,8 @@ def obs_clip(sample, tmp_path):
         [str(binaries.ffmpeg), '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=30:d=1',
          '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
          '-f', 'lavfi', '-i', 'sine=frequency=880:duration=1', '-map', '0:v', '-map', '1:a',
-         '-map', '2:a', '-c:v', 'libaom-av1', '-cpu-used', '8', '-threads', '2', '-c:a', 'aac',
+         '-map', '2:a', '-c:v', 'libaom-av1', '-strict:v', 'experimental', '-cpu-used', '8',
+         '-threads', '2', '-c:a', 'aac',
          '-metadata:s:a:0', 'title=Game', '-metadata:s:a:1', 'title=Microphone', '-n', str(path)],
         check=True, capture_output=True, timeout=30,
     )

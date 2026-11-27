@@ -129,7 +129,7 @@ def test_obs_style_av1_to_intermediate_preserves_audio_tracks(sample, tmp_path):
         ffmpeg, '-v', 'error', '-nostdin', '-f', 'lavfi', '-i', 'testsrc2=s=320x180:r=30:d=2',
         '-f', 'lavfi', '-i', 'sine=frequency=320:duration=2:sample_rate=48000',
         '-f', 'lavfi', '-i', 'sine=frequency=640:duration=2:sample_rate=48000',
-        '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'libaom-av1', '-cpu-used', '8',
+        '-map', '0:v', '-map', '1:a', '-map', '2:a', '-c:v', 'libaom-av1', '-strict:v', 'experimental', '-cpu-used', '8',
         '-c:a', 'aac', '-metadata:s:a:0', 'title=Game', '-metadata:s:a:1', 'title=Microphone',
         '-metadata:s:a:0', 'language=jpn', '-metadata:s:a:1', 'language=eng',
         '-n', str(source),

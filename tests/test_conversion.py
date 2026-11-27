@@ -104,6 +104,8 @@ def test_target_size_estimate_and_two_pass(video_sample):
     assert len(commands) == 2
     assert commands[0][commands[0].index('-pass:0') + 1] == '1'
     assert commands[1][commands[1].index('-pass:0') + 1] == '2'
+    assert '-default_mode' not in commands[0]
+    assert commands[1][-5:-3] == ['-default_mode', 'passthrough']
 
 
 def test_real_two_pass_compression(video_sample):

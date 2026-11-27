@@ -35,6 +35,7 @@ def test_verified_staged_remux(sample):
     assert finished[0][0] and task.record.status == TaskStatus.COMPLETED
     assert task.record.result.path == plan.output.path
     assert task.record.result.streams[0].codec == 'pcm_s16le'
+    assert plan.media.streams[0].dispositions == task.record.result.streams[0].dispositions == ()
     assert not task.record.partial_path.exists()
     assert '-progress' in task.record.command
     loglevel = task.record.command.index('-loglevel')
@@ -154,7 +155,8 @@ def test_selected_tracks_real_remux_and_rejected_incompatibility(sample, tmp_pat
     binaries, original = sample
     source = tmp_path/'two tracks.mkv'
     subprocess.run([str(binaries.ffmpeg), '-v', 'error', '-i', str(original.media.path),
-                    '-map', '0:a', '-map', '0:a', '-c', 'copy', '-n', str(source)],
+                    '-map', '0:a', '-map', '0:a', '-c', 'copy',
+                    '-disposition:a:0', 'default', '-disposition:a:1', '0', '-n', str(source)],
                    check=True, capture_output=True, timeout=15)
     media = MediaService(binaries).inspect(source)
     plan = replace(original, media=media, streams=(StreamSelection(1),))
@@ -165,6 +167,7 @@ def test_selected_tracks_real_remux_and_rejected_incompatibility(sample, tmp_pat
     wait(app, lambda: bool(results))
     assert task.record.status == TaskStatus.COMPLETED
     assert len(task.record.result.streams) == 1
+    assert media.streams[1].dispositions == task.record.result.streams[0].dispositions == ()
     assert '0:1' in task.record.command and '0:0' not in task.record.command
     invalid = replace(plan, output=OutputTarget(tmp_path/'unsupported.mp4', Container.MP4))
     task = OperationTask(TaskRecord(invalid), binaries)
