@@ -118,7 +118,9 @@ def test_custom_options_in_preview_and_direct_plan_validation(sample):
     binaries, plan = sample
     plan = replace(plan, custom_options=parse_custom_options('-threads 2 -max_muxing_queue_size 1024'))
     command = CommandBuilder().build(binaries.ffmpeg, plan)
-    assert command[-7:-3] == ['-threads', '2', '-max_muxing_queue_size', '1024']
+    offset = command.index('-threads')
+    assert command[offset:offset + 4] == ['-threads', '2', '-max_muxing_queue_size', '1024']
+    assert offset + 4 <= command.index('-f')
     assert command.count('-n') == 1 and '-y' not in command
     with pytest.raises(ValueError):
         CommandBuilder().build(binaries.ffmpeg, replace(plan, custom_options=(('-y', '1'),)))
