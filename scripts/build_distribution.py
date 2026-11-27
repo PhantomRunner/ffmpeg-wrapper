@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from distribution_common import sha256
+from distribution_common import project_version, sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -75,7 +75,7 @@ def main() -> None:
                     '--distpath', str(output_dir), '--workpath', str(work / 'pyinstaller'),
                     str(ROOT / 'packaging/MediaWrapper.spec')], cwd=ROOT, check=True,
                    env=dict(os.environ, MEDIA_WRAPPER_BUILD_ICON=str(icon_path)))
-    for name in ('README.md', 'BUILDING.md'):
+    for name in ('README.md', 'BUILD-QUICKSTART.md'):
         if (ROOT / name).is_file():
             shutil.copy2(ROOT / name, destination / name)
     shutil.copy2(icon_path, destination / 'media-wrapper.ico')
@@ -127,7 +127,7 @@ def main() -> None:
                                   'linux_glibc_max': '2.31', 'windows_min': '10.0.17763'},
                 'build_libc': platform.libc_ver(),
                 'environment_packages': dict(sorted((item.metadata['Name'], item.version) for item in importlib.metadata.distributions())),
-                'commit': commit, 'packages': packages, 'ffmpeg_bundled': False,
+                'commit': commit, 'version': project_version(ROOT), 'packages': packages, 'ffmpeg_bundled': False,
                 'preview_media_libraries': [str(path.relative_to(destination)) for path in sorted(destination.rglob('*'))
                     if path.is_file() and any(name in path.name.lower() for name in ('avcodec', 'avformat', 'avutil', 'swresample', 'swscale', 'ffmpegmedia'))]}
     (destination / 'build-info.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')

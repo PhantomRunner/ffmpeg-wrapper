@@ -2,6 +2,7 @@
 import hashlib
 import json
 import platform
+import tomllib
 from pathlib import Path
 
 
@@ -29,9 +30,14 @@ def verify_manifest(bundle: Path) -> dict:
     return manifest
 
 
+def project_version(root: Path) -> str:
+    return tomllib.loads((root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+
+
 def artifact_name(root: Path, info: dict) -> str:
-    import tomllib
-    version = tomllib.loads((root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+    version = project_version(root)
+    if info.get('version', version) != version:
+        raise ValueError('Portable payload belongs to a different project version')
     identity = info['commit'][:12] + ('-dirty' if info['source_dirty'] else '')
     machine = info.get('machine', platform.machine()).lower()
     architecture = 'x86_64' if machine in {'amd64', 'x86_64'} else machine
