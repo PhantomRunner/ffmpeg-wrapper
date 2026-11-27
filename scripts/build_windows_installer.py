@@ -11,7 +11,7 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from distribution_common import artifact_name, verify_manifest
+from distribution_common import artifact_name, project_version, verify_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,7 +41,8 @@ def prepare_compiler(directory, pin, *, download=True):
     compiler = directory / 'compiler/ISCC.exe'
     if not compiler.is_file():
         subprocess.run([str(installer), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS',
-                        '/DIR=' + str(compiler.parent.resolve())], check=True, timeout=120)
+                        '/PORTABLE=1', '/CURRENTUSER', '/DIR=' + str(compiler.parent.resolve())],
+                       check=True, timeout=120)
     if not compiler.is_file():
         raise ValueError('Inno Setup installation did not produce ISCC.exe')
     return compiler
@@ -73,19 +74,18 @@ def main():
     args = parser.parse_args()
     if sys.platform != 'win32':
         raise SystemExit('Build Windows installers on a native Windows runner')
-    pin = json.loads((ROOT / 'packaging/windows-installer-tools.json').read_text())
+    pin = json.loads((ROOT / 'packaging/windows-installer-tools.json').read_text(encoding='utf-8'))
     if args.prepare_compiler:
         print(prepare_compiler(ROOT / 'build/inno-tools', pin, download=not args.offline))
         return
     compiler = args.compiler or Path(os.environ.get('INNO_COMPILER') or shutil.which('ISCC.exe') or '')
     if not compiler.is_file():
         raise SystemExit('Supply the pinned Inno Setup 7.1.1 compiler using --compiler or INNO_COMPILER')
-    version_check = subprocess.run([str(compiler), '/?'], capture_output=True, text=True, check=False)
+    version_check = subprocess.run([str(compiler), '/?'], capture_output=True, text=True, errors='replace', check=False)
     if not re.search(r'\b' + re.escape(pin['version']) + r'\b', version_check.stdout + version_check.stderr):
         raise SystemExit('Inno Setup compiler version differs from the pinned tool')
     info = verify_payload(args.bundle)
-    import tomllib
-    version = tomllib.loads((ROOT / 'pyproject.toml').read_text())['project']['version']
+    version = project_version(ROOT)
     name = artifact_name(ROOT, info) + '-setup'
     output_dir = (args.output_dir or args.bundle.parent).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)

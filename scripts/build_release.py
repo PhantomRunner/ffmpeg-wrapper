@@ -16,7 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run_release(output_dir: Path, *, reuse_bundle: bool = False,
                 skip_tests: bool = False, offline_tools: bool = False,
+                skip_installer_verification: bool = False,
                 tools_manifest: Path | None = None) -> Path:
+    if skip_installer_verification and sys.platform != 'win32':
+        raise ValueError('Installer verification can only be skipped on Windows')
     output_dir = output_dir.resolve()
     bundle = output_dir / 'MediaWrapper'
     if bundle.exists() and not reuse_bundle:
@@ -90,8 +93,12 @@ def run_release(output_dir: Path, *, reuse_bundle: bool = False,
                                               *(['--offline'] if offline_tools else [])))
             step('installer-build', python('build_windows_installer.py', '--bundle', bundle,
                                            '--output-dir', output_dir, '--compiler', compiler))
-            step('installer-verify', python('verify_windows_installer.py', output_dir / (name + '-setup.exe'),
-                                            '--report', reports / 'installer.json'))
+            if skip_installer_verification:
+                status['stages'].append({'name': 'installer-verify', 'status': 'skipped',
+                                         'reason': 'Local build. Run the release checks on a clean Windows system.'})
+            else:
+                step('installer-verify', python('verify_windows_installer.py', output_dir / (name + '-setup.exe'),
+                                                '--report', reports / 'installer.json'))
         step('archive', python('archive_distribution.py', '--output-dir', output_dir))
         # Exercise the payload after extraction too: permissions/symlinks are part of the product.
         suffix = '.zip' if sys.platform == 'win32' else '.tar.gz'
@@ -117,12 +124,15 @@ if __name__ == '__main__':
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'dist')
     parser.add_argument('--reuse-bundle', action='store_true')
     parser.add_argument('--skip-tests', action='store_true', help='Record that source tests were skipped; payload checks still run')
+    parser.add_argument('--skip-installer-verification', action='store_true',
+                        help='Build the installer without installing it on this Windows system')
     parser.add_argument('--offline-tools', action='store_true', help='Require checksum-pinned tools already cached in build/')
     parser.add_argument('--tools-manifest', type=Path, help='Explicit Linux AppImage tool pins')
     args = parser.parse_args()
     try:
         run_release(args.output_dir, reuse_bundle=args.reuse_bundle,
                     skip_tests=args.skip_tests, offline_tools=args.offline_tools,
+                    skip_installer_verification=args.skip_installer_verification,
                     tools_manifest=args.tools_manifest.resolve() if args.tools_manifest else None)
     except (OSError, ValueError, RuntimeError) as error:
         raise SystemExit(str(error)) from error

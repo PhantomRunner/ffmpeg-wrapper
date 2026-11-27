@@ -183,3 +183,16 @@ def test_failed_stage_saves_log_and_never_starts_packaging(pipeline, monkeypatch
     assert not report['success'] and report['stages'][0]['returncode'] == 37
     assert (report_path.parent / 'dependencies.log').read_text() == 'failure detail'
     assert not (pipeline.output / 'MediaWrapper').exists()
+
+
+@pytest.mark.parametrize('local_build', [False, True])
+def test_windows_installer_is_built_and_only_local_build_skips_installing(pipeline, monkeypatch, local_build):
+    monkeypatch.setattr(build_release.sys, 'platform', 'win32')
+    payload(pipeline.output / 'MediaWrapper', target='Windows')
+    report_path = build_release.run_release(pipeline.output, reuse_bundle=True,
+                                            skip_installer_verification=local_build)
+    report = json.loads(report_path.read_text())
+    stages = {item['name']: item['status'] for item in report['stages']}
+    assert report['success'] and not report['tests_skipped']
+    assert stages['installer-build'] == stages['archive-verify'] == 'passed'
+    assert stages['installer-verify'] == ('skipped' if local_build else 'passed')

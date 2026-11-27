@@ -2,7 +2,6 @@
 import hashlib
 import json
 import platform
-import tomllib
 from pathlib import Path
 
 
@@ -31,6 +30,8 @@ def verify_manifest(bundle: Path) -> dict:
 
 
 def project_version(root: Path) -> str:
+    import tomllib
+
     return tomllib.loads((root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
 
 
