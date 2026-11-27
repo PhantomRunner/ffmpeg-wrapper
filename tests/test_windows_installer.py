@@ -84,6 +84,26 @@ def test_pinned_compiler_is_installed_portably_for_current_user(tmp_path, monkey
     assert {'/PORTABLE=1', '/CURRENTUSER', f'/DIR={compiler.parent.resolve()}'}.issubset(calls[0])
 
 
+@pytest.mark.parametrize(('stdout', 'returncode', 'accepted'), [
+    ('7.1.1\r\n', 0, True),
+    ('7.1.10\r\n', 0, False),
+    ('7.1.1\r\n', 2, False),
+])
+def test_compiler_version_requires_native_switch_exact_version_and_success(tmp_path, monkeypatch, stdout, returncode, accepted):
+    compiler = tmp_path / 'compiler with spaces/ISCC.exe'
+
+    def version(arguments, **kwargs):
+        assert arguments == [str(compiler), '--version']
+        return subprocess.CompletedProcess(arguments, returncode, stdout, '')
+
+    monkeypatch.setattr(builder.subprocess, 'run', version)
+    if accepted:
+        builder.verify_compiler_version(compiler, '7.1.1')
+    else:
+        with pytest.raises(SystemExit, match='Expected Inno Setup compiler 7.1.1'):
+            builder.verify_compiler_version(compiler, '7.1.1')
+
+
 def test_installer_refuses_registered_profile(monkeypatch):
     from contextlib import nullcontext
 

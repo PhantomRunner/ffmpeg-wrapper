@@ -3,7 +3,6 @@ import argparse
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -64,6 +63,15 @@ def compiler_arguments(compiler, bundle, output_dir, name, version, icon):
             str(ROOT / 'packaging/MediaWrapper.iss')]
 
 
+def verify_compiler_version(compiler, expected):
+    result = subprocess.run([str(compiler), '--version'], capture_output=True, text=True, errors='replace',
+                            timeout=30, check=False)
+    actual = result.stdout.strip()
+    if result.returncode or actual != expected:
+        detail = result.stderr.strip() or actual or 'no version reported'
+        raise SystemExit(f'Expected Inno Setup compiler {expected}; version check exited {result.returncode}: {detail}')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--compiler', type=Path)
@@ -81,9 +89,7 @@ def main():
     compiler = args.compiler or Path(os.environ.get('INNO_COMPILER') or shutil.which('ISCC.exe') or '')
     if not compiler.is_file():
         raise SystemExit('Supply the pinned Inno Setup 7.1.1 compiler using --compiler or INNO_COMPILER')
-    version_check = subprocess.run([str(compiler), '/?'], capture_output=True, text=True, errors='replace', check=False)
-    if not re.search(r'\b' + re.escape(pin['version']) + r'\b', version_check.stdout + version_check.stderr):
-        raise SystemExit('Inno Setup compiler version differs from the pinned tool')
+    verify_compiler_version(compiler, pin['version'])
     info = verify_payload(args.bundle)
     version = project_version(ROOT)
     name = artifact_name(ROOT, info) + '-setup'
