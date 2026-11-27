@@ -1,4 +1,6 @@
 """UX regressions exercise real widgets and retain application safety checks."""
+from pathlib import Path
+
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
@@ -24,7 +26,11 @@ def app():
     ('/tmp/clip.MP4', '/tmp/clip.MP4'),
 ])
 def test_output_suggestion(value, expected):
-    assert suggest_output_path(value, Container.MP4) == expected
+    actual = suggest_output_path(value, Container.MP4)
+    if value == expected:
+        assert actual == value
+    else:
+        assert Path(actual) == Path(expected)
 
 
 @pytest.mark.parametrize('mode', ['remux', 'convert', 'compress'])

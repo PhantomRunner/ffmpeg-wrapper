@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -49,7 +50,8 @@ def test_prepare_downloads_verified_tools_atomically_and_reuses_cache(tmp_path, 
     directory = tmp_path / 'tools with spaces'
     result = module.prepare_tools(directory, pins, download=True)
     assert result['tool'].read_bytes() == content
-    assert result['tool'].stat().st_mode & 0o100
+    if os.name == 'posix':
+        assert result['tool'].stat().st_mode & 0o100
     assert list(directory.iterdir()) == [result['tool']]
     assert module.prepare_tools(directory, pins, download=True) == result
     assert requests == ['https://example.invalid/appimagetool']

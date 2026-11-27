@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLineEdit
@@ -16,6 +18,17 @@ def test_native_window_output_is_pinned_and_delete_is_scoped(flat_window, sample
     window.sources.table.selectRow(0)
     template = window.inspector.fields['template'].control
     assert isinstance(template, QLineEdit)
+    folder = sample[1].media.path.parent / ('Long recordings folder ' * 7).strip()
+    window.controller.patch('folder', str(folder))
+    window.render()
+    window.resize(1280, 800)
+    app.processEvents()
+    destination = window.inspector.output_preview
+    assert Path(destination.accessibleName()).parent == folder
+    assert destination.toolTip() == destination.accessibleName()
+    assert destination.text() != destination.accessibleName()
+    assert '…' in destination.text()
+
     window.activateWindow()
     template.setFocus()
     QTest.keyClick(template, Qt.Key.Key_Delete)

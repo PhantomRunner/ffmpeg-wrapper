@@ -1,9 +1,11 @@
 """One scoped inspector for all operations; controls emit typed field patches."""
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
+from html import escape
 
-from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt, Signal
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
@@ -14,6 +16,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabBar,
     QTableWidget,
@@ -35,6 +38,44 @@ from media_wrapper.ui.widgets.combo_box import ReadableComboBox
 from media_wrapper.ui.widgets.controls import ActionButton
 
 
+class InspectorLabel(QLabel):
+    """Keep source names and destinations readable without widening the panel."""
+
+    def __init__(self, text=''):
+        super().__init__()
+        self._full_text = ''
+        self._single_line = None
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.set_content(text)
+
+    def set_content(self, text, *, single_line=False):
+        if text == self._full_text and single_line == self._single_line:
+            return
+        self._full_text = text
+        self._single_line = single_line
+        self.setWordWrap(not single_line)
+        self.setAccessibleName(text)
+        self.setToolTip(f'<qt>{escape(text)}</qt>' if '<' in text else text)
+        self._refresh_text()
+
+    def _refresh_text(self):
+        text = self._full_text
+        if self._single_line:
+            text = self.fontMetrics().elidedText(text, Qt.TextElideMode.ElideMiddle, self.contentsRect().width())
+        if text != self.text():
+            self.setText(text)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refresh_text()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self._refresh_text()
+
+
 class ParameterField(QWidget):
     reset_requested = Signal()
 
@@ -43,22 +84,29 @@ class ParameterField(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
-        row = QHBoxLayout()
+        form = QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form.setVerticalSpacing(3)
         self.label = QLabel(title)
         self.label.setWordWrap(True)
         self.label.setBuddy(control)
         self.label.setMinimumWidth(90)
         control.setAccessibleName(title)
         self.control = control
-        row.addWidget(self.label, 2)
-        row.addWidget(control, 4)
+        actions = QWidget()
+        self._actions = QHBoxLayout(actions)
+        self._actions.setContentsMargins(0, 0, 0, 0)
+        self._actions.addWidget(control, 1)
         reset = ActionButton('↺')
         reset.setAccessibleName(f'Reset {title}')
         reset.setToolTip(f'Reset {title} in the declared edit scope')
         reset.setFixedWidth(30)
         reset.clicked.connect(self.reset_requested)
-        row.addWidget(reset)
-        layout.addLayout(row)
+        self.add_action(reset)
+        form.addRow(self.label, actions)
+        layout.addLayout(form)
         self.hint = QLabel(hint)
         self.hint.setWordWrap(True)
         self.hint.setProperty('role', 'fieldHelp')
@@ -69,6 +117,9 @@ class ParameterField(QWidget):
         self.error.setProperty('validation', 'error')
         self.error.hide()
         layout.addWidget(self.error)
+
+    def add_action(self, button):
+        self._actions.addWidget(button)
 
     def show_error(self, text):
         self.error.setText(text)
@@ -116,8 +167,8 @@ class SettingsInspector(QWidget):
         layout = QVBoxLayout(body)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(12)
-        self.heading = QLabel('Operation settings')
-        self.heading.setTextFormat(Qt.TextFormat.PlainText)
+        self.heading = InspectorLabel()
+        self.heading.set_content('Operation settings', single_line=True)
         self.heading.setProperty('role', 'panelTitle')
         layout.addWidget(self.heading)
         self.tabs = QTabBar()
@@ -147,8 +198,7 @@ class SettingsInspector(QWidget):
         self.preset_field = ParameterField('Preset', self.preset)
         self.preset_field.reset_requested.connect(self.reset_all)
         layout.addWidget(self.preset_field)
-        self.quick_summary = QLabel()
-        self.quick_summary.setWordWrap(True)
+        self.quick_summary = InspectorLabel()
         self.quick_summary.setProperty('role', 'fieldHelp')
         self.quick_summary.setVisible(progressive)
         layout.addWidget(self.quick_summary)
@@ -205,8 +255,7 @@ class SettingsInspector(QWidget):
         self.streams_toggle = QCheckBox('Streams and metadata')
         self.config_layout.insertWidget(self.config_layout.indexOf(self.groups['streams'][0]), self.streams_toggle)
         self.streams_toggle.toggled.connect(lambda checked: self.groups['streams'][0].setVisible(checked))
-        self.stream_note = QLabel('Select one inspected row to map its streams. Stream indices are never copied between files.')
-        self.stream_note.setWordWrap(True)
+        self.stream_note = InspectorLabel('Select one inspected row to map its streams. Indices are per file.')
         self.stream_note.setProperty('role', 'fieldHelp')
         self.groups['streams'][1].addWidget(self.stream_note)
         self.tracks = QTableWidget(0, 3 if progressive else 2)
@@ -228,7 +277,7 @@ class SettingsInspector(QWidget):
         browse.setToolTip('Choose output folder')
         browse.setFixedWidth(30)
         browse.clicked.connect(self._browse)
-        self.fields['folder'].layout().itemAt(0).layout().addWidget(browse)
+        self.fields['folder'].add_action(browse)
         self._line('template', 'Name template', 'output', '{name}_{operation}')
         self.fields['template'].hint.setText('Tokens: {name}, {operation}, {index}, {ext}, {stem}. Extension follows the container.')
         self.fields['template'].hint.setVisible(not progressive)
@@ -238,9 +287,7 @@ class SettingsInspector(QWidget):
         self.auto_number.setToolTip('Choose a new unique filename. Existing files are never replaced.')
         self.auto_number.toggled.connect(lambda value: self._emit('auto_number', value))
         self.groups['output'][1].addWidget(self.auto_number)
-        self.output_preview = QLabel('Destination is resolved and checked per file during validation.')
-        self.output_preview.setTextFormat(Qt.TextFormat.PlainText)
-        self.output_preview.setWordWrap(True)
+        self.output_preview = InspectorLabel('Destination is resolved and checked per file during validation.')
         self.output_preview.setProperty('role', 'fieldHelp')
         self.groups['output'][1].addWidget(self.output_preview)
         self.size_note = QLabel('Size unknown until encoded.')
@@ -260,7 +307,8 @@ class SettingsInspector(QWidget):
         if progressive:
             self._line('codec_profile', 'Video profile', 'advanced', 'Encoder default')
             self._line('pixel_format', 'Pixel format', 'advanced', 'Preserve when possible')
-            self.verify_decode = QCheckBox('Verify by decoding the entire output')
+            self.verify_decode = QCheckBox('Verify by decoding')
+            self.verify_decode.setToolTip('Decode the entire output to check media integrity.')
             self.verify_decode.toggled.connect(lambda enabled: self._emit('deep_verify', enabled))
             self.groups['advanced'][1].addWidget(self.verify_decode)
             command = ActionButton('View FFmpeg command')
@@ -277,17 +325,18 @@ class SettingsInspector(QWidget):
             self.groups['advanced'][1].addWidget(self.fields[name])
         self.groups['media'][1].removeWidget(self.hardware_note)
         self.groups['advanced'][1].addWidget(self.hardware_note)
-        actions = QHBoxLayout()
+        self._preset_actions = QBoxLayout(QBoxLayout.Direction.TopToBottom)
         for title, signal in (('Save preset…', self.save_preset), ('Manage presets…', self.manage_presets),
                               ('Reset overrides', self.reset_all)):
             button = ActionButton(title)
             button.clicked.connect(signal)
             if progressive:
-                actions.addWidget(button)
+                self._preset_actions.addWidget(button)
             else:
                 self.config_layout.addWidget(button)
         if progressive:
-            layout.addLayout(actions)
+            layout.addLayout(self._preset_actions)
+            self.scroll.viewport().installEventFilter(self)
             for toggle in (self.audio_toggle, self.streams_toggle, self.advanced_toggle):
                 toggle.hide()
         layout.addStretch()
@@ -299,6 +348,17 @@ class SettingsInspector(QWidget):
         self._sections = {}
         self.tabs.currentChanged.connect(self._tab_visibility)
         self._tab_visibility()
+
+    def eventFilter(self, watched, event):
+        if watched is self.scroll.viewport() and event.type() == QEvent.Type.Resize:
+            margins = self._body_layout.contentsMargins()
+            available = event.size().width() - margins.left() - margins.right()
+            actions = self._preset_actions
+            needed = sum(actions.itemAt(i).widget().minimumSizeHint().width() for i in range(actions.count()))
+            needed += actions.spacing() * (actions.count() - 1)
+            actions.setDirection(QBoxLayout.Direction.LeftToRight if available >= needed
+                                 else QBoxLayout.Direction.TopToBottom)
+        return super().eventFilter(watched, event)
 
     def ensureWidgetVisible(self, widget):
         if self.groups['output'][0].isAncestorOf(widget):
@@ -396,8 +456,11 @@ class SettingsInspector(QWidget):
         self.limit_value = QLineEdit()
         self.limit_value.setPlaceholderText('e.g. 250')
         self.limit_value.setAccessibleName('Maximum output size value')
+        self.limit_value.setMinimumWidth(55)
+        self.limit_value.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.limit_unit = ReadableComboBox()
         self.limit_unit.setAccessibleName('Maximum output size unit')
+        self.limit_unit.setMinimumContentsLength(3)
         for unit in ('MiB', 'MB', 'MiB/min', 'MB/min', '%'):
             self.limit_unit.addItem(unit, unit)
         box = QWidget()
@@ -478,7 +541,8 @@ class SettingsInspector(QWidget):
             item = draft.items.get(active.source_id) if active else (
                 draft.items.get(draft.selected[0]) if len(draft.selected) == 1 else None)
             targets = draft.editable_outputs() if draft.multiple_outputs else draft.editable()
-            self.heading.setText(f'{item.path.name} / {active.label}' if active else draft.operation.value.title() + ' settings')
+            self.heading.set_content(f'{item.path.name} / {active.label}' if active else draft.operation.value.title() + ' settings',
+                                     single_line=True)
             self.scope.clear()
             if draft.multiple_outputs:
                 self.scope.addItem('Edit: Focused output', EditScope.ACTIVE.value)
@@ -653,7 +717,7 @@ class SettingsInspector(QWidget):
     def _render_quick_summary(self, source, active):
         options = active.options.get(active.operation) if active else None
         if not options or not source or not source.inspected:
-            self.quick_summary.setText('Choose an inspected output, then select a goal and preset.')
+            self.quick_summary.set_content('Choose an inspected output, then select a goal and preset.')
             return
         actions = dict(options.request.tracks)
         codecs = []
@@ -677,7 +741,7 @@ class SettingsInspector(QWidget):
                 label = options.request.codec_profile.upper().replace('_', ' ')
             codecs.append(label)
         parts = [CONTAINERS[options.request.container].label, *dict.fromkeys(codecs), tracks]
-        self.quick_summary.setText(' · '.join(parts))
+        self.quick_summary.set_content(' · '.join(parts))
 
     def _render_streams(self, item, operation, capabilities, output=None):
         request = (output or item).options[operation].request if item else None
@@ -685,7 +749,7 @@ class SettingsInspector(QWidget):
                request.stream_profiles if request and self.progressive else (), operation,
                capabilities.build.identity if capabilities else None)
         self.tracks.setVisible(item is not None)
-        self.stream_note.setText(f'Stream mapping for this output of {item.path.name}.' if item else
+        self.stream_note.set_content(f'Stream mapping for this output of {item.path.name}.' if item else
                                 'Select one inspected row to map its streams. Indices are per file.')
         if key == self.stream_key:
             return

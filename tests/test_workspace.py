@@ -141,27 +141,45 @@ def test_navigation_preserves_edits_selection_and_per_mode_geometry(app, monkeyp
     window.close()
 
 
-@pytest.mark.parametrize('title', ['Convert', 'Compress'])
+@pytest.mark.parametrize('operation_name', ['convert', 'compress'])
 @pytest.mark.parametrize('width', [280, 320, 420])
-def test_encoding_form_fits_narrow_panel(app, title, width):
-    from pathlib import Path
+def test_progressive_inspector_fits_narrow_panel(app, tmp_path, operation_name, width):
+    from media_wrapper.domain.draft import DraftState
+    from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
+    from media_wrapper.domain.media import MediaFile, MediaStream
+    from media_wrapper.domain.operations import MediaOperation
+    from media_wrapper.ui.settings_inspector import SettingsInspector
+    from media_wrapper.ui.theme import apply_theme
 
-    from media_wrapper.domain.media import MediaFile
-    from media_wrapper.ui.encoding_view import EncodingView
-
-    view = EncodingView(title)
+    draft = DraftState(multiple_outputs=True)
+    source_path = tmp_path / ('Long-recording-name-' * 9 + '.mkv')
+    draft.add((source_path,))
+    media = MediaFile(source_path, streams=(MediaStream(0, 'video', 'h264'), MediaStream(1, 'audio', 'aac')))
+    draft.inspected(InspectionRecord(source_path, InspectionStatus.COMPLETED, media))
+    draft.operation = MediaOperation(operation_name)
+    view = SettingsInspector(progressive=True)
+    apply_theme(view)
     view.resize(width, 500)
-    view.set_media(MediaFile(Path('/tmp/' + 'long-source-name-' * 15 + '.mkv')), False)
     view.show()
-    for expanded in (False, True):
-        view.advanced_toggle.setChecked(expanded)
-        for mode in ('quality', 'bitrate', 'target'):
-            view.mode.setCurrentText(mode)
-            for _ in range(3):
-                app.processEvents()
-            assert view.width() == width
-            assert view.horizontalScrollBar().maximum() == 0
-            assert view.widget().width() <= view.viewport().width()
-            for field in (view.container, view.destination, view.advanced_toggle):
-                assert field.geometry().right() < field.parentWidget().width()
-    view.close()
+
+    try:
+        for tab, page in enumerate(('Quick', 'Custom', 'Advanced')):
+            view.tabs.setCurrentIndex(tab)
+            for mode in ('quality', 'bitrate', 'target'):
+                draft.patch('mode', mode)
+                view.render(draft, named_presets={})
+                view.output_preview.set_content(str(source_path.with_suffix('.mp4')), single_line=True)
+                for _ in range(3):
+                    app.processEvents()
+                assert view.tabs.tabText(tab) == page
+                assert view.width() == width
+                assert view.scroll.horizontalScrollBar().maximum() == 0
+                assert view.scroll.widget().width() <= view.scroll.viewport().width()
+                assert view.output_preview.isVisible()
+                assert view.output_preview.toolTip() == str(source_path.with_suffix('.mp4'))
+                fields = [view.intent_field, view.preset_field, *view.fields.values(), view.size_limit]
+                for field in (field for field in fields if field.isVisible()):
+                    assert field.geometry().right() < field.parentWidget().width()
+                    assert field.control.geometry().right() < field.control.parentWidget().width()
+    finally:
+        view.close()

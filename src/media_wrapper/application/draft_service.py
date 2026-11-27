@@ -11,7 +11,7 @@ from media_wrapper.application.operation_service import (
     operation_warnings,
     prepare_operation,
 )
-from media_wrapper.application.operation_validation import path_identity
+from media_wrapper.application.operation_validation import path_identity, validate_output_name
 from media_wrapper.application.validation_preview import (
     FileValidation,
     ValidationCandidate,
@@ -127,7 +127,9 @@ def prepare_draft(snapshot: DraftSnapshot, binaries, capabilities=None, reserved
                 raise PlanValidationError(ValidationCode.INPUT, source.probe_error or 'Inspect this source first.')
             if source.already_queued:
                 raise ValueError('These settings were already added to the queue. Change settings to create another job.')
-            destinations[source.id] = requested_destination(source, source.operation or snapshot.operation, index)
+            destination = requested_destination(source, source.operation or snapshot.operation, index)
+            validate_output_name(destination)
+            destinations[source.id] = destination
         except (ValueError, OSError) as error:
             initial_errors[source.id] = error
     fixed = Counter(path_key(destinations[s.id]) for s in snapshot.inputs

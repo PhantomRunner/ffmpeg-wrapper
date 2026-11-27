@@ -7,6 +7,7 @@ from threading import Event
 from media_wrapper.application.conversion_service import conversion_plan
 from media_wrapper.application.media_service import MediaService
 from media_wrapper.application.operation_service import prepare_operation
+from media_wrapper.application.operation_validation import validate_output_name
 from media_wrapper.domain.capabilities import CapabilityReport
 from media_wrapper.domain.containers import CONTAINERS
 from media_wrapper.domain.conversion import ConversionRequest
@@ -47,6 +48,7 @@ def plan_batch(paths: tuple[Path, ...], request: ConversionRequest, directory: P
     suffix = CONTAINERS[request.container].extension
     for index, path in enumerate(paths, 1):
         destination = directory / output_name(template, path, index, suffix)
+        validate_output_name(destination)
         key = path_key(destination)
         if key in keys:
             raise ValueError(f'Batch output collision (source, reserved or existing name): {destination}')

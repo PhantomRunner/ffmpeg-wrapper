@@ -1,6 +1,8 @@
 from pathlib import Path
 from threading import Event
 
+import pytest
+
 from media_wrapper.application.import_service import discover_sources
 from media_wrapper.domain.draft import MIXED, DraftState, EditScope
 from media_wrapper.domain.inspection import InspectionRecord, InspectionStatus
@@ -53,16 +55,33 @@ def test_empty_scope_removed_probe_and_duplicate_import(tmp_path):
     assert b.id not in draft.items
 
 
-def test_recursive_import_deduplicates_and_does_not_follow_directory_symlinks(tmp_path):
+def test_recursive_import_deduplicates_and_respects_cancellation(tmp_path):
     folder = tmp_path / 'input'
     folder.mkdir()
     (folder / 'clip.mkv').touch()
     (folder / 'sub').mkdir()
     (folder / 'sub' / 'audio.wav').touch()
-    (folder / 'loop').symlink_to(folder, target_is_directory=True)
     result = discover_sources((folder, folder / 'clip.mkv', tmp_path / 'missing'), Event())
     assert len(result.paths) == 2 and result.errors
     assert all(p.is_absolute() for p in result.paths)
     event = Event()
     event.set()
     assert discover_sources((Path('/does-not-exist'),), event).paths == ()
+
+
+def test_recursive_import_does_not_follow_directory_symlinks(tmp_path):
+    folder = tmp_path / 'input'
+    folder.mkdir()
+    clip = folder / 'clip.mkv'
+    clip.touch()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (outside / 'other.mkv').touch()
+    try:
+        (folder / 'external').symlink_to(outside, target_is_directory=True)
+        (folder / 'loop').symlink_to(folder, target_is_directory=True)
+    except OSError as error:
+        if getattr(error, 'winerror', None) != 1314:
+            raise
+        pytest.skip('Windows did not grant permission to create symlinks')
+    assert discover_sources((folder,), Event()).paths == (clip,)

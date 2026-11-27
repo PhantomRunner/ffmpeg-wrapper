@@ -341,12 +341,12 @@ class MainWindow(QMainWindow):
         output = self.draft.outputs.get(self.draft.active_output_id)
         options = output.options.get(output.operation) if output else None
         if not options:
-            self.inspector.output_preview.setText('Choose an inspected output to preview its destination.')
+            self.inspector.output_preview.set_content('Choose an inspected output to preview its destination.')
             self.inspector.size_note.clear()
             return
         item = self.draft.items[output.source_id]
         if not item.inspected:
-            self.inspector.output_preview.setText('Inspect the source before choosing output settings.')
+            self.inspector.output_preview.set_content('Inspect the source before choosing output settings.')
             self.inspector.size_note.clear()
             return
         try:
@@ -355,10 +355,13 @@ class MainWindow(QMainWindow):
                           if entry.id == output.id), 1)
             candidate = DraftInput(output.id, item.path, output.revision, options)
             destination = prepared.validation.destination if prepared else requested_destination(candidate, output.operation, index)
-            self.inspector.output_preview.setText(str(destination) if destination else 'Review output issues before processing.')
+            self.inspector.output_preview.set_content(
+                str(destination) if destination else 'Review output issues before processing.',
+                single_line=destination is not None,
+            )
             self.inspector.size_note.setText(draft_size_note(item.media, options))
         except ValueError as error:
-            self.inspector.output_preview.setText(str(error))
+            self.inspector.output_preview.set_content(str(error))
             self.inspector.size_note.clear()
 
     def show_notice(self, text):

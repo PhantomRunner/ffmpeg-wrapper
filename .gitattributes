@@ -1,0 +1,4 @@
+# Published license checksums depend on the original line endings.
+packaging/licenses/*.txt -text
+
+build.cmd text eol=crlf

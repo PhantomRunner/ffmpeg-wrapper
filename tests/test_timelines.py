@@ -83,6 +83,6 @@ def test_switch_preserves_queue_and_verified_output_action(monkeypatch, tmp_path
     opened = []
     monkeypatch.setattr('media_wrapper.ui.main_window.QDesktopServices.openUrl', opened.append)
     window.queue_view.open_output.click()
-    assert opened[0].toLocalFile() == str(tmp_path)
+    assert Path(opened[0].toLocalFile()) == tmp_path
     window.close()
     app.processEvents()
