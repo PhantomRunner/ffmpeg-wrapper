@@ -44,9 +44,11 @@ def build_script(tmp_path):
     scripts.mkdir(parents=True)
     script = scripts / SCRIPT.name
     shutil.copy2(SCRIPT, script)
+    entry_point = repository / 'build.sh'
+    shutil.copy2(SCRIPT.parent.parent / entry_point.name, entry_point)
     binaries = tmp_path / 'fake executables'
     binaries.mkdir()
-    for name in ('cat', 'dirname', 'id', 'sh', 'mkdir', 'mktemp', 'tee'):
+    for name in ('bash', 'cat', 'date', 'dirname', 'id', 'sh', 'mkdir', 'mktemp', 'tee'):
         (binaries / name).symlink_to(shutil.which(name))
     uname = binaries / 'uname'
     uname.write_text('#!/bin/sh\ncase "$1" in\n-s) printf "%s\\n" "${FAKE_OS:-Linux}";;\n-m) printf "%s\\n" "${FAKE_ARCH:-x86_64}";;\nesac\n')
@@ -66,8 +68,8 @@ def build_script(tmp_path):
                        FAKE_REPOSITORY=str(repository))
     bash = shutil.which('bash')
 
-    def run(*arguments, **extra_environment):
-        return subprocess.run([bash, str(script), *arguments], cwd=caller,
+    def run(*arguments, one_command=False, **extra_environment):
+        return subprocess.run([bash, str(entry_point if one_command else script), *arguments], cwd=caller,
                               env={**environment, **extra_environment}, capture_output=True,
                               text=True, timeout=10, check=False)
 
@@ -83,6 +85,28 @@ def test_help_does_not_require_docker(build_script):
     assert result.returncode == 0
     assert '--reuse-bundle' in result.stdout and '--skip-image-build' in result.stdout
     assert build_script.calls() == []
+
+
+def test_root_build_preserves_the_first_run_and_reports_new_output(build_script):
+    output_root = build_script.repository / 'dist/builds/linux-x86_64'
+    first = build_script.run(one_command=True)
+    assert first.returncode == 0, first.stderr
+    previous, = output_root.iterdir()
+    marker = previous / 'preserve.txt'
+    marker.write_text('first build')
+    second = build_script.run(one_command=True)
+    assert second.returncode == 0, second.stderr
+    assert marker.read_text() == 'first build'
+    fresh, = set(output_root.iterdir()) - {previous}
+    assert str(fresh) in second.stdout
+    assert len(list(fresh.glob('reports/bootstrap-*/release-status.json'))) == 1
+
+
+def test_root_build_reports_inaccessible_docker(build_script):
+    result = build_script.run(one_command=True, FAIL_STAGE='docker:info')
+    assert result.returncode == 29
+    assert 'Start the daemon and check your Docker access' in result.stderr
+    assert 'Logs:' in result.stderr
 
 
 def test_default_build_runs_every_stage_with_compatible_container(build_script):

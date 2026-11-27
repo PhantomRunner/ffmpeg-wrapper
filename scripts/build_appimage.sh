@@ -4,14 +4,14 @@ set -euo pipefail
 
 usage() {
     cat <<'HELP'
-Usage: scripts/build_appimage.sh [--output-dir DIR] [--reuse-bundle] [--skip-image-build]
+Usage: ./build.sh [--output-dir DIR] [--reuse-bundle] [--skip-image-build]
                                [--offline-tools] [--skip-tests]
 
 Build the Docker packaging image, fetch checksum-pinned AppImage tools, build
 and verify the portable application, then assemble and verify its AppImage and tar.gz.
-Results are written to dist/; existing artifacts are never removed.
+Each ./build.sh run uses a fresh directory under dist/builds/linux-x86_64/.
 
-  --reuse-bundle       Verify and package the existing dist/MediaWrapper folder.
+  --reuse-bundle       Verify a portable bundle from an explicit --output-dir.
   --skip-image-build  Use the existing media-wrapper-builder:compat Docker image.
   --output-dir DIR    Output directory (relative paths are relative to the repository).
   --offline-tools     Use cached AppImage tools without any downloads.
@@ -26,6 +26,7 @@ HELP
 reuse_bundle=0
 skip_image_build=0
 output_argument=dist
+fresh_output=0
 release_arguments=()
 container_network=()
 tools_manifest=
@@ -35,11 +36,12 @@ while [[ $# -gt 0 ]]; do
         --skip-image-build) skip_image_build=1; shift ;;
         --offline-tools) release_arguments+=("$1"); container_network=(--network none); shift ;;
         --skip-tests) release_arguments+=("$1"); shift ;;
+        --fresh-output) fresh_output=1; shift ;;
         --output-dir)
             if [[ $# -lt 2 || -z $2 || $2 == --* ]]; then
                 printf '%s\n' '--output-dir requires a directory.' >&2; exit 2
             fi
-            output_argument=$2; shift 2 ;;
+            output_argument=$2; fresh_output=0; shift 2 ;;
         --tools-manifest)
             if [[ $# -lt 2 || -z $2 || $2 == --* || $2 == /* ]]; then
                 printf '%s\n' '--tools-manifest requires a file relative to the repository.' >&2; exit 2
@@ -60,24 +62,33 @@ repository=$(CDPATH= cd -- "$script_directory/.." && pwd)
 if [[ -n $tools_manifest ]]; then
     release_arguments+=(--tools-manifest "/work/$tools_manifest")
 fi
-case "$output_argument" in
-    /*) output_dir=$output_argument ;;
-    *) output_dir="$repository/$output_argument" ;;
-esac
-bundle="$output_dir/MediaWrapper"
-if [[ $reuse_bundle == 1 ]]; then
-    if [[ ! -d "$bundle" ]]; then
+if [[ $fresh_output == 1 && $reuse_bundle == 1 ]]; then
+    printf '%s\n' '--reuse-bundle requires an explicit --output-dir with ./build.sh.' >&2
+    exit 2
+fi
+if [[ $fresh_output == 0 ]]; then
+    case "$output_argument" in
+        /*) output_dir=$output_argument ;;
+        *) output_dir="$repository/$output_argument" ;;
+    esac
+    bundle="$output_dir/MediaWrapper"
+    if [[ $reuse_bundle == 1 && ! -d "$bundle" ]]; then
         printf 'No portable bundle found at %s; omit --reuse-bundle to build it.\n' "$bundle" >&2
         exit 1
+    elif [[ $reuse_bundle == 0 && -e "$bundle" ]]; then
+        printf '%s already exists. Choose --output-dir, use --reuse-bundle or preserve the previous build elsewhere.\n' "$bundle" >&2
+        exit 1
     fi
-elif [[ -e "$bundle" ]]; then
-    printf '%s already exists. Choose --output-dir, use --reuse-bundle or preserve the previous build elsewhere.\n' "$bundle" >&2
-    exit 1
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
     printf 'Docker is required. Install Docker and start its daemon before building.\n' >&2
     exit 1
+fi
+if [[ $fresh_output == 1 ]]; then
+    output_root="$repository/dist/builds/linux-x86_64"
+    mkdir -p "$output_root"
+    output_dir=$(mktemp -d "$output_root/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
 fi
 mkdir -p "$output_dir/reports"
 output_dir=$(CDPATH= cd -- "$output_dir" && pwd)
@@ -88,7 +99,14 @@ write_status() {
 }
 write_status false
 trap 'write_status false; printf "Build failed; logs: %s\n" "$reports" >&2' ERR
-docker info >"$reports/docker-info.log" 2>&1
+if docker info >"$reports/docker-info.log" 2>&1; then
+    printf 'Output: %s\nLogs: %s\n' "$output_dir" "$reports"
+else
+    code=$?
+    cat "$reports/docker-info.log" >&2
+    printf 'Docker is unavailable. Start the daemon and check your Docker access.\nLogs: %s\n' "$reports" >&2
+    exit "$code"
+fi
 
 builder_image=media-wrapper-builder:compat
 if [[ $skip_image_build == 0 ]]; then
